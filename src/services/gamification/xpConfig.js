@@ -1,0 +1,22 @@
+// src/services/gamification/xpConfig.js
+
+export const XP_VALUES = {
+  COMPLETE_PROFILE: 20,
+  ADD_FIRST_SUBJECT: 10,
+  ADD_TOPIC: 10,
+  MEANINGFUL_STUDY_SESSION: 25,
+  COMPLETE_STUDY_TASK: 15,
+  REVIEW_DUE_TOPIC: 10,
+  MASTER_TOPIC: 50,
+  COMPLETE_QUIZ: 20,
+  HIGH_QUIZ_SCORE_BONUS_TIER_1: 15, // 70% - 84%
+  HIGH_QUIZ_SCORE_BONUS_TIER_2: 30, // 85% - 94%
+  HIGH_QUIZ_SCORE_BONUS_TIER_3: 40, // 95% - 100%
+  DAILY_STREAK_BONUS: 15,
+  COMPLETE_WEEKLY_GOAL: 50,
+};
+
+export const ANTI_ABUSE_RULES = {
+  MIN_STUDY_SESSION_SECONDS: 30, // Minimum active focus time to earn session XP
+  MIN_STUDY_SESSION_PERCENT: 50, // Minimum % of planned target completed
+};

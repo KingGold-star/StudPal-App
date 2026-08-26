@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="100%" height="100%" fill="none">
+  <defs>
+    <!-- Soft Glow Background -->
+    <radialGradient id="bgGlow3" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#EEF2FF" stop-opacity="0.9"/>
+      <stop offset="50%" stop-color="#E0E7FF" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Navy Card Gradient -->
+    <linearGradient id="aiCardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#112B8A"/>
+      <stop offset="100%" stop-color="#2D62FF"/>
+    </linearGradient>
+
+    <filter id="cardShadow3" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#112B8A" flood-opacity="0.14"/>
+    </filter>
+  </defs>
+
+  <!-- Ambient Glow -->
+  <circle cx="200" cy="200" r="160" fill="url(#bgGlow3)"/>
+
+  <!-- Connecting AI Rays -->
+  <path d="M200 180 L100 110" stroke="#818CF8" stroke-width="2" stroke-dasharray="4 4"/>
+  <path d="M200 180 L300 110" stroke="#818CF8" stroke-width="2" stroke-dasharray="4 4"/>
+  <path d="M200 180 L100 270" stroke="#818CF8" stroke-width="2" stroke-dasharray="4 4"/>
+  <path d="M200 180 L300 270" stroke="#818CF8" stroke-width="2" stroke-dasharray="4 4"/>
+
+  <!-- Center Hub: AI Tutor Mascot Core -->
+  <g filter="url(#cardShadow3)">
+    <circle cx="200" cy="180" r="46" fill="url(#aiCardGrad)"/>
+    <circle cx="200" cy="180" r="42" fill="#112B8A" stroke="#818CF8" stroke-width="2"/>
+    <text x="181" y="193" font-size="36">🤖</text>
+  </g>
+
+  <!-- AI Badge Tag -->
+  <g filter="url(#cardShadow3)">
+    <rect x="150" y="234" width="100" height="28" rx="14" fill="#2D62FF"/>
+    <text x="200" y="253" font-family="Inter" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">AI Tutor Active ✨</text>
+  </g>
+
+  <!-- Top-Left Card: Concept Simplifier -->
+  <g filter="url(#cardShadow3)">
+    <rect x="36" y="65" width="144" height="66" rx="12" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.5"/>
+    <rect x="48" y="77" width="28" height="28" rx="8" fill="#EEF2FF"/>
+    <text x="56" y="96" font-family="Inter" font-size="14" fill="#2D62FF">💡</text>
+
+    <text x="84" y="88" font-family="Inter" font-size="12" font-weight="700" fill="#0B0B0F">Concept Explainer</text>
+    <text x="84" y="102" font-family="Inter" font-size="10" font-weight="500" fill="#2D62FF">Simplified for you</text>
+    <rect x="84" y="110" width="80" height="4" rx="2" fill="#2D62FF"/>
+  </g>
+
+  <!-- Top-Right Card: AI Quiz Generator -->
+  <g filter="url(#cardShadow3)">
+    <rect x="220" y="65" width="144" height="66" rx="12" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.5"/>
+    <rect x="232" y="77" width="28" height="28" rx="8" fill="#FEF3C7"/>
+    <text x="240" y="96" font-family="Inter" font-size="14">🎯</text>
+
+    <text x="268" y="88" font-family="Inter" font-size="12" font-weight="700" fill="#0B0B0F">Smart Quizzes</text>
+    <text x="268" y="102" font-family="Inter" font-size="10" font-weight="500" fill="#D97706">Tailored practice</text>
+    <rect x="268" y="110" width="80" height="4" rx="2" fill="#F59E0B"/>
+  </g>
+
+  <!-- Bottom-Left Card: Study Plan -->
+  <g filter="url(#cardShadow3)">
+    <rect x="36" y="270" width="144" height="66" rx="12" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.5"/>
+    <rect x="48" y="282" width="28" height="28" rx="8" fill="#F0FDF4"/>
+    <text x="56" y="301" font-family="Inter" font-size="14">📅</text>
+
+    <text x="84" y="293" font-family="Inter" font-size="12" font-weight="700" fill="#0B0B0F">AI Study Plan</text>
+    <text x="84" y="307" font-family="Inter" font-size="10" font-weight="500" fill="#22C55E">Auto Scheduled</text>
+    <rect x="84" y="315" width="80" height="4" rx="2" fill="#22C55E"/>
+  </g>
+
+  <!-- Bottom-Right Card: Weak Area Analyzer -->
+  <g filter="url(#cardShadow3)">
+    <rect x="220" y="270" width="144" height="66" rx="12" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.5"/>
+    <rect x="232" y="282" width="28" height="28" rx="8" fill="#EEF2FF"/>
+    <text x="240" y="301" font-family="Inter" font-size="14">📊</text>
+
+    <text x="268" y="293" font-family="Inter" font-size="12" font-weight="700" fill="#0B0B0F">Weak Area Focus</text>
+    <text x="268" y="307" font-family="Inter" font-size="10" font-weight="500" fill="#2D62FF">Targeted review</text>
+    <rect x="268" y="315" width="80" height="4" rx="2" fill="#2D62FF"/>
+  </g>
+
+  <!-- Sparkles -->
+  <text x="20" y="200" font-size="16" fill="#2D62FF">✦</text>
+  <text x="365" y="200" font-size="16" fill="#F59E0B">✦</text>
+</svg>

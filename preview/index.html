@@ -1,0 +1,2506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StudPal - Device Inspector Preview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #112B8A;
+      --brand-orange: #FF5B00;
+      --secondary: #8F95A5;
+      --accent: #2D62FF;
+      --bg-white: #FFFFFF;
+      --text-dark: #0B0B0F;
+      --border-light: #E2E8F0;
+      
+      --sidebar-bg: #121214;
+      --sidebar-card-hover: rgba(255, 255, 255, 0.08);
+      --sidebar-card-active: rgba(255, 255, 255, 0.14);
+      --sidebar-text: #FFFFFF;
+      --sidebar-muted: #8F95A5;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      background: #FAFAFA;
+      color: var(--text-dark);
+      height: 100vh;
+      width: 100vw;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* Main Stage */
+    .main-canvas {
+      flex: 1;
+      height: 100vh;
+      background: #F4F4F5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: auto;
+      padding: 24px;
+    }
+
+    /* Device Mockup Wrapper */
+    .device-mockup {
+      position: relative;
+      background: #000000;
+      transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      margin: auto;
+    }
+
+    /* Realistic Devices */
+    .device-mockup.iphone-15-pro {
+      width: 393px;
+      height: 830px;
+      border-radius: 54px;
+      padding: 12px;
+      box-shadow: 0 0 0 3px #3F3F46, 0 0 0 7px #18181B, 0 25px 60px -10px rgba(0, 0, 0, 0.4);
+    }
+
+    .device-mockup.iphone-13 {
+      width: 390px;
+      height: 844px;
+      border-radius: 50px;
+      padding: 12px;
+      box-shadow: 0 0 0 3px #52525B, 0 0 0 7px #18181B, 0 25px 60px -10px rgba(0, 0, 0, 0.4);
+    }
+
+    .device-mockup.iphone-13-promax {
+      width: 428px;
+      height: 926px;
+      border-radius: 54px;
+      padding: 13px;
+      box-shadow: 0 0 0 4px #52525B, 0 0 0 8px #18181B, 0 30px 70px -10px rgba(0, 0, 0, 0.45);
+    }
+
+    .device-mockup.iphone-se {
+      width: 375px;
+      height: 667px;
+      border-radius: 40px;
+      padding: 36px 12px;
+      box-shadow: 0 0 0 4px #27272A, 0 0 0 7px #09090B, 0 20px 50px -10px rgba(0, 0, 0, 0.35);
+    }
+
+    .device-mockup.ipad-pro {
+      width: 600px;
+      height: 800px;
+      border-radius: 36px;
+      padding: 16px;
+      box-shadow: 0 0 0 3px #3F3F46, 0 0 0 8px #18181B, 0 30px 70px -10px rgba(0, 0, 0, 0.4);
+    }
+
+    .device-mockup.pixel-8-pro {
+      width: 412px;
+      height: 892px;
+      border-radius: 42px;
+      padding: 12px;
+      box-shadow: 0 0 0 3px #3F3F46, 0 0 0 6px #18181B, 0 25px 60px -10px rgba(0, 0, 0, 0.4);
+    }
+
+    .device-mockup.galaxy-s24 {
+      width: 412px;
+      height: 915px;
+      border-radius: 38px;
+      padding: 12px;
+      box-shadow: 0 0 0 3px #27272A, 0 0 0 6px #09090B, 0 25px 60px -10px rgba(0, 0, 0, 0.4);
+    }
+
+    .device-mockup.macbook-pro {
+      width: 800px;
+      height: 520px;
+      border-radius: 20px 20px 0 0;
+      padding: 14px 14px 0 14px;
+      background: #0D0D0E;
+      box-shadow: 0 30px 80px -15px rgba(0, 0, 0, 0.5);
+    }
+
+    .macbook-base {
+      display: none;
+      position: absolute;
+      bottom: -16px;
+      left: -40px;
+      right: -40px;
+      height: 16px;
+      background: #8E8E93;
+      border-radius: 0 0 14px 14px;
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+    }
+
+    .device-mockup.macbook-pro .macbook-base {
+      display: block;
+    }
+
+    /* Screen Frame */
+    .phone-screen {
+      width: 100%;
+      height: 100%;
+      background: #FFFFFF;
+      border-radius: 42px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05);
+      transition: background 0.25s ease;
+    }
+
+    .phone-screen.dark {
+      background: #070B19;
+      color: #F8FAFC;
+    }
+
+    /* Dynamic Island / Cutout */
+    .sensor-cutout {
+      position: absolute;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .sensor-cutout.dynamic-island {
+      width: 110px;
+      height: 28px;
+      background: #000000;
+      border-radius: 20px;
+    }
+
+    .sensor-cutout.punch-hole {
+      width: 12px;
+      height: 12px;
+      background: #000000;
+      border-radius: 50%;
+      top: 14px;
+    }
+
+    .sensor-cutout.hidden {
+      display: none;
+    }
+
+    .camera-dot {
+      width: 9px;
+      height: 9px;
+      background: #111A2E;
+      border-radius: 50%;
+      border: 1px solid #1E293B;
+    }
+
+    /* Status Bar */
+    .status-bar {
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 24px 0;
+      font-size: 13px;
+      font-weight: 600;
+      z-index: 99;
+      color: var(--text-dark);
+      flex-shrink: 0;
+    }
+
+    .phone-screen.dark .status-bar {
+      color: #F8FAFC;
+    }
+
+    /* Header Nav */
+    .brand-header {
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      padding: 0 20px;
+      flex-shrink: 0;
+    }
+
+    .brand-logo-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .cap-icon {
+      font-size: 20px;
+    }
+
+    .brand-title {
+      font-size: 21px;
+      font-weight: 800;
+      color: var(--primary);
+      letter-spacing: -0.4px;
+    }
+
+    .phone-screen.dark .brand-title {
+      color: #FFFFFF;
+    }
+
+    .brand-dot {
+      color: var(--brand-orange);
+    }
+
+    /* Squircle 40x40 Back Button */
+    .btn-icon-back {
+      position: absolute;
+      left: 18px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 40px;
+      height: 40px;
+      background: #FFFFFF;
+      border: 1.5px solid #E2E8F0;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--text-dark);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+      transition: all 0.2s ease;
+    }
+
+    .phone-screen.dark .btn-icon-back {
+      background: #0F172A;
+      border-color: #1E293B;
+      color: #FFFFFF;
+    }
+
+    .btn-icon-back svg {
+      width: 18px;
+      height: 18px;
+      stroke-width: 2.5;
+    }
+
+    /* Onboarding Content Container */
+    .onboarding-container {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      padding: 8px 22px 22px;
+      justify-content: space-between;
+      overflow-y: auto;
+    }
+
+    .hero-stage {
+      flex: 1;
+      min-height: 250px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .hero-img {
+      max-width: 90%;
+      max-height: 260px;
+      object-fit: contain;
+      filter: drop-shadow(0 16px 28px rgba(17, 43, 138, 0.12));
+      transition: all 0.3s ease;
+    }
+
+    .content-area {
+      text-align: center;
+      margin: 10px 0 16px;
+    }
+
+    .headline-black {
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--text-dark);
+      line-height: 1.2;
+      letter-spacing: -0.6px;
+    }
+
+    .phone-screen.dark .headline-black {
+      color: #FFFFFF;
+    }
+
+    .headline-accent {
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--accent);
+      line-height: 1.2;
+      letter-spacing: -0.6px;
+      margin-bottom: 8px;
+    }
+
+    .subtitle-text {
+      font-size: 13.5px;
+      line-height: 1.5;
+      color: var(--secondary);
+      max-width: 320px;
+      margin: 0 auto;
+    }
+
+    .phone-screen.dark .subtitle-text {
+      color: #94A3B8;
+    }
+
+    /* Step Indicator Dots */
+    .step-dots {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin-bottom: 18px;
+    }
+
+    .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 3px;
+      background: #CBD5E1;
+      transition: all 0.3s ease;
+    }
+
+    .phone-screen.dark .dot {
+      background: #334155;
+    }
+
+    .dot.active {
+      width: 22px;
+      background: var(--accent);
+      border-radius: 4px;
+    }
+
+    /* Role Selection View (Screen 4) */
+    .role-selection-container {
+      display: none;
+      flex-direction: column;
+      flex: 1;
+      padding: 12px 20px 20px;
+    }
+
+    .step-badge {
+      align-self: flex-start;
+      background: rgba(45, 98, 255, 0.1);
+      color: var(--accent);
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+    }
+
+    .role-title {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text-dark);
+      letter-spacing: -0.5px;
+      line-height: 1.25;
+      margin-bottom: 6px;
+    }
+
+    .phone-screen.dark .role-title { color: #F8FAFC; }
+
+    .role-subtitle {
+      font-size: 13.5px;
+      color: var(--secondary);
+      line-height: 1.45;
+      margin-bottom: 16px;
+    }
+
+    .role-cards-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex: 1;
+    }
+
+    .role-card {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 16px;
+      border-radius: 20px;
+      background: #FFFFFF;
+      border: 1.5px solid #E2E8F0;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+      transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .phone-screen.dark .role-card {
+      background: #0F172A;
+      border-color: #1E293B;
+    }
+
+    .role-card.active {
+      background: linear-gradient(135deg, #F0F6FF 0%, #E0EDFF 100%);
+      border-color: var(--accent);
+      border-width: 2px;
+      box-shadow: 0 8px 20px rgba(45, 98, 255, 0.18);
+    }
+
+    .phone-screen.dark .role-card.active {
+      background: linear-gradient(135deg, #1E3A8A 0%, #112B8A 100%);
+      border-color: var(--accent);
+    }
+
+    .role-emoji-box {
+      width: 48px;
+      height: 48px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #F1F5F9 0%, #E2E8F0 100%);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+    }
+
+    .role-card.active .role-emoji-box {
+      background: linear-gradient(135deg, var(--accent) 0%, var(--primary) 100%);
+    }
+
+    .role-info { flex: 1; }
+
+    .role-header-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+
+    .role-name { font-size: 16px; font-weight: 700; color: var(--text-dark); }
+    .phone-screen.dark .role-name { color: #F8FAFC; }
+
+    .role-tag-pill {
+      font-size: 9.5px;
+      font-weight: 700;
+      color: var(--secondary);
+      background: #F1F5F9;
+      padding: 2px 7px;
+      border-radius: 6px;
+    }
+
+    .role-card.active .role-tag-pill {
+      color: var(--accent);
+      background: rgba(45, 98, 255, 0.15);
+    }
+
+    .role-desc { font-size: 12.5px; line-height: 1.42; color: var(--secondary); }
+
+    .role-radio {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 2px solid #CBD5E1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-left: auto;
+    }
+
+    .role-card.active .role-radio {
+      border-color: var(--accent);
+      background: linear-gradient(135deg, var(--accent), var(--primary));
+    }
+
+    .role-radio-dot { width: 7px; height: 7px; border-radius: 50%; background: #FFFFFF; display: none; }
+    .role-card.active .role-radio-dot { display: block; }
+
+    /* Functional Industry-Level Authentication View (Screen 5) */
+    .auth-container {
+      display: none;
+      flex-direction: column;
+      flex: 1;
+      padding: 12px 20px 20px;
+    }
+
+    .auth-title {
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--text-dark);
+      text-align: center;
+      letter-spacing: -0.6px;
+      margin-bottom: 4px;
+    }
+
+    .phone-screen.dark .auth-title { color: #F8FAFC; }
+
+    .auth-subtitle {
+      font-size: 13.5px;
+      color: var(--secondary);
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .auth-form {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .input-field {
+      width: 100%;
+      height: 52px;
+      padding: 0 44px 0 16px;
+      border-radius: 14px;
+      border: 1.2px solid #E2E8F0;
+      background: #FFFFFF;
+      font-size: 14.5px;
+      outline: none;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+    }
+
+    .phone-screen.dark .input-field {
+      background: #0F172A;
+      border-color: #1E293B;
+      color: #FFFFFF;
+    }
+
+    .input-field:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(45, 98, 255, 0.15);
+    }
+
+    .input-field.error {
+      border-color: #EF4444 !important;
+    }
+
+    .input-icon-right {
+      position: absolute;
+      right: 14px;
+      top: 16px;
+      color: var(--secondary);
+      cursor: pointer;
+      font-size: 18px;
+      user-select: none;
+    }
+
+    .error-msg {
+      font-size: 11.5px;
+      color: #EF4444;
+      font-weight: 500;
+      margin-top: 4px;
+      margin-left: 6px;
+      display: none;
+    }
+
+    .auth-options-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      font-size: 13px;
+    }
+
+    .remember-me {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--secondary);
+      cursor: pointer;
+    }
+
+    .forgot-link {
+      color: var(--primary);
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .phone-screen.dark .forgot-link { color: var(--accent); }
+
+    .social-divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 16px 0 12px;
+    }
+
+    .social-divider-line {
+      flex: 1;
+      height: 1px;
+      background: #E2E8F0;
+    }
+
+    .phone-screen.dark .social-divider-line { background: #1E293B; }
+
+    .social-divider-text {
+      font-size: 12px;
+      color: var(--secondary);
+      font-weight: 500;
+    }
+
+    .social-buttons-row {
+      display: flex;
+      justify-content: center;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+
+    .social-btn {
+      width: 76px;
+      height: 52px;
+      border-radius: 16px;
+      border: 1.2px solid #E2E8F0;
+      background: #FFFFFF;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      transition: all 0.2s ease;
+    }
+
+    .phone-screen.dark .social-btn {
+      background: #0F172A;
+      border-color: #1E293B;
+    }
+
+    .social-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+      border-color: #CBD5E1;
+    }
+
+    .social-icon-svg {
+      width: 22px;
+      height: 22px;
+    }
+
+    .auth-footer {
+      text-align: center;
+      font-size: 13.5px;
+      color: var(--secondary);
+      margin-top: 8px;
+    }
+
+    .auth-footer-link {
+      color: var(--primary);
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .phone-screen.dark .auth-footer-link { color: var(--accent); }
+
+    /* Primary Action Button (#112B8A Navy, 12px Radius) */
+    .btn-next {
+      width: 100%;
+      height: 54px;
+      background: var(--primary);
+      color: #FFFFFF;
+      border: none;
+      border-radius: 12px;
+      font-size: 15.5px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 8px 20px -4px rgba(17, 43, 138, 0.35);
+      transition: all 0.2s ease;
+    }
+
+    .phone-screen.dark .btn-next { background: var(--accent); }
+
+    .btn-next:hover {
+      filter: brightness(1.1);
+      transform: translateY(-1px);
+    }
+
+    /* =========================================
+       SCREEN 6: MAIN HOME / DASHBOARD STYLES
+       ========================================= */
+    .dashboard-container {
+      display: none;
+      flex-direction: column;
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+      background: #F8FAFC;
+    }
+
+    .phone-screen.dark .dashboard-container {
+      background: #070B19;
+    }
+
+    .dashboard-scroll-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 18px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .dashboard-scroll-body::-webkit-scrollbar {
+      display: none;
+    }
+
+    /* Dashboard Header */
+    .dash-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .dash-profile-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .dash-avatar-wrapper {
+      position: relative;
+      width: 44px;
+      height: 44px;
+      cursor: pointer;
+    }
+
+    .dash-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--primary) 100%);
+      color: #FFFFFF;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 800;
+      box-shadow: 0 4px 12px rgba(45, 98, 255, 0.3);
+    }
+
+    .dash-avatar-badge {
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #22C55E;
+      border: 2px solid #FFFFFF;
+    }
+
+    .phone-screen.dark .dash-avatar-badge {
+      border-color: #0F172A;
+    }
+
+    .dash-greeting-box {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .dash-greeting-name {
+      font-size: 17.5px;
+      font-weight: 800;
+      color: var(--text-dark);
+      letter-spacing: -0.3px;
+    }
+
+    .phone-screen.dark .dash-greeting-name {
+      color: #F8FAFC;
+    }
+
+    .dash-greeting-sub {
+      font-size: 12px;
+      color: var(--secondary);
+      font-weight: 500;
+    }
+
+    .dash-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .dash-streak-pill {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 12px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, #FFF4EC 0%, #FFE6D5 100%);
+      border: 1.2px solid rgba(255, 91, 0, 0.4);
+      color: var(--brand-orange);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(255, 91, 0, 0.12);
+      transition: all 0.2s ease;
+    }
+
+    .phone-screen.dark .dash-streak-pill {
+      background: linear-gradient(135deg, #2D1405 0%, #1A0B03 100%);
+      border-color: rgba(255, 91, 0, 0.3);
+    }
+
+    .dash-streak-pill:hover {
+      transform: scale(1.03);
+    }
+
+    .dash-notif-btn {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      cursor: pointer;
+      position: relative;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+    }
+
+    .phone-screen.dark .dash-notif-btn {
+      background: #0F172A;
+      border-color: #1E293B;
+      color: #FFFFFF;
+    }
+
+    .dash-notif-dot {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 7px;
+      height: 7px;
+      background: var(--brand-orange);
+      border-radius: 50%;
+    }
+
+    /* AI Quick Prompt Search Bar */
+    .dash-search-container {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .dash-search-card {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 12px;
+      height: 52px;
+      border-radius: 16px;
+      background: #FFFFFF;
+      border: 1.2px solid #E2E8F0;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.03);
+      transition: all 0.2s ease;
+    }
+
+    .phone-screen.dark .dash-search-card {
+      background: #0F172A;
+      border-color: #1E293B;
+    }
+
+    .dash-ai-spark-box {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent) 0%, #6366F1 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #FFFFFF;
+      font-size: 14px;
+      box-shadow: 0 2px 6px rgba(45, 98, 255, 0.35);
+    }
+
+    .dash-search-input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      outline: none;
+      font-size: 13.5px;
+      color: var(--text-dark);
+    }
+
+    .phone-screen.dark .dash-search-input {
+      color: #FFFFFF;
+    }
+
+    .dash-search-input::placeholder {
+      color: #94A3B8;
+    }
+
+    .dash-search-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dash-tool-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 17px;
+      padding: 4px;
+      opacity: 0.75;
+      transition: opacity 0.2s ease;
+    }
+
+    .dash-tool-btn:hover {
+      opacity: 1;
+    }
+
+    /* Quick Prompt Pills */
+    .dash-quick-pills {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+    }
+
+    .dash-quick-pills::-webkit-scrollbar {
+      display: none;
+    }
+
+    .dash-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 11px;
+      border-radius: 20px;
+      background: #F1F5F9;
+      border: 1px solid #E2E8F0;
+      font-size: 11.5px;
+      font-weight: 500;
+      color: #475569;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .phone-screen.dark .dash-pill {
+      background: #16203A;
+      border-color: #22325A;
+      color: #CBD5E1;
+    }
+
+    .dash-pill:hover {
+      background: #E2E8F0;
+      color: var(--primary);
+    }
+
+    /* Daily Goal Claymorphic Card */
+    .dash-goal-card {
+      padding: 18px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, #112B8A 0%, #1E3A8A 100%);
+      border: 1.2px solid rgba(45, 98, 255, 0.4);
+      color: #FFFFFF;
+      box-shadow: 0 10px 24px -4px rgba(17, 43, 138, 0.4);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .phone-screen.dark .dash-goal-card {
+      background: linear-gradient(135deg, #131F3F 0%, #0F172A 100%);
+      border-color: #263C6D;
+    }
+
+    .dash-goal-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .dash-goal-heading {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14.5px;
+      font-weight: 700;
+    }
+
+    .dash-goal-badge {
+      background: rgba(255, 91, 0, 0.9);
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .dash-goal-body {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .dash-progress-ring {
+      width: 60px;
+      height: 60px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .dash-ring-svg {
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+    }
+
+    .dash-ring-circle-bg {
+      fill: none;
+      stroke: rgba(255, 255, 255, 0.2);
+      stroke-width: 5;
+    }
+
+    .dash-ring-circle-val {
+      fill: none;
+      stroke: var(--accent);
+      stroke-width: 5;
+      stroke-dasharray: 157;
+      stroke-dashoffset: 39; /* 75% complete */
+      stroke-linecap: round;
+      transition: stroke-dashoffset 0.5s ease;
+    }
+
+    .dash-ring-label {
+      position: absolute;
+      font-size: 13.5px;
+      font-weight: 800;
+    }
+
+    .dash-goal-stats {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .dash-goal-stat-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .dash-goal-stat-main {
+      font-size: 15.5px;
+      font-weight: 700;
+    }
+
+    .dash-goal-stat-xp {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #93C5FD;
+    }
+
+    .dash-bar-bg {
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 4px 0;
+    }
+
+    .dash-bar-fill {
+      width: 75%;
+      height: 100%;
+      background: var(--accent);
+      border-radius: 4px;
+    }
+
+    .dash-goal-hint {
+      font-size: 11px;
+      opacity: 0.85;
+    }
+
+    .dash-focus-btn {
+      width: 100%;
+      padding: 10px;
+      border-radius: 12px;
+      background: #FFFFFF;
+      color: var(--primary);
+      border: none;
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      transition: all 0.2s ease;
+    }
+
+    .dash-focus-btn:hover {
+      background: #F8FAFC;
+      transform: translateY(-1px);
+    }
+
+    /* Section Headers */
+    .dash-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 2px;
+    }
+
+    .dash-section-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-dark);
+      letter-spacing: -0.3px;
+    }
+
+    .phone-screen.dark .dash-section-title {
+      color: #F8FAFC;
+    }
+
+    .dash-see-all {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--accent);
+      cursor: pointer;
+    }
+
+    /* Subject Cards Carousel */
+    .dash-subjects-scroll {
+      display: flex;
+      gap: 14px;
+      overflow-x: auto;
+      padding: 4px 2px 8px;
+    }
+
+    .dash-subjects-scroll::-webkit-scrollbar {
+      display: none;
+    }
+
+    .dash-subject-card {
+      width: 210px;
+      flex-shrink: 0;
+      padding: 15px;
+      border-radius: 20px;
+      background: #FFFFFF;
+      border: 1.2px solid #E2E8F0;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .phone-screen.dark .dash-subject-card {
+      background: #0F172A;
+      border-color: #1E293B;
+    }
+
+    .dash-subject-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+    }
+
+    .dash-sub-top {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .dash-sub-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    .dash-sub-info {
+      flex: 1;
+    }
+
+    .dash-sub-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-dark);
+    }
+
+    .phone-screen.dark .dash-sub-name { color: #FFFFFF; }
+
+    .dash-sub-count {
+      font-size: 11px;
+      color: var(--secondary);
+    }
+
+    .dash-sub-topic-tag {
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+    }
+
+    .dash-sub-topic-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #1E293B;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .phone-screen.dark .dash-sub-topic-title { color: #E2E8F0; }
+
+    .dash-sub-mastery-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 10.5px;
+      color: var(--secondary);
+      margin-bottom: 4px;
+    }
+
+    .dash-sub-bar-bg {
+      width: 100%;
+      height: 5px;
+      background: #F1F5F9;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .phone-screen.dark .dash-sub-bar-bg {
+      background: #1E293B;
+    }
+
+    .dash-sub-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+    }
+
+    /* Spaced Repetition (SRS) Queue */
+    .dash-srs-box {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .dash-srs-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: #FFFFFF;
+      border: 1.1px solid #E2E8F0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .phone-screen.dark .dash-srs-item {
+      background: #0F172A;
+      border-color: #1E293B;
+    }
+
+    .dash-srs-item.overdue {
+      border-color: rgba(239, 68, 68, 0.4);
+    }
+
+    .dash-srs-item:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 14px rgba(0,0,0,0.06);
+    }
+
+    .dash-srs-emoji {
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 17px;
+    }
+
+    .dash-srs-content {
+      flex: 1;
+    }
+
+    .dash-srs-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #0F172A;
+      margin-bottom: 2px;
+    }
+
+    .phone-screen.dark .dash-srs-title { color: #F8FAFC; }
+
+    .dash-srs-meta {
+      font-size: 11px;
+      color: var(--secondary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dash-srs-badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3px 7px;
+      border-radius: 6px;
+      background: #F1F5F9;
+      color: #64748B;
+    }
+
+    .dash-srs-badge.overdue {
+      background: rgba(239, 68, 68, 0.12);
+      color: #EF4444;
+    }
+
+    .dash-srs-cta-btn {
+      width: 100%;
+      padding: 13px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--primary) 100%);
+      color: #FFFFFF;
+      border: none;
+      font-size: 13.5px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      box-shadow: 0 6px 16px rgba(45, 98, 255, 0.3);
+      transition: all 0.2s ease;
+    }
+
+    .dash-srs-cta-btn:hover {
+      filter: brightness(1.08);
+      transform: translateY(-1px);
+    }
+
+    /* Bottom Navigation Bar */
+    .dash-bottom-nav {
+      height: 66px;
+      background: #FFFFFF;
+      border-top: 1px solid #E2E8F0;
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      padding: 0 10px;
+      flex-shrink: 0;
+      box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.04);
+      z-index: 10;
+    }
+
+    .phone-screen.dark .dash-bottom-nav {
+      background: #0F172A;
+      border-color: #1E293B;
+    }
+
+    .dash-nav-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--secondary);
+      font-size: 11px;
+      font-weight: 500;
+      padding: 6px 10px;
+      border-radius: 12px;
+      transition: all 0.2s ease;
+    }
+
+    .dash-nav-btn.active {
+      color: var(--accent);
+      font-weight: 700;
+      background: #EFF4FF;
+    }
+
+    .phone-screen.dark .dash-nav-btn.active {
+      background: rgba(45, 98, 255, 0.15);
+    }
+
+    .dash-nav-special-btn {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 8px 14px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--primary) 100%);
+      color: #FFFFFF;
+      border: none;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(45, 98, 255, 0.35);
+      transition: all 0.2s ease;
+    }
+
+    .dash-nav-special-btn:hover {
+      transform: scale(1.04);
+    }
+
+    /* RIGHT SIDEBAR PANEL */
+    .sidebar-panel {
+      width: 320px;
+      height: 100vh;
+      background: var(--sidebar-bg);
+      border-left: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      flex-direction: column;
+      color: var(--sidebar-text);
+      z-index: 500;
+    }
+
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .sidebar-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 17px;
+      font-weight: 700;
+    }
+
+    .btn-back-sidebar {
+      background: none;
+      border: none;
+      color: #FFFFFF;
+      font-size: 18px;
+      cursor: pointer;
+    }
+
+    .btn-theme-toggle {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #FFFFFF;
+      padding: 5px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .tab-bar {
+      display: flex;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    .tab-item {
+      flex: 1;
+      padding: 12px 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #A1A1AA;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+    }
+
+    .tab-item.active {
+      color: #FFFFFF;
+      border-bottom-color: #FFFFFF;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .device-list-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 12px;
+    }
+
+    .section-header {
+      font-size: 11px;
+      font-weight: 700;
+      color: #71717A;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin: 16px 10px 8px;
+    }
+
+    .device-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      margin-bottom: 4px;
+    }
+
+    .device-item.active {
+      background: var(--sidebar-card-active);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .device-item-info { flex: 1; }
+    .device-item-name { font-size: 14px; font-weight: 600; color: #FFFFFF; }
+    .device-item-res { font-size: 11px; color: #71717A; }
+
+    /* Screen Selector Sidebar Section */
+    .screen-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-bottom: 4px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #CBD5E1;
+      transition: all 0.15s ease;
+    }
+
+    .screen-item:hover {
+      background: var(--sidebar-card-hover);
+      color: #FFFFFF;
+    }
+
+    .screen-item.active {
+      background: var(--sidebar-card-active);
+      color: #FFFFFF;
+      font-weight: 700;
+      border-left: 3px solid var(--accent);
+    }
+
+    /* Toast Notification */
+    .toast-msg {
+      position: absolute;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #0F172A;
+      color: #FFFFFF;
+      padding: 10px 18px;
+      border-radius: 20px;
+      font-size: 12.5px;
+      font-weight: 600;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 2000;
+      white-space: nowrap;
+    }
+
+    .toast-msg.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Main Canvas Stage -->
+  <div class="main-canvas">
+    <div class="device-mockup iphone-15-pro" id="deviceMockup">
+      <div class="macbook-base"></div>
+      <div class="sensor-cutout dynamic-island" id="sensorCutout">
+        <div class="camera-dot"></div>
+      </div>
+
+      <div class="phone-screen" id="phoneScreen">
+        <!-- Status Bar -->
+        <div class="status-bar">
+          <span>9:41</span>
+          <div style="display: flex; gap: 4px; font-size: 11px;">
+            <span>📶</span><span>🔋</span>
+          </div>
+        </div>
+
+        <!-- Header Nav (Screens 1 to 5) -->
+        <div class="brand-header" id="brandHeader">
+          <button class="btn-icon-back" id="backBtn" onclick="goBack()" style="visibility: hidden;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+            </svg>
+          </button>
+
+          <div class="brand-logo-group">
+            <span class="cap-icon">🎓</span>
+            <span class="brand-title">StudPal<span class="brand-dot">.</span></span>
+          </div>
+        </div>
+
+        <!-- Onboarding View (Screens 1, 2, 3) -->
+        <div class="onboarding-container" id="onboardingContainer">
+          <div class="hero-stage" id="heroStage">
+            <img id="heroImg" src="onboarding_hero_1.png" class="hero-img" alt="Onboarding Illustration" />
+          </div>
+
+          <div class="content-area">
+            <div class="headline-black" id="headlineLine1">Learn Smarter,</div>
+            <div class="headline-accent" id="headlineLine2">Achieve More</div>
+            <p class="subtitle-text" id="subtitleText">
+              StudPal is your AI study companion that helps you understand, practice and master any topic.
+            </p>
+          </div>
+
+          <div class="step-dots" id="stepDots">
+            <div class="dot active" id="dot1"></div>
+            <div class="dot" id="dot2"></div>
+            <div class="dot" id="dot3"></div>
+          </div>
+
+          <!-- Bottom Action Button for Onboarding -->
+          <button class="btn-next" id="btnNextOnboarding" onclick="handleNextClick()" style="margin-top: auto;">
+            Next
+          </button>
+        </div>
+
+        <!-- Role Selection View (Screen 4) -->
+        <div class="role-selection-container" id="roleContainer">
+          <div class="step-badge">✨ STEP 1 OF 2</div>
+          <h2 class="role-title">Welcome! What best describes you?</h2>
+          <p class="role-subtitle">We'll customize your study workspace, smart tools, and AI companion to match your goals.</p>
+
+          <div class="role-cards-list">
+            <div class="role-card active" id="role-student" onclick="selectRole('student')">
+              <div class="role-emoji-box">🎓</div>
+              <div class="role-info">
+                <div class="role-header-row">
+                  <span class="role-name">Student</span>
+                  <span class="role-tag-pill">Most Popular</span>
+                  <div class="role-radio"><div class="role-radio-dot"></div></div>
+                </div>
+                <p class="role-desc">Master your subjects, solve practice quizzes, and boost your GPA with your AI tutor.</p>
+              </div>
+            </div>
+
+            <div class="role-card" id="role-parent" onclick="selectRole('parent')">
+              <div class="role-emoji-box">👨‍👩‍👧</div>
+              <div class="role-info">
+                <div class="role-header-row">
+                  <span class="role-name">Parent / Guardian</span>
+                  <span class="role-tag-pill">Family Support</span>
+                  <div class="role-radio"><div class="role-radio-dot"></div></div>
+                </div>
+                <p class="role-desc">Support, motivate and track your child's revision progress and study milestones.</p>
+              </div>
+            </div>
+
+            <div class="role-card" id="role-educator" onclick="selectRole('educator')">
+              <div class="role-emoji-box">👨‍🏫</div>
+              <div class="role-info">
+                <div class="role-header-row">
+                  <span class="role-name">Educator / Tutor</span>
+                  <span class="role-tag-pill">Classroom</span>
+                  <div class="role-radio"><div class="role-radio-dot"></div></div>
+                </div>
+                <p class="role-desc">Assign interactive revision modules, generate study sets, and guide students.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Action Button for Role Selection -->
+          <button class="btn-next" id="btnNextRole" onclick="handleNextClick()" style="margin-top: 16px;">
+            Continue
+          </button>
+        </div>
+
+        <!-- Functional Industry-Level Authentication View (Screen 5) -->
+        <div class="auth-container" id="authContainer">
+          <h2 class="auth-title" id="authTitle">Create Your Account</h2>
+          <p class="auth-subtitle" id="authSubtitle">Start your journey with StudPal</p>
+
+          <div class="auth-form">
+            <div class="input-wrapper" id="nameWrapper">
+              <input type="text" class="input-field" id="inputName" placeholder="Full Name" />
+              <div class="error-msg" id="nameError">Please enter your full name</div>
+            </div>
+
+            <div class="input-wrapper">
+              <input type="email" class="input-field" id="inputEmail" placeholder="Email Address" />
+              <div class="error-msg" id="emailError">Please enter a valid email address</div>
+            </div>
+
+            <div class="input-wrapper">
+              <input type="password" class="input-field" id="inputPassword" placeholder="Password" />
+              <span class="input-icon-right" id="eyeIcon" onclick="togglePasswordVisibility()">👁️</span>
+              <div class="error-msg" id="passwordError">Password must be at least 6 characters</div>
+            </div>
+          </div>
+
+          <div class="auth-options-row" id="authOptionsRow" style="display: none;">
+            <label class="remember-me">
+              <input type="checkbox" id="rememberCheck" /> Remember me
+            </label>
+            <span class="forgot-link" onclick="showToast('📧 Password reset link sent!')">Forgot Password?</span>
+          </div>
+
+          <!-- Primary CTA Button ("Sign Up" / "Log In") -->
+          <button class="btn-next" id="btnNextAuth" onclick="handleNextClick()">
+            Sign Up
+          </button>
+
+          <div class="social-divider">
+            <div class="social-divider-line"></div>
+            <span class="social-divider-text">or continue with</span>
+            <div class="social-divider-line"></div>
+          </div>
+
+          <!-- Official Vector Logos for Social Auth -->
+          <div class="social-buttons-row">
+            <div class="social-btn" onclick="showToast('Google Sign-In active')">
+              <svg class="social-icon-svg" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+              </svg>
+            </div>
+            <div class="social-btn" onclick="showToast('Apple Sign-In active')">
+              <svg class="social-icon-svg" viewBox="0 0 170 170" fill="currentColor">
+                <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.34.13-9.16-1.9-14.48-6.08-3.53-2.8-7.44-7.6-11.73-14.4-7.53-11.84-13.1-25.26-16.7-40.24-3.6-14.99-5.4-28.78-5.4-41.38 0-16.92 4.13-30.82 12.4-41.7 8.26-10.88 18.73-16.42 31.4-16.62 4.98 0 10.37 1.25 16.17 3.75 5.8 2.5 9.77 3.75 11.9 3.75 1.95 0 5.88-1.25 11.78-3.75 5.91-2.5 11.01-3.67 15.31-3.52 13.9.54 24.8 5.76 32.7 15.66-12.3 7.42-18.3 17.65-18 30.68.3 10.3 4.25 18.8 11.85 25.5 5.43 4.79 11.63 8.01 18.6 9.66-2.58 7.63-5.97 15.42-10.17 23.37zm-27.8-106.63c0 7.9-2.84 15.45-8.52 22.65-6.84 8.52-15.32 13.52-25.43 12.72-.15-1.05-.23-2.18-.23-3.38 0-7.8 3.1-15.7 9.3-23.7 3.1-4 7.05-7.27 11.85-9.82 4.8-2.55 9.3-3.9 13.5-4.05.15 1.95.23 3.65.23 5.58z"/>
+              </svg>
+            </div>
+            <div class="social-btn" onclick="showToast('Facebook Sign-In active')">
+              <svg class="social-icon-svg" viewBox="0 0 24 24" fill="#1877F2">
+                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+              </svg>
+            </div>
+          </div>
+
+          <div class="auth-footer">
+            <span id="authFooterText">Already have an account? </span>
+            <span class="auth-footer-link" id="authFooterLink" onclick="toggleAuthMode()">Log in</span>
+          </div>
+        </div>
+
+        <!-- =========================================
+             SCREEN 6: MAIN HOME / DASHBOARD VIEW
+             ========================================= -->
+        <div class="dashboard-container" id="dashboardContainer">
+          <div class="dashboard-scroll-body">
+            
+            <!-- 1. Top Header Bar -->
+            <div class="dash-header-row">
+              <div class="dash-profile-group">
+                <div class="dash-avatar-wrapper" onclick="showToast('👤 Viewing Alex\'s Profile')">
+                  <div class="dash-avatar">A</div>
+                  <div class="dash-avatar-badge"></div>
+                </div>
+                <div class="dash-greeting-box">
+                  <span class="dash-greeting-name">Hello, Alex! 👋</span>
+                  <span class="dash-greeting-sub">Ready to master your goals?</span>
+                </div>
+              </div>
+
+              <div class="dash-header-actions">
+                <div class="dash-streak-pill" onclick="showToast('🔥 5 Days Study Streak active!')">
+                  <span>🔥</span>
+                  <span>5 Days</span>
+                </div>
+                <div class="dash-notif-btn" onclick="showToast('🔔 2 New Recommendations for you!')">
+                  <span>🔔</span>
+                  <div class="dash-notif-dot"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 2. AI Quick Prompt & Search Bar -->
+            <div class="dash-search-container">
+              <div class="dash-search-card">
+                <div class="dash-ai-spark-box">✨</div>
+                <input type="text" class="dash-search-input" id="aiInput" placeholder="Ask StudPal AI anything..." onkeydown="if(event.key==='Enter') askAiPrompt(this.value)" />
+                <div class="dash-search-actions">
+                  <button class="dash-tool-btn" title="Voice" onclick="showToast('🎙️ Voice Assistant listening...')">🎙️</button>
+                  <button class="dash-tool-btn" title="Scan" onclick="showToast('📸 Problem Scanner activated!')">📷</button>
+                </div>
+              </div>
+
+              <div class="dash-quick-pills">
+                <div class="dash-pill" onclick="askAiPrompt('Calculus Rules')">📐 Calculus Rules</div>
+                <div class="dash-pill" onclick="askAiPrompt('Quantum Physics')">⚛️ Quantum Physics</div>
+                <div class="dash-pill" onclick="askAiPrompt('Organic Chem')">🧪 Organic Chem</div>
+                <div class="dash-pill" onclick="askAiPrompt('Summarize Notes')">📝 Summarize Notes</div>
+              </div>
+            </div>
+
+            <!-- 3. Daily Study Goal Progress Card -->
+            <div class="dash-goal-card">
+              <div class="dash-goal-top">
+                <div class="dash-goal-heading">
+                  <span>🎯</span>
+                  <span>Daily Study Goal</span>
+                </div>
+                <div class="dash-goal-badge">
+                  <span>⚡</span>
+                  <span>Lvl 4 Scholar</span>
+                </div>
+              </div>
+
+              <div class="dash-goal-body">
+                <div class="dash-progress-ring">
+                  <svg class="dash-ring-svg" viewBox="0 0 60 60">
+                    <circle class="dash-ring-circle-bg" cx="30" cy="30" r="25"></circle>
+                    <circle class="dash-ring-circle-val" id="dashRingVal" cx="30" cy="30" r="25"></circle>
+                  </svg>
+                  <span class="dash-ring-label" id="dashProgressLabel">75%</span>
+                </div>
+
+                <div class="dash-goal-stats">
+                  <div class="dash-goal-stat-row">
+                    <span class="dash-goal-stat-main" id="dashGoalTime">45 / 60 mins</span>
+                    <span class="dash-goal-stat-xp" id="dashGoalXp">+320 XP</span>
+                  </div>
+                  <div class="dash-bar-bg">
+                    <div class="dash-bar-fill" id="dashBarFill"></div>
+                  </div>
+                  <span class="dash-goal-hint" id="dashGoalHint">15 mins left to complete daily streak!</span>
+                </div>
+              </div>
+
+              <button class="dash-focus-btn" onclick="startFocusTimer()">
+                <span>⏱️</span>
+                <span>Start 25m Focus Session</span>
+              </button>
+            </div>
+
+            <!-- 4. Continue Studying Active Subjects Carousel -->
+            <div class="dash-section-box">
+              <div class="dash-section-header">
+                <span class="dash-section-title">Continue Studying</span>
+                <span class="dash-see-all" onclick="showToast('📚 Opening all subjects...')">See All</span>
+              </div>
+
+              <div class="dash-subjects-scroll">
+                <!-- Math -->
+                <div class="dash-subject-card" onclick="showToast('📐 Resuming Mathematics: Calculus II')">
+                  <div class="dash-sub-top">
+                    <div class="dash-sub-icon" style="background: rgba(45, 98, 255, 0.15); color: #2D62FF;">📐</div>
+                    <div class="dash-sub-info">
+                      <div class="dash-sub-name">Mathematics</div>
+                      <div class="dash-sub-count">14/18 topics</div>
+                    </div>
+                  </div>
+                  <div>
+                    <div class="dash-sub-topic-tag" style="color: #2D62FF;">CURRENT TOPIC</div>
+                    <div class="dash-sub-topic-title">Calculus II: Derivatives</div>
+                  </div>
+                  <div>
+                    <div class="dash-sub-mastery-row">
+                      <span>Mastery</span>
+                      <span style="font-weight: 700; color: #2D62FF;">82%</span>
+                    </div>
+                    <div class="dash-sub-bar-bg">
+                      <div class="dash-sub-bar-fill" style="width: 82%; background: #2D62FF;"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Physics -->
+                <div class="dash-subject-card" onclick="showToast('⚛️ Resuming Physics: Electromagnetism')">
+                  <div class="dash-sub-top">
+                    <div class="dash-sub-icon" style="background: rgba(139, 92, 246, 0.15); color: #8B5CF6;">⚛️</div>
+                    <div class="dash-sub-info">
+                      <div class="dash-sub-name">Physics</div>
+                      <div class="dash-sub-count">9/15 topics</div>
+                    </div>
+                  </div>
+                  <div>
+                    <div class="dash-sub-topic-tag" style="color: #8B5CF6;">CURRENT TOPIC</div>
+                    <div class="dash-sub-topic-title">Electromagnetism & Flux</div>
+                  </div>
+                  <div>
+                    <div class="dash-sub-mastery-row">
+                      <span>Mastery</span>
+                      <span style="font-weight: 700; color: #8B5CF6;">64%</span>
+                    </div>
+                    <div class="dash-sub-bar-bg">
+                      <div class="dash-sub-bar-fill" style="width: 64%; background: #8B5CF6;"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Chemistry -->
+                <div class="dash-subject-card" onclick="showToast('🧪 Resuming Chemistry: Organic Reactions')">
+                  <div class="dash-sub-top">
+                    <div class="dash-sub-icon" style="background: rgba(16, 185, 129, 0.15); color: #10B981;">🧪</div>
+                    <div class="dash-sub-info">
+                      <div class="dash-sub-name">Chemistry</div>
+                      <div class="dash-sub-count">6/14 topics</div>
+                    </div>
+                  </div>
+                  <div>
+                    <div class="dash-sub-topic-tag" style="color: #10B981;">CURRENT TOPIC</div>
+                    <div class="dash-sub-topic-title">Organic Reactions</div>
+                  </div>
+                  <div>
+                    <div class="dash-sub-mastery-row">
+                      <span>Mastery</span>
+                      <span style="font-weight: 700; color: #10B981;">45%</span>
+                    </div>
+                    <div class="dash-sub-bar-bg">
+                      <div class="dash-sub-bar-fill" style="width: 45%; background: #10B981;"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Biology -->
+                <div class="dash-subject-card" onclick="showToast('🧬 Resuming Biology: Cellular Respiration')">
+                  <div class="dash-sub-top">
+                    <div class="dash-sub-icon" style="background: rgba(245, 158, 11, 0.15); color: #F59E0B;">🧬</div>
+                    <div class="dash-sub-info">
+                      <div class="dash-sub-name">Biology</div>
+                      <div class="dash-sub-count">11/12 topics</div>
+                    </div>
+                  </div>
+                  <div>
+                    <div class="dash-sub-topic-tag" style="color: #F59E0B;">CURRENT TOPIC</div>
+                    <div class="dash-sub-topic-title">Cellular Respiration</div>
+                  </div>
+                  <div>
+                    <div class="dash-sub-mastery-row">
+                      <span>Mastery</span>
+                      <span style="font-weight: 700; color: #F59E0B;">90%</span>
+                    </div>
+                    <div class="dash-sub-bar-bg">
+                      <div class="dash-sub-bar-fill" style="width: 90%; background: #F59E0B;"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 5. Spaced Repetition (SRS) Revision Queue -->
+            <div class="dash-srs-box">
+              <div class="dash-section-header">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span class="dash-section-title">Revision Queue</span>
+                  <span style="font-size: 11px; font-weight: 700; color: var(--brand-orange); background: rgba(255, 91, 0, 0.12); padding: 2px 7px; border-radius: 8px;">3 Due Today</span>
+                </div>
+                <span style="font-size: 11.5px; font-weight: 600; color: var(--secondary);">SRS Engine</span>
+              </div>
+
+              <!-- Item 1 -->
+              <div class="dash-srs-item" onclick="showToast('⚡ Reviewing Calculus: Integration by Parts')">
+                <div class="dash-srs-emoji" style="background: rgba(45, 98, 255, 0.15); color: #2D62FF;">📐</div>
+                <div class="dash-srs-content">
+                  <div class="dash-srs-title">Integration by Parts & Substitution</div>
+                  <div class="dash-srs-meta">
+                    <span style="color: #2D62FF; font-weight: 600;">Mathematics</span>
+                    <span>•</span>
+                    <span>Retention: 65%</span>
+                  </div>
+                </div>
+                <div class="dash-srs-badge">Due Today</div>
+              </div>
+
+              <!-- Item 2 -->
+              <div class="dash-srs-item overdue" onclick="showToast('⚡ Reviewing Physics: Wave Optics')">
+                <div class="dash-srs-emoji" style="background: rgba(139, 92, 246, 0.15); color: #8B5CF6;">⚛️</div>
+                <div class="dash-srs-content">
+                  <div class="dash-srs-title">Wave Optics & Interference</div>
+                  <div class="dash-srs-meta">
+                    <span style="color: #8B5CF6; font-weight: 600;">Physics</span>
+                    <span>•</span>
+                    <span>Retention: 48%</span>
+                  </div>
+                </div>
+                <div class="dash-srs-badge overdue">Overdue (1d)</div>
+              </div>
+
+              <!-- Item 3 -->
+              <div class="dash-srs-item" onclick="showToast('⚡ Reviewing Chemistry: Acid-Base Equilibria')">
+                <div class="dash-srs-emoji" style="background: rgba(16, 185, 129, 0.15); color: #10B981;">🧪</div>
+                <div class="dash-srs-content">
+                  <div class="dash-srs-title">Acid-Base Equilibria & Buffers</div>
+                  <div class="dash-srs-meta">
+                    <span style="color: #10B981; font-weight: 600;">Chemistry</span>
+                    <span>•</span>
+                    <span>Retention: 78%</span>
+                  </div>
+                </div>
+                <div class="dash-srs-badge">Due in 3h</div>
+              </div>
+
+              <!-- Start SRS CTA Button -->
+              <button class="dash-srs-cta-btn" onclick="showToast('🚀 Launching Spaced Repetition Queue (5 mins)...')">
+                <span>⚡</span>
+                <span>Start SRS Quick Review (5 mins)</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Bottom Navigation Bar -->
+          <div class="dash-bottom-nav">
+            <button class="dash-nav-btn active" id="nav-home" onclick="selectNavTab('home')">
+              <span style="font-size: 18px;">🏠</span>
+              <span>Home</span>
+            </button>
+            <button class="dash-nav-btn" id="nav-subjects" onclick="selectNavTab('subjects')">
+              <span style="font-size: 18px;">📚</span>
+              <span>Subjects</span>
+            </button>
+            <button class="dash-nav-special-btn" id="nav-aicoach" onclick="selectNavTab('aicoach')">
+              <span>✨</span>
+              <span>Branco</span>
+            </button>
+            <button class="dash-nav-btn" id="nav-progress" onclick="selectNavTab('progress')">
+              <span style="font-size: 18px;">📈</span>
+              <span>Progress</span>
+            </button>
+            <button class="dash-nav-btn" id="nav-profile" onclick="selectNavTab('profile')">
+              <span style="font-size: 18px;">👤</span>
+              <span>Profile</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Toast Floating Component -->
+        <div class="toast-msg" id="toastMsg">Notification message</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Sidebar Device Model & Screen Panel -->
+  <div class="sidebar-panel">
+    <div class="sidebar-header">
+      <div class="sidebar-title">
+        <button class="btn-back-sidebar" onclick="showToast('Inspector Active')">←</button>
+        <span>StudPal Studio</span>
+      </div>
+      <button class="btn-theme-toggle" id="themeBtn" onclick="toggleTheme()">
+        ☀️ Light
+      </button>
+    </div>
+
+    <!-- Screen Navigator Section -->
+    <div style="padding: 12px 14px 4px; border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
+      <div class="section-header" style="margin: 4px 0 8px;">ACTIVE SCREEN</div>
+      <div class="screen-item" id="scr-1" onclick="switchScreen(1)">1. Onboarding — Smart</div>
+      <div class="screen-item" id="scr-2" onclick="switchScreen(2)">2. Onboarding — Study</div>
+      <div class="screen-item" id="scr-3" onclick="switchScreen(3)">3. Onboarding — AI</div>
+      <div class="screen-item" id="scr-4" onclick="switchScreen(4)">4. Role Selection</div>
+      <div class="screen-item" id="scr-5" onclick="switchScreen(5)">5. Authentication</div>
+      <div class="screen-item active" id="scr-6" onclick="switchScreen(6)">6. Dashboard Home 🚀</div>
+    </div>
+
+    <div class="tab-bar">
+      <div class="tab-item active" id="tab-ios" onclick="selectTab('ios')">
+        <span class="tab-icon">🍎</span><span>iOS</span>
+      </div>
+      <div class="tab-item" id="tab-android" onclick="selectTab('android')">
+        <span class="tab-icon">🤖</span><span>android</span>
+      </div>
+      <div class="tab-item" id="tab-macos" onclick="selectTab('macos')">
+        <span class="tab-icon">💻</span><span>macOS</span>
+      </div>
+    </div>
+
+    <div class="device-list-container" id="deviceListContainer"></div>
+  </div>
+
+  <script>
+    const deviceCatalog = {
+      ios: {
+        phones: [
+          { id: 'iphone-15-pro', name: 'iPhone 15 Pro', res: '393x852 @3', class: 'iphone-15-pro', sensor: 'dynamic-island' },
+          { id: 'iphone-13-promax', name: 'iPhone 13 Pro Max', res: '428x926 @3', class: 'iphone-13-promax', sensor: 'dynamic-island' },
+          { id: 'iphone-13', name: 'iPhone 13', res: '390x844 @3', class: 'iphone-13', sensor: 'dynamic-island' },
+          { id: 'iphone-se', name: 'iPhone SE', res: '375x667 @2', class: 'iphone-se', sensor: 'hidden' }
+        ],
+        tablets: [
+          { id: 'ipad-pro', name: 'iPad Pro 12.9"', res: '1024x1366 @2', class: 'ipad-pro', sensor: 'hidden' }
+        ]
+      },
+      android: {
+        phones: [
+          { id: 'pixel-8-pro', name: 'Google Pixel 8 Pro', res: '412x892 @3', class: 'pixel-8-pro', sensor: 'punch-hole' },
+          { id: 'galaxy-s24', name: 'Samsung Galaxy S24 Ultra', res: '412x915 @3', class: 'galaxy-s24', sensor: 'punch-hole' }
+        ],
+        tablets: []
+      },
+      macos: {
+        phones: [],
+        desktops: [
+          { id: 'macbook-pro', name: 'MacBook Pro 16"', res: '1728x1117 @2', class: 'macbook-pro', sensor: 'hidden' }
+        ]
+      }
+    };
+
+    let activeTab = 'ios';
+    let selectedDeviceId = 'iphone-15-pro';
+    let currentScreen = 6;
+    let currentTheme = 'light';
+    let selectedRole = 'student';
+    let isSignUpMode = true;
+    let isPasswordVisible = false;
+    let completedMinutes = 45;
+    let targetMinutes = 60;
+    let xpEarned = 320;
+
+    function init() {
+      renderDeviceList('ios');
+      renderScreen(6);
+    }
+
+    function selectTab(platform) {
+      activeTab = platform;
+      document.querySelectorAll('.tab-item').forEach(el => el.classList.remove('active'));
+      document.getElementById('tab-' + platform).classList.add('active');
+      renderDeviceList(platform);
+    }
+
+    function renderDeviceList(platform) {
+      const container = document.getElementById('deviceListContainer');
+      container.innerHTML = '';
+      const data = deviceCatalog[platform] || {};
+
+      if (data.phones && data.phones.length > 0) {
+        const header = document.createElement('div');
+        header.className = 'section-header';
+        header.textContent = 'PHONE';
+        container.appendChild(header);
+        data.phones.forEach(d => container.appendChild(createDeviceRow(d, '📱')));
+      }
+
+      if (data.tablets && data.tablets.length > 0) {
+        const header = document.createElement('div');
+        header.className = 'section-header';
+        header.textContent = 'TABLET';
+        container.appendChild(header);
+        data.tablets.forEach(d => container.appendChild(createDeviceRow(d, '📱')));
+      }
+
+      if (data.desktops && data.desktops.length > 0) {
+        const header = document.createElement('div');
+        header.className = 'section-header';
+        header.textContent = 'DESKTOP';
+        container.appendChild(header);
+        data.desktops.forEach(d => container.appendChild(createDeviceRow(d, '💻')));
+      }
+    }
+
+    function createDeviceRow(device, iconSymbol) {
+      const item = document.createElement('div');
+      item.className = 'device-item' + (device.id === selectedDeviceId ? ' active' : '');
+      item.onclick = () => selectDevice(device);
+      item.innerHTML = `
+        <div style="font-size:18px;">${iconSymbol}</div>
+        <div class="device-item-info">
+          <div class="device-item-name">${device.name}</div>
+          <div class="device-item-res">${device.res}</div>
+        </div>
+      `;
+      return item;
+    }
+
+    function selectDevice(device) {
+      selectedDeviceId = device.id;
+      renderDeviceList(activeTab);
+      document.getElementById('deviceMockup').className = 'device-mockup ' + device.class;
+      document.getElementById('sensorCutout').className = 'sensor-cutout ' + device.sensor;
+    }
+
+    function toggleTheme() {
+      const screen = document.getElementById('phoneScreen');
+      const btn = document.getElementById('themeBtn');
+      if (currentTheme === 'light') {
+        currentTheme = 'dark';
+        screen.classList.add('dark');
+        btn.textContent = '🌙 Dark';
+      } else {
+        currentTheme = 'light';
+        screen.classList.remove('dark');
+        btn.textContent = '☀️ Light';
+      }
+    }
+
+    function selectRole(roleId) {
+      selectedRole = roleId;
+      document.querySelectorAll('.role-card').forEach(c => c.classList.remove('active'));
+      document.getElementById('role-' + roleId).classList.add('active');
+    }
+
+    function togglePasswordVisibility() {
+      isPasswordVisible = !isPasswordVisible;
+      const input = document.getElementById('inputPassword');
+      const icon = document.getElementById('eyeIcon');
+      input.type = isPasswordVisible ? 'text' : 'password';
+      icon.textContent = isPasswordVisible ? '🙈' : '👁️';
+    }
+
+    function toggleAuthMode() {
+      isSignUpMode = !isSignUpMode;
+      const title = document.getElementById('authTitle');
+      const sub = document.getElementById('authSubtitle');
+      const nameWrapper = document.getElementById('nameWrapper');
+      const optionsRow = document.getElementById('authOptionsRow');
+      const btnAuth = document.getElementById('btnNextAuth');
+      const footerText = document.getElementById('authFooterText');
+      const footerLink = document.getElementById('authFooterLink');
+
+      document.querySelectorAll('.error-msg').forEach(el => el.style.display = 'none');
+      document.querySelectorAll('.input-field').forEach(el => el.classList.remove('error'));
+
+      if (isSignUpMode) {
+        title.textContent = 'Create Your Account';
+        sub.textContent = 'Start your journey with StudPal';
+        nameWrapper.style.display = 'flex';
+        optionsRow.style.display = 'none';
+        btnAuth.textContent = 'Sign Up';
+        footerText.textContent = 'Already have an account? ';
+        footerLink.textContent = 'Log in';
+      } else {
+        title.textContent = 'Welcome Back';
+        sub.textContent = 'Log in to continue learning';
+        nameWrapper.style.display = 'none';
+        optionsRow.style.display = 'flex';
+        btnAuth.textContent = 'Log In';
+        footerText.textContent = "Don't have an account? ";
+        footerLink.textContent = 'Sign up';
+      }
+    }
+
+    function validateAuthForm() {
+      let isValid = true;
+      const nameInput = document.getElementById('inputName');
+      const emailInput = document.getElementById('inputEmail');
+      const passInput = document.getElementById('inputPassword');
+
+      const nameErr = document.getElementById('nameError');
+      const emailErr = document.getElementById('emailError');
+      const passErr = document.getElementById('passwordError');
+
+      nameErr.style.display = 'none';
+      emailErr.style.display = 'none';
+      passErr.style.display = 'none';
+      nameInput.classList.remove('error');
+      emailInput.classList.remove('error');
+      passInput.classList.remove('error');
+
+      if (isSignUpMode && !nameInput.value.trim()) {
+        nameErr.style.display = 'block';
+        nameInput.classList.add('error');
+        isValid = false;
+      }
+
+      const emailVal = emailInput.value.trim();
+      if (!emailVal || !emailVal.includes('@') || !emailVal.includes('.')) {
+        emailErr.style.display = 'block';
+        emailInput.classList.add('error');
+        isValid = false;
+      }
+
+      if (!passInput.value || passInput.value.length < 6) {
+        passErr.style.display = 'block';
+        passInput.classList.add('error');
+        isValid = false;
+      }
+
+      return isValid;
+    }
+
+    function switchScreen(step) {
+      currentScreen = parseInt(step);
+      renderScreen(currentScreen);
+    }
+
+    function renderScreen(step) {
+      const brandHeader = document.getElementById('brandHeader');
+      const onboardingBox = document.getElementById('onboardingContainer');
+      const roleBox = document.getElementById('roleContainer');
+      const authBox = document.getElementById('authContainer');
+      const dashBox = document.getElementById('dashboardContainer');
+
+      const img = document.getElementById('heroImg');
+      const h1 = document.getElementById('headlineLine1');
+      const h2 = document.getElementById('headlineLine2');
+      const sub = document.getElementById('subtitleText');
+      const backBtn = document.getElementById('backBtn');
+      const btnOnboarding = document.getElementById('btnNextOnboarding');
+      const dot1 = document.getElementById('dot1');
+      const dot2 = document.getElementById('dot2');
+      const dot3 = document.getElementById('dot3');
+
+      // Update sidebar screen selection
+      document.querySelectorAll('.screen-item').forEach(el => el.classList.remove('active'));
+      const activeScreenItem = document.getElementById('scr-' + step);
+      if (activeScreenItem) activeScreenItem.classList.add('active');
+
+      if (step <= 3) {
+        brandHeader.style.display = 'flex';
+        onboardingBox.style.display = 'flex';
+        roleBox.style.display = 'none';
+        authBox.style.display = 'none';
+        dashBox.style.display = 'none';
+      } else if (step === 4) {
+        brandHeader.style.display = 'flex';
+        onboardingBox.style.display = 'none';
+        roleBox.style.display = 'flex';
+        authBox.style.display = 'none';
+        dashBox.style.display = 'none';
+      } else if (step === 5) {
+        brandHeader.style.display = 'flex';
+        onboardingBox.style.display = 'none';
+        roleBox.style.display = 'none';
+        authBox.style.display = 'flex';
+        dashBox.style.display = 'none';
+      } else if (step === 6) {
+        brandHeader.style.display = 'none';
+        onboardingBox.style.display = 'none';
+        roleBox.style.display = 'none';
+        authBox.style.display = 'none';
+        dashBox.style.display = 'flex';
+      }
+
+      if (step === 1) {
+        img.src = 'onboarding_hero_1.png';
+        h1.textContent = 'Learn Smarter,';
+        h2.textContent = 'Achieve More';
+        sub.textContent = 'StudPal is your AI study companion that helps you understand, practice and master any topic.';
+        backBtn.style.visibility = 'hidden';
+        btnOnboarding.textContent = 'Next';
+        dot1.className = 'dot active';
+        dot2.className = 'dot';
+        dot3.className = 'dot';
+      } else if (step === 2) {
+        img.src = 'onboarding_hero_2.png';
+        h1.textContent = "You're Never Alone,";
+        h2.textContent = 'In Your Studies';
+        sub.textContent = 'Connect your learning, revision and progress in one organized study space.';
+        backBtn.style.visibility = 'visible';
+        btnOnboarding.textContent = 'Next';
+        dot1.className = 'dot';
+        dot2.className = 'dot active';
+        dot3.className = 'dot';
+      } else if (step === 3) {
+        img.src = 'onboarding_hero_3.png';
+        h1.textContent = 'AI Guidance That';
+        h2.textContent = 'Understands You';
+        sub.textContent = 'Get personalized study plans, explanations and recommendations based on your progress.';
+        backBtn.style.visibility = 'visible';
+        btnOnboarding.textContent = 'Get Started';
+        dot1.className = 'dot';
+        dot2.className = 'dot';
+        dot3.className = 'dot active';
+      } else if (step === 4) {
+        backBtn.style.visibility = 'visible';
+      } else if (step === 5) {
+        backBtn.style.visibility = 'visible';
+      }
+    }
+
+    function handleNextClick() {
+      if (currentScreen < 4) {
+        switchScreen(currentScreen + 1);
+      } else if (currentScreen === 4) {
+        switchScreen(5);
+      } else if (currentScreen === 5) {
+        if (validateAuthForm()) {
+          const btn = document.getElementById('btnNextAuth');
+          btn.textContent = 'Entering StudPal...';
+          setTimeout(() => {
+            btn.textContent = isSignUpMode ? 'Sign Up' : 'Log In';
+            switchScreen(6);
+            showToast('🎉 Welcome to StudPal, Alex!');
+          }, 600);
+        }
+      }
+    }
+
+    function goBack() {
+      if (currentScreen > 1) {
+        switchScreen(currentScreen - 1);
+      }
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toastMsg');
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, 2400);
+    }
+
+    function askAiPrompt(query) {
+      if (!query || !query.trim()) return;
+      document.getElementById('aiInput').value = query;
+      showToast(`🤖 StudPal AI: Analyzing "${query}"...`);
+    }
+
+    function startFocusTimer() {
+      completedMinutes = Math.min(60, completedMinutes + 15);
+      xpEarned += 50;
+      const pct = Math.round((completedMinutes / targetMinutes) * 100);
+      
+      document.getElementById('dashGoalTime').textContent = `${completedMinutes} / ${targetMinutes} mins`;
+      document.getElementById('dashGoalXp').textContent = `+${xpEarned} XP`;
+      document.getElementById('dashProgressLabel').textContent = `${pct}%`;
+      document.getElementById('dashBarFill').style.width = `${pct}%`;
+
+      const dashOffset = Math.round(157 * (1 - pct / 100));
+      document.getElementById('dashRingVal').style.strokeDashoffset = dashOffset;
+
+      if (completedMinutes >= targetMinutes) {
+        document.getElementById('dashGoalHint').textContent = '🎉 Daily study goal reached! Amazing work!';
+      } else {
+        document.getElementById('dashGoalHint').textContent = `${targetMinutes - completedMinutes} mins left to complete daily streak!`;
+      }
+
+      showToast(`⏱️ Focus session recorded! +50 XP awarded! (Total: ${xpEarned} XP)`);
+    }
+
+    function selectNavTab(tab) {
+      document.querySelectorAll('.dash-nav-btn').forEach(btn => btn.classList.remove('active'));
+      const activeBtn = document.getElementById('nav-' + tab);
+      if (activeBtn) activeBtn.classList.add('active');
+
+      const names = {
+        home: '🏠 Home Dashboard',
+        subjects: '📚 Subjects Directory',
+        aicoach: '✨ Branco',
+        progress: '📈 Analytics & Mastery',
+        profile: '👤 Profile & Settings'
+      };
+      showToast(`Navigated to ${names[tab]}`);
+    }
+
+    init();
+  </script>
+</body>
+</html>

@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="100%" height="100%" fill="none">
+  <defs>
+    <!-- Soft Glow Background -->
+    <radialGradient id="bgGlow2" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#EFF6FF" stop-opacity="0.8"/>
+      <stop offset="50%" stop-color="#F5F3FF" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Navy Card Gradient -->
+    <linearGradient id="navyCardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#112B8A"/>
+      <stop offset="100%" stop-color="#1E3A8A"/>
+    </linearGradient>
+
+    <filter id="cardShadow2" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#112B8A" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+
+  <!-- Ambient Glow -->
+  <circle cx="200" cy="200" r="160" fill="url(#bgGlow2)"/>
+
+  <!-- Connecting Study Hub Lines -->
+  <path d="M120 120 L200 190 L280 130" stroke="#CBD5E1" stroke-width="2.5" stroke-dasharray="6 6"/>
+  <path d="M200 190 L200 290" stroke="#CBD5E1" stroke-width="2.5" stroke-dasharray="6 6"/>
+  <path d="M130 270 L200 190 L270 270" stroke="#CBD5E1" stroke-width="2.5" stroke-dasharray="6 6"/>
+
+  <!-- Top-Left Card: Mathematics (80% Mastery) -->
+  <g filter="url(#cardShadow2)">
+    <rect x="36" y="70" width="150" height="68" rx="12" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.5"/>
+    <rect x="48" y="82" width="28" height="28" rx="8" fill="#EEF2FF"/>
+    <text x="56" y="101" font-family="Inter" font-size="14" fill="#2D62FF">📐</text>
+    
+    <text x="84" y="93" font-family="Inter" font-size="13" font-weight="700" fill="#0B0B0F">Mathematics</text>
+    <text x="84" y="107" font-family="Inter" font-size="11" font-weight="500" fill="#8F95A5">Algebra • 80%</text>
+    
+    <!-- Progress Bar -->
+    <rect x="84" y="114" width="90" height="5" rx="2.5" fill="#E2E8F0"/>
+    <rect x="84" y="114" width="72" height="5" rx="2.5" fill="#22C55E"/>
+  </g>
+
+  <!-- Top-Right Card: Physics (Revision Due) -->
+  <g filter="url(#cardShadow2)">
+    <rect x="214" y="80" width="150" height="68" rx="12" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.5"/>
+    <rect x="226" y="92" width="28" height="28" rx="8" fill="#F0FDF4"/>
+    <text x="234" y="111" font-family="Inter" font-size="14" fill="#22C55E">⚡</text>
+    
+    <text x="262" y="103" font-family="Inter" font-size="13" font-weight="700" fill="#0B0B0F">Physics</text>
+    <text x="262" y="117" font-family="Inter" font-size="11" font-weight="500" fill="#2D62FF">Revision Today</text>
+    
+    <rect x="262" y="124" width="90" height="5" rx="2.5" fill="#E2E8F0"/>
+    <rect x="262" y="124" width="55" height="5" rx="2.5" fill="#2D62FF"/>
+  </g>
+
+  <!-- Center Hub: Mascot Badge & Encouragement -->
+  <g filter="url(#cardShadow2)">
+    <circle cx="200" cy="190" r="44" fill="url(#navyCardGrad)"/>
+    <circle cx="200" cy="190" r="40" fill="#112B8A" stroke="#2D62FF" stroke-width="2"/>
+    <text x="183" y="202" font-size="34">🎓</text>
+  </g>
+
+  <!-- Encouraging Speech Bubble from Mascot -->
+  <g filter="url(#cardShadow2)">
+    <rect x="135" y="248" width="130" height="36" rx="12" fill="#2D62FF"/>
+    <polygon points="200,242 194,248 206,248" fill="#2D62FF"/>
+    <text x="200" y="271" font-family="Inter" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">You've got this! 🚀</text>
+  </g>
+
+  <!-- Bottom Card: Collaborative Study Group -->
+  <g filter="url(#cardShadow2)">
+    <rect x="95" y="306" width="210" height="58" rx="12" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.5"/>
+    <!-- Avatar Group -->
+    <circle cx="120" cy="335" r="14" fill="#6366F1"/>
+    <text x="113" y="340" font-family="Inter" font-size="11" fill="#FFF" font-weight="700">A</text>
+    
+    <circle cx="138" cy="335" r="14" fill="#10B981" stroke="#FFFFFF" stroke-width="2"/>
+    <text x="132" y="340" font-family="Inter" font-size="11" fill="#FFF" font-weight="700">B</text>
+
+    <circle cx="156" cy="335" r="14" fill="#F59E0B" stroke="#FFFFFF" stroke-width="2"/>
+    <text x="150" y="340" font-family="Inter" font-size="11" fill="#FFF" font-weight="700">C</text>
+
+    <text x="182" y="331" font-family="Inter" font-size="12" font-weight="700" fill="#0B0B0F">Study Squad</text>
+    <text x="182" y="345" font-family="Inter" font-size="11" font-weight="500" fill="#22C55E">● 3 Active Now</text>
+  </g>
+
+  <!-- Floating Sparkles -->
+  <text x="50" y="240" font-size="14" fill="#2D62FF">✦</text>
+  <text x="340" y="230" font-size="16" fill="#F59E0B">✦</text>
+</svg>

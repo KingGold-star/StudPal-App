@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "serverUrl": "https://mcp.supabase.com/mcp?features=all",
+      "headers": {
+        "Authorization": "Bearer YOUR_SUPABASE_PERSONAL_ACCESS_TOKEN"
+      }
+    },
+    "dart": {
+      "command": "C:\\Users\\Praise\\AppData\\Local\\Programs\\dart-sdk\\bin\\dart.exe",
+      "args": [
+        "mcp-server"
+      ]
+    }
+  }
+}

@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Expo & React Native
+.expo/
+dist/
+web-build/
+
+# Android & Gradle
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+.cxx/
+.externalNativeBuild/
+captures/
+
+# System & OS
+.DS_Store
+Thumbs.db
+*.log
+
