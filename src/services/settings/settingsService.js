@@ -17,16 +17,22 @@ export const DEFAULT_SETTINGS = {
   shortBreakDuration: 5, // 3 | 5 | 10 mins
   longBreakDuration: 15, // 15 | 20 | 30 mins
   dailyStudyGoal: 60, // 30 | 45 | 60 | 90 | 120 mins
-  autoStartBreaks: false,
+  autoStartBreaks: true,
   autoStartFocus: false,
   soundEffects: true,
   timerSound: "chime", // 'chime' | 'bell' | 'marimba' | 'gentle'
 
   // 3. AI Coach & Intelligence
-  aiPersonality: "encouraging", // 'encouraging' | 'rigorous' | 'socratic' | 'concise'
+  aiTeachingStyle: "socratic", // 'socratic' | 'step_by_step' | 'concise' | 'visual' | 'rigorous'
+  aiPersonality: "all_round", // 'all_round' | 'advisor' | 'librarian' | 'tutor' | 'editor' | 'roommate'
   aiModelDepth: "balanced", // 'balanced' | 'fast' | 'detailed'
+  aiAcademicLevel: "undergraduate", // 'highschool' | 'undergraduate' | 'graduate'
+  aiCustomInstructions: "",
+  aiFormattingPref: "standard", // 'standard' | 'bullet_points' | 'step_by_step'
   autoSummarizePdfs: true,
   spacedRepetitionSmartIntervals: true,
+  aiAutoPlayVoice: false,
+  aiProactiveSuggestions: true,
 
   // 4. Notifications & Routine
   studyReminders: true,
@@ -38,6 +44,8 @@ export const DEFAULT_SETTINGS = {
 
   // 5. Language & Regional
   language: "English (US)",
+  country: "Nigeria",
+  countryCode: "NG",
   firstDayOfWeek: "Monday",
   timeFormat: "12h", // '12h' | '24h'
 
@@ -52,6 +60,11 @@ export const DEFAULT_SETTINGS = {
   autoBackup: true,
   lastSyncedAt: new Date().toISOString(),
   cachedDataMb: "25.7 MB",
+
+  // 8. Focus Mode
+  focusModeEnabled: false,
+  focusModeTimetableSync: true,
+  focusModeStrictMode: false,
 };
 
 class SettingsService {
@@ -66,7 +79,18 @@ class SettingsService {
       if (typeof window !== "undefined" && window.localStorage) {
         const stored = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
         if (stored) {
-          this.cachedSettings = { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
+          const parsed = JSON.parse(stored);
+          if (parsed.hapticFeedback !== true) {
+            parsed.hapticFeedback = true;
+          }
+          if (parsed.autoStartBreaks !== true) {
+            parsed.autoStartBreaks = true;
+          }
+          window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(parsed));
+          this.cachedSettings = { ...DEFAULT_SETTINGS, ...parsed, hapticFeedback: true, autoStartBreaks: true };
+        } else {
+          this.cachedSettings = { ...DEFAULT_SETTINGS, hapticFeedback: true, autoStartBreaks: true };
+          window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(this.cachedSettings));
         }
       }
     } catch (e) {
@@ -99,10 +123,22 @@ class SettingsService {
   }
 
   getSettingsSync() {
+    if (this.cachedSettings.hapticFeedback !== true) {
+      this.cachedSettings.hapticFeedback = true;
+    }
+    if (this.cachedSettings.autoStartBreaks !== true) {
+      this.cachedSettings.autoStartBreaks = true;
+    }
     return { ...this.cachedSettings };
   }
 
   async getSettings() {
+    if (this.cachedSettings.hapticFeedback !== true) {
+      this.cachedSettings.hapticFeedback = true;
+    }
+    if (this.cachedSettings.autoStartBreaks !== true) {
+      this.cachedSettings.autoStartBreaks = true;
+    }
     return { ...this.cachedSettings };
   }
 

@@ -1,20 +1,28 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, ActivityIndicator } from 'react-native';
+import TooltipTouchable from './TooltipTouchable';
 import { Colors } from '../theme/colors';
+import { useTheme } from '../theme/themeContext';
 
 export default function PrimaryButton({
   title,
+  tooltip,
   onPress,
   loading = false,
   backgroundColor,
   textColor = '#FFFFFF',
   style,
 }) {
+  const { isDark, accentColor } = useTheme();
+  const effectiveBg = backgroundColor || accentColor || Colors.accent;
+
   return (
-    <TouchableOpacity
+    <TooltipTouchable
+      tooltip={tooltip || title}
       style={[
         styles.button,
-        backgroundColor ? { backgroundColor } : null,
+        { backgroundColor: effectiveBg, shadowColor: effectiveBg },
+        isDark && { shadowOpacity: 0.35, shadowRadius: 12 },
         style,
       ]}
       onPress={onPress}
@@ -26,7 +34,7 @@ export default function PrimaryButton({
       ) : (
         <Text style={[styles.title, { color: textColor }]}>{title}</Text>
       )}
-    </TouchableOpacity>
+    </TooltipTouchable>
   );
 }
 

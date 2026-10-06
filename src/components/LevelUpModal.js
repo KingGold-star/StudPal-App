@@ -4,6 +4,7 @@ import React from "react";
 import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
 import Modal from "./CustomModal";
 import Svg, { Path, Circle, Polygon } from "react-native-svg";
+import { useTheme } from "../theme/themeContext";
 
 const StarIcon = ({ size = 20, color = "#F59E0B" }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
@@ -18,46 +19,64 @@ const SparkleIcon = ({ size = 24, color = "#6236FF" }) => (
 );
 
 export default function LevelUpModal({ levelInfo, visible, onClose }) {
+  const { isDark, accentColor } = useTheme();
   if (!visible || !levelInfo) return null;
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <View style={styles.cardContainer}>
-          {/* Sparkle Header */}
-          <View style={styles.sparkleBox}>
-            <SparkleIcon size={32} color="#6236FF" />
+      <TouchableOpacity
+        style={styles.modalOverlay}
+        activeOpacity={1}
+        onPress={onClose}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={(e) => e.stopPropagation?.()}
+          style={{ width: "100%", alignItems: "center" }}
+        >
+          <View style={[styles.cardContainer, isDark && { backgroundColor: '#1E293B', borderWidth: 0, borderColor: 'transparent' }]}>
+            {/* Sparkle Header */}
+            <View style={[styles.sparkleBox, isDark && { backgroundColor: 'rgba(98, 54, 255, 0.2)' }]}>
+              <SparkleIcon size={32} color={accentColor || "#6236FF"} />
+            </View>
+
+            <Text style={[styles.tagline, accentColor && { color: accentColor }]}>LEVEL UP!</Text>
+            <Text style={[styles.headline, isDark && { color: '#F8FAFC' }]}>You reached Level {levelInfo.level}</Text>
+            <Text style={[styles.titleText, accentColor && { color: accentColor }]}>{levelInfo.title}</Text>
+
+            {/* Level Badge Circle */}
+            <View style={[styles.badgeCircle, accentColor && { backgroundColor: accentColor, shadowColor: accentColor }]}>
+              <Text style={styles.badgeNumber}>{levelInfo.level}</Text>
+            </View>
+
+            <Text style={[styles.subtext, isDark && { color: '#94A3B8' }]}>
+              Your dedication and consistency are paying off. Keep building your study momentum!
+            </Text>
+
+            <TouchableOpacity style={[styles.dismissBtn, accentColor && { backgroundColor: accentColor }]} onPress={onClose} activeOpacity={0.88}>
+              <Text style={styles.dismissBtnText}>Continue Learning →</Text>
+            </TouchableOpacity>
           </View>
-
-          <Text style={styles.tagline}>LEVEL UP!</Text>
-          <Text style={styles.headline}>You reached Level {levelInfo.level}</Text>
-          <Text style={styles.titleText}>{levelInfo.title}</Text>
-
-          {/* Level Badge Circle */}
-          <View style={styles.badgeCircle}>
-            <Text style={styles.badgeNumber}>{levelInfo.level}</Text>
-          </View>
-
-          <Text style={styles.subtext}>
-            Your dedication and consistency are paying off. Keep building your study momentum!
-          </Text>
-
-          <TouchableOpacity style={styles.dismissBtn} onPress={onClose} activeOpacity={0.88}>
-            <Text style={styles.dismissBtnText}>Continue Learning →</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.65)",
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+    backgroundColor: "rgba(15, 23, 42, 0.78)",
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
+    zIndex: 99999,
   },
   cardContainer: {
     width: "100%",
@@ -124,8 +143,9 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   subtext: {
-    fontSize: 13,
-    color: "#64748B",
+    fontSize: 13.5,
+    fontWeight: "700",
+    color: "#334155",
     textAlign: "center",
     lineHeight: 19,
     marginVertical: 14,

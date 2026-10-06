@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -12,24 +12,51 @@ import {
   Animated,
   Easing,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Modal from '../components/CustomModal';
 import Svg, { Circle, G, Defs, LinearGradient, Stop, Path, Rect, Line } from 'react-native-svg';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
+import LevelUpModal from '../components/LevelUpModal';
+import StreakModal from '../components/StreakModal';
+import MetricsModal from '../components/MetricsModal';
+import WelcomeInsightsModal from '../components/WelcomeInsightsModal';
+import ShareAnalyticsModal from '../components/ShareAnalyticsModal';
+import NotificationDropdown from '../components/NotificationDropdown';
 import BottomNavBar from '../components/BottomNavBar';
+import TooltipTouchable from '../components/TooltipTouchable';
 import { Colors } from '../theme/colors';
+import { useTheme } from '../theme/themeContext';
 import { gamificationService } from '../services/gamification/gamificationService';
 import { settingsService } from '../services/settings/settingsService';
+import { goalMetricsService } from '../services/goalMetricsService';
+import { notificationService } from '../services/notifications/notificationService';
+import GoalCompletionDonut from '../components/charts/GoalCompletionDonut';
+import { getDailyAdaptivePills } from '../services/adaptiveTopicsService';
+import { useTranslation } from '../services/i18n/i18nService';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const CIRCUMFERENCE = 2 * Math.PI * 104; // ~653.45
 
 // --- Executive SVG Icon Components ---
+const TargetHeaderIcon = ({ size = 18, color = "#2D62FF" }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <Circle cx="12" cy="12" r="10" />
+    <Circle cx="12" cy="12" r="6" />
+    <Circle cx="12" cy="12" r="2" />
+  </Svg>
+);
 const FlameIcon = ({ size = 16, color = '#F97316' }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <Path d="M8.5 14.5A2.5 2.5 0 0 0 11 17c1.38 0 2.5-1.12 2.5-2.5 0-1.87-1.67-2.5-2.5-4-.83 1.5-2.5 2.13-2.5 4z" />
     <Path d="M12 2c.67 2 2.8 4.2 3.5 6 1 2.5.5 5.5-1.5 7.5a6.5 6.5 0 0 1-10-3.5c-.3-1.5 0-3 1-4.5.8-1.2 2-2.5 3-4C9.5 4.5 11 3 12 2z" />
+  </Svg>
+);
+
+const FolderIcon = ({ size = 16, color = '#6236FF' }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
   </Svg>
 );
 
@@ -44,8 +71,8 @@ const TrophyIcon = ({ size = 16, color = '#2D62FF' }) => (
   </Svg>
 );
 
-const BellIcon = ({ size = 16, color = '#64748B' }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+const BellIcon = ({ size = 18, color = '#64748B' }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <Path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
     <Path d="M13.73 21a2 2 0 0 1-3.46 0" />
   </Svg>
@@ -54,6 +81,89 @@ const BellIcon = ({ size = 16, color = '#64748B' }) => (
 const SparklesIcon = ({ size = 16, color = '#2D62FF' }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <Path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+  </Svg>
+);
+
+const XpStarIcon = ({ size = 20, color = "#4F46E5" }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M12 3c0 4.5-3.5 8-8 8 4.5 0 8 3.5 8 8 0-4.5 3.5-8 8-8-4.5 0-8-3.5-8-8z" />
+    <Circle cx="19" cy="5" r="1.2" fill={color} stroke="none" />
+    <Circle cx="5" cy="19" r="1.5" fill={color} stroke="none" />
+  </Svg>
+);
+
+const CheckCircleIcon = ({ size = 22, color = '#059669' }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+    <Circle cx="12" cy="12" r="10" />
+    <Path d="M9 12l2 2 4-4" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+  </Svg>
+);
+
+const UncheckedCircleIcon = ({ size = 22, color = '#CBD5E1' }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
+    <Circle cx="12" cy="12" r="9.5" fill="#FFFFFF" />
+  </Svg>
+);
+
+const ChevronRightIcon = ({ size = 16, color = '#94A3B8' }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M9 18l6-6-6-6" />
+  </Svg>
+);
+
+const CompassIcon = ({ size = 20, color = '#4338CA' }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Circle cx="12" cy="12" r="10" />
+    <Path d="M16.24 7.76l-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z" />
+  </Svg>
+);
+
+const FlaskIcon = ({ size = 20, color = '#E11D48' }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M10 2v7.5L4.5 18A2 2 0 0 0 6.2 21h11.6a2 2 0 0 0 1.7-3L14 9.5V2" />
+    <Path d="M8.5 2h7" />
+  </Svg>
+);
+
+const AnalyticsIcon = ({ size = 22, color = "#2D62FF", bgColor = "#FFFFFF" }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Rect x="2" y="13" width="3" height="9" rx="0.5" fill={color} />
+    <Rect x="7" y="10" width="3" height="12" rx="0.5" fill={color} />
+    <Rect x="12" y="13" width="3" height="9" rx="0.5" fill={color} />
+    <Rect x="17" y="6.5" width="3" height="15.5" rx="0.5" fill={color} />
+    <Path
+      d="M3.5 10 L8.5 6 L13.5 10 L18.5 3"
+      stroke={color}
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Circle cx="3.5" cy="10" r="1.6" fill={bgColor} stroke={color} strokeWidth="1.5" />
+    <Circle cx="8.5" cy="6" r="1.6" fill={bgColor} stroke={color} strokeWidth="1.5" />
+    <Circle cx="13.5" cy="10" r="1.6" fill={bgColor} stroke={color} strokeWidth="1.5" />
+    <Circle cx="18.5" cy="3" r="1.6" fill={bgColor} stroke={color} strokeWidth="1.5" />
+  </Svg>
+);
+
+const ArrowRightIcon = ({ size = 16, color = '#2D62FF' }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M5 12h14" />
+    <Path d="M12 5l7 7-7 7" />
+  </Svg>
+);
+
+const GlobeIcon = ({ size = 20, color = '#059669' }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Circle cx="12" cy="12" r="10" />
+    <Path d="M2 12h20" />
+    <Path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+  </Svg>
+);
+
+const AtomIcon = ({ size = 20, color = '#D97706' }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Circle cx="12" cy="12" r="3" />
+    <Path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z" />
   </Svg>
 );
 
@@ -209,19 +319,167 @@ const srsFlashcards = [
   },
 ];
 
+// Helper to check and mark daily insights snapshot shown once per calendar day per user
+const INSIGHTS_KEY = (userId) => `@studpal_insights_shown_${userId || 'guest'}`;
+const todayDateString = () => new Date().toISOString().split('T')[0];
+
+const checkIfInsightsShownToday = async (userId) => {
+  try {
+    const stored = await AsyncStorage.getItem(INSIGHTS_KEY(userId));
+    return stored === todayDateString();
+  } catch (e) {
+    console.warn('insights check error:', e);
+    return false;
+  }
+};
+
+const markInsightsShownToday = async (userId) => {
+  try {
+    await AsyncStorage.setItem(INSIGHTS_KEY(userId), todayDateString());
+  } catch (e) {
+    console.warn('insights mark error:', e);
+  }
+};
+
 export default function DashboardScreen({ user = { name: 'Alex' }, onSelectTab, onNavigate, settings }) {
+  const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
+  const { isDark, accentColor: themeAccent, colors } = useTheme();
   const activeSettings = settings || settingsService.getSettingsSync();
+  const activeAccentColor = activeSettings.accentColor || themeAccent || '#2D62FF';
+  const styles = useMemo(() => getDashboardStyles(isDark, activeAccentColor, insets), [isDark, activeAccentColor, insets]);
   const [activeTab, setActiveTab] = useState('home');
   const [completedMins, setCompletedMins] = useState(45);
   const [targetMins, setTargetMins] = useState(activeSettings.dailyStudyGoal || 60);
   const [xp, setXp] = useState(320);
   const [streakCount, setStreakCount] = useState(5);
+  const [goalMetrics, setGoalMetrics] = useState(goalMetricsService.getAllState());
+  const [gamificationData, setGamificationData] = useState(gamificationService.getState());
   const [searchQuery, setSearchQuery] = useState('');
+  const mainScrollViewRef = useRef(null);
+
+  // Dynamic Subjects & Study Plan derivation based on User's Enrolled Subjects
+  const activeUserSubjects = useMemo(() => {
+    if (Array.isArray(user?.subjects) && user.subjects.length > 0) {
+      return user.subjects;
+    }
+    return ['Mathematics', 'Economics', 'Computer Science'];
+  }, [user?.subjects]);
+
+  const getSubjectVisual = (subjName) => {
+    const name = String(subjName || '').toLowerCase();
+    if (name.includes('math') || name.includes('calc')) {
+      return { IconComponent: CompassIcon, bgTint: isDark ? 'rgba(67, 56, 202, 0.2)' : '#EEF2FF', iconColor: '#4338CA' };
+    }
+    if (name.includes('phys')) {
+      return { IconComponent: AtomIcon, bgTint: isDark ? 'rgba(217, 119, 6, 0.2)' : '#FEF3C7', iconColor: '#D97706' };
+    }
+    if (name.includes('chem')) {
+      return { IconComponent: FlaskIcon, bgTint: isDark ? 'rgba(225, 29, 72, 0.2)' : '#FFF1F2', iconColor: '#E11D48' };
+    }
+    if (name.includes('bio')) {
+      return { IconComponent: BiologyIcon, bgTint: isDark ? 'rgba(16, 185, 129, 0.2)' : '#ECFDF5', iconColor: '#059669' };
+    }
+    if (name.includes('econ') || name.includes('account') || name.includes('commerce')) {
+      return { IconComponent: AnalyticsIcon, bgTint: isDark ? 'rgba(2, 132, 199, 0.2)' : '#F0F9FF', iconColor: '#0284C7' };
+    }
+    if (name.includes('gov') || name.includes('politi')) {
+      return { IconComponent: TargetHeaderIcon, bgTint: isDark ? 'rgba(37, 99, 235, 0.2)' : '#EFF6FF', iconColor: '#2563EB' };
+    }
+    if (name.includes('geo') || name.includes('world') || name.includes('hist')) {
+      return { IconComponent: GlobeIcon, bgTint: isDark ? 'rgba(5, 150, 105, 0.2)' : '#ECFDF5', iconColor: '#059669' };
+    }
+    if (name.includes('cs') || name.includes('comp') || name.includes('code')) {
+      return { IconComponent: SparklesIcon, bgTint: isDark ? 'rgba(139, 92, 246, 0.2)' : '#F5F3FF', iconColor: '#7C3AED' };
+    }
+    if (name.includes('eng') || name.includes('lit') || name.includes('french')) {
+      return { IconComponent: FolderIcon, bgTint: isDark ? 'rgba(236, 72, 153, 0.2)' : '#FDF2F8', iconColor: '#DB2777' };
+    }
+    return { IconComponent: SparklesIcon, bgTint: isDark ? 'rgba(79, 70, 229, 0.2)' : '#EEF2FF', iconColor: '#4F46E5' };
+  };
+
+  const initialPlanItems = useMemo(() => {
+    const subj1 = activeUserSubjects[0] || 'Mathematics';
+    const subj2 = activeUserSubjects[1] || activeUserSubjects[0] || 'Economics';
+    const subj3 = activeUserSubjects[2] || activeUserSubjects[0] || 'Computer Science';
+
+    return [
+      {
+        id: 'plan-1',
+        title: `${subj1}: Practice core concepts`,
+        duration: '15 min',
+        completed: false,
+        action: { type: 'study', topic: subj1 },
+      },
+      {
+        id: 'plan-2',
+        title: `AI Tutor: Explain ${subj2} fundamentals`,
+        duration: '10 min',
+        completed: false,
+        action: { type: 'aicoach', prompt: `Explain core concepts and fundamentals of ${subj2} step by step with clear examples and summaries.` },
+      },
+      {
+        id: 'plan-3',
+        title: `${subj3}: 15 flashcards review`,
+        duration: '5 min',
+        completed: false,
+        action: { type: 'study', topic: subj3 },
+      },
+    ];
+  }, [activeUserSubjects]);
+
+  // Today's Study Plan State
+  const [studyPlanItems, setStudyPlanItems] = useState(initialPlanItems);
+
+  useEffect(() => {
+    setStudyPlanItems(initialPlanItems);
+  }, [initialPlanItems]);
+
+  const handleTogglePlanItem = (itemId) => {
+    setStudyPlanItems((prev) =>
+      prev.map((item) =>
+        item.id === itemId ? { ...item, completed: !item.completed } : item
+      )
+    );
+  };
+
+  const recentSubjectsList = useMemo(() => {
+    return activeUserSubjects.slice(0, 6).map((subjName, idx) => {
+      const visual = getSubjectVisual(subjName);
+      return {
+        id: `subj-${idx + 1}`,
+        title: subjName,
+        IconComponent: visual.IconComponent,
+        bgTint: visual.bgTint,
+        iconColor: visual.iconColor,
+      };
+    });
+  }, [activeUserSubjects, isDark]);
+
+  useEffect(() => {
+    const unsub = goalMetricsService.subscribe((state) => setGoalMetrics(state));
+    const unsubG = gamificationService.subscribe((gState) => setGamificationData(gState));
+    return () => {
+      unsub();
+      unsubG();
+    };
+  }, []);
 
   // Modals state
   const [isFocusModalVisible, setFocusModalVisible] = useState(false);
   const [isStreakModalVisible, setStreakModalVisible] = useState(false);
   const [isNotifModalVisible, setNotifModalVisible] = useState(false);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(() => notificationService.getUnreadCount());
+
+  useEffect(() => {
+    const unsubNotif = notificationService.subscribe((state) => {
+      setUnreadNotifCount(state.unreadCount);
+    });
+    return () => {
+      unsubNotif();
+    };
+  }, []);
+
   const [isAiModalVisible, setAiModalVisible] = useState(false);
   const [aiTopicTitle, setAiTopicTitle] = useState('Calculus');
   const [selectedSubject, setSelectedSubject] = useState(null);
@@ -230,6 +488,31 @@ export default function DashboardScreen({ user = { name: 'Alex' }, onSelectTab, 
   const [isCardFlipped, setIsCardFlipped] = useState(false);
   const [isProfileModalVisible, setProfileModalVisible] = useState(false);
   const [isAiCoachVisible, setAiCoachVisible] = useState(false);
+  const [isInsightsModalVisible, setInsightsModalVisible] = useState(false);
+  const [isShareAnalyticsVisible, setShareAnalyticsVisible] = useState(false);
+
+  // Show Performance Snapshot only on the first app open of each calendar day
+  useEffect(() => {
+    const userId = user?.id || user?.name || 'guest';
+    let cancelled = false;
+
+    const maybeShow = async () => {
+      const alreadyShown = await checkIfInsightsShownToday(userId);
+      if (!alreadyShown && !cancelled) {
+        await markInsightsShownToday(userId); // mark immediately to prevent double-show
+        setTimeout(() => {
+          if (!cancelled) setInsightsModalVisible(true);
+        }, 600);
+      }
+    };
+
+    maybeShow();
+    return () => { cancelled = true; };
+  }, [user?.id, user?.name]);
+
+  const handleCloseInsightsModal = () => {
+    setInsightsModalVisible(false);
+  };
 
   // File Upload state
   const [isUploadModalVisible, setUploadModalVisible] = useState(false);
@@ -430,34 +713,56 @@ export default function DashboardScreen({ user = { name: 'Alex' }, onSelectTab, 
       setTodaySessionsCount((prev) => prev + 1);
       setXp((prev) => prev + 50);
       gamificationService.recordStudySession(minsGained || 25);
+      const newG = goalMetricsService.addGoal({
+        title: `Completed ${minsGained || 25}m Focus Session on ${activeSessionSubject.title}`,
+        subjectId: activeSessionSubject.title.toLowerCase(),
+        subjectName: activeSessionSubject.title,
+        category: 'Focus',
+      });
+      if (newG) goalMetricsService.toggleGoalCompletion(newG.id);
 
-      if (currentCycle < 4) {
-        const nextCycle = currentCycle + 1;
-        setCurrentCycle(nextCycle);
+      const breakMode = currentCycle < 4 ? 'shortBreak' : 'longBreak';
+      const nextCycle = currentCycle < 4 ? currentCycle + 1 : 1;
+      setCurrentCycle(nextCycle);
+
+      if (activeSettings.autoStartBreaks !== false) {
+        handleSelectMode(breakMode);
+        setTimeout(() => {
+          setIsTimerRunning(true);
+        }, 100);
         Alert.alert(
-          '🎉 Focus Session Completed!',
-          `Awesome job! Cycle ${currentCycle} of 4 completed. Time for a 5-minute Short Break! ☕`,
-          [
-            {
-              text: 'Start Short Break',
-              onPress: () => handleSelectMode('shortBreak'),
-            },
-            { text: 'Later', style: 'cancel' },
-          ]
+          '🎉 Focus Block Completed!',
+          breakMode === 'shortBreak'
+            ? `Cycle ${currentCycle} of 4 finished! Your Short Break has automatically started. Relax and recharge! ☕`
+            : `All 4 Cycles completed! Your Long Break has automatically started. Awesome job! 🌴`,
+          [{ text: 'Enjoy Break', style: 'default' }]
         );
       } else {
-        setCurrentCycle(1);
-        Alert.alert(
-          '🏆 4 Cycles Completed!',
-          `Outstanding work! You finished 4 Pomodoro cycles! Time for a well-deserved 15-minute Long Break! 🌴`,
-          [
-            {
-              text: 'Start Long Break',
-              onPress: () => handleSelectMode('longBreak'),
-            },
-            { text: 'Later', style: 'cancel' },
-          ]
-        );
+        if (currentCycle < 4) {
+          Alert.alert(
+            '🎉 Focus Session Completed!',
+            `Awesome job! Cycle ${currentCycle} of 4 completed. Time for a 5-minute Short Break! ☕`,
+            [
+              {
+                text: 'Start Short Break',
+                onPress: () => handleSelectMode('shortBreak'),
+              },
+              { text: 'Later', style: 'cancel' },
+            ]
+          );
+        } else {
+          Alert.alert(
+            '🏆 4 Cycles Completed!',
+            `Outstanding work! You finished 4 Pomodoro cycles! Time for a well-deserved 15-minute Long Break! 🌴`,
+            [
+              {
+                text: 'Start Long Break',
+                onPress: () => handleSelectMode('longBreak'),
+              },
+              { text: 'Later', style: 'cancel' },
+            ]
+          );
+        }
       }
     } else {
       Alert.alert(
@@ -476,28 +781,61 @@ export default function DashboardScreen({ user = { name: 'Alex' }, onSelectTab, 
 
   const progressPercent = Math.min(100, Math.round((completedMins / targetMins) * 100));
 
-  const handleOpenAiTopic = (topic) => {
-    setAiTopicTitle(topic);
-    setAiModalVisible(true);
+  // Dynamically generate daily personalized study pills based on user's weak areas & date seed
+  const dailyPills = getDailyAdaptivePills(user);
+
+  const handleOpenAiTopic = (topicOrPill, attachedFile = null) => {
+    let promptQuery = 'General Study';
+    if (typeof topicOrPill === 'string') {
+      promptQuery = topicOrPill;
+      if (topicOrPill === 'Calculus') {
+        promptQuery = 'Explain Calculus fundamental theorems, derivatives, and integral techniques step-by-step.';
+      } else if (topicOrPill === 'Quantum Physics') {
+        promptQuery = 'Explain Quantum Physics: wave-particle duality, Schrödinger equation, and quantum states.';
+      } else if (topicOrPill === 'Organic Chemistry') {
+        promptQuery = 'Explain Organic Chemistry reaction mechanisms (SN1, SN2, E1, E2, and Aldol condensation).';
+      } else if (topicOrPill === 'Summarize') {
+        promptQuery = 'Help me summarize key study topics and extract active recall flashcards.';
+      }
+    } else if (typeof topicOrPill === 'object' && topicOrPill) {
+      promptQuery = topicOrPill.prompt || topicOrPill.label || 'General Study';
+    }
+
+    if (onNavigate) {
+      onNavigate('aicoach', { prompt: promptQuery, attachedFile });
+    } else if (onSelectTab) {
+      onSelectTab('aicoach');
+    } else {
+      setAiCoachVisible(true);
+    }
   };
 
   const handleNavSelect = (tab) => {
     setActiveTab(tab);
-    if (tab === 'aicoach') {
-      if (onSelectTab) onSelectTab('aicoach');
-      else if (onNavigate) onNavigate('aicoach');
+    if (tab === 'community') {
+      if (onNavigate) onNavigate('community');
+      else if (onSelectTab) onSelectTab('community');
+    } else if (tab === 'aicoach') {
+      if (onNavigate) onNavigate('aicoach');
+      else if (onSelectTab) onSelectTab('aicoach');
       else setAiCoachVisible(true);
-    } else if (tab === 'subjects') {
-      if (onSelectTab) onSelectTab('subjects');
-      else if (onNavigate) onNavigate('subjects');
     } else if (tab === 'study') {
-      if (onSelectTab) onSelectTab('study');
-      else if (onNavigate) onNavigate('study');
-      else setStreakModalVisible(true);
+      if (onNavigate) onNavigate('study');
+      else if (onSelectTab) onSelectTab('study');
+    } else if (tab === 'schedule') {
+      if (onNavigate) onNavigate('schedule');
+      else if (onSelectTab) onSelectTab('schedule');
     } else if (tab === 'profile') {
-      if (onSelectTab) onSelectTab('profile');
-      else if (onNavigate) onNavigate('profile');
+      if (onNavigate) onNavigate('profile');
+      else if (onSelectTab) onSelectTab('profile');
       else setProfileModalVisible(true);
+    } else if (tab === 'stats' || tab === 'metrics') {
+      if (onNavigate) onNavigate('stats');
+      else if (onSelectTab) onSelectTab('stats');
+      else setStreakModalVisible(true);
+    } else if (tab === 'subjects') {
+      if (onNavigate) onNavigate('subjects');
+      else if (onSelectTab) onSelectTab('subjects');
     }
   };
 
@@ -594,69 +932,156 @@ export default function DashboardScreen({ user = { name: 'Alex' }, onSelectTab, 
 
   const handleAnalyzeUploadedFile = () => {
     if (!uploadedFile) return;
+    const file = uploadedFile;
     setUploadModalVisible(false);
-    handleOpenAiTopic(`Analyzed: ${uploadedFile.name}`);
+    setUploadedFile(null);
+    handleOpenAiTopic(`Please analyze and break down this ${file.type || 'file'}: ${file.name}`, file);
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       {/* ========================================================================= */}
       {/* 🌟 1. STICKY TOP NAVBAR (Zero Border, Fixed at Top)                       */}
       {/* ========================================================================= */}
       <View style={styles.stickyTopNavbar}>
         <View style={styles.headerRow}>
-          <View style={styles.profileGroup}>
-            <TouchableOpacity
-              style={styles.avatar}
-              onPress={() => onNavigate ? onNavigate('profile') : setProfileModalVisible(true)}
-              activeOpacity={0.8}
-            >
-              {user?.avatarUri ? (
+          <TooltipTouchable 
+            tooltip="Profile & Account"
+            style={styles.profileGroup}
+            onPress={() => onNavigate ? onNavigate('profile') : setProfileModalVisible(true)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.avatar}>
+              {(user && user.avatarUri) ? (
                 <Image source={{ uri: user.avatarUri }} style={styles.headerAvatarImg} />
               ) : (
-                <Text style={styles.avatarText}>
-                  {user?.name ? user.name[0].toUpperCase() : 'A'}
+                <Text style={{ fontSize: 20 }}>
+                  {user?.avatarEmoji || '👨‍🎓'}
                 </Text>
               )}
-            </TouchableOpacity>
+            </View>
 
-            <TouchableOpacity
-              style={styles.nameBlock}
-              onPress={() => setProfileModalVisible(true)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.greetingGreeting} numberOfLines={1}>Welcome back,</Text>
+            <View style={styles.nameBlock}>
+              <Text style={styles.greetingGreeting} numberOfLines={1}>{t("dashboard.welcomeBack")}</Text>
               <Text style={styles.greetingName} numberOfLines={1}>{user.name || 'Alex'}</Text>
-            </TouchableOpacity>
-          </View>
+            </View>
+          </TooltipTouchable>
 
           <View style={styles.headerActions}>
-            <TouchableOpacity
-              style={styles.streakCapsule}
-              onPress={() => setStreakModalVisible(true)}
+            <TooltipTouchable
+              tooltip="Daily Insights"
+              style={styles.bellBtn}
+              onPress={() => setInsightsModalVisible(true)}
               activeOpacity={0.7}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
-              <FlameIcon size={14} color="#F97316" />
-              <Text style={styles.streakNumber}>{streakCount}</Text>
-            </TouchableOpacity>
+              <SparklesIcon size={17} color={isDark ? "#93C5FD" : "#2D62FF"} />
+            </TooltipTouchable>
 
-            <TouchableOpacity
+            <TooltipTouchable
+              tooltip="Leaderboard"
               style={styles.bellBtn}
               onPress={() => onNavigate && onNavigate('leaderboard')}
               activeOpacity={0.7}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
-              <TrophyIcon size={16} color="#2D62FF" />
-            </TouchableOpacity>
+              <TrophyIcon size={17} color={isDark ? "#FBBF24" : "#2D62FF"} />
+            </TooltipTouchable>
 
-            <TouchableOpacity
-              style={styles.bellBtn}
-              onPress={() => setNotifModalVisible(true)}
+            <TooltipTouchable
+              tooltip="Notifications"
+              style={[
+                styles.bellBtn,
+                isNotifModalVisible && styles.bellBtnActive,
+              ]}
+              onPress={() => setNotifModalVisible((prev) => !prev)}
               activeOpacity={0.7}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
-              <BellIcon size={16} color="#64748B" />
-              <View style={styles.bellDot} />
-            </TouchableOpacity>
+              <BellIcon
+                size={18}
+                color={
+                  isNotifModalVisible
+                    ? (activeAccentColor || '#2D62FF')
+                    : isDark
+                    ? '#F1F5F9'
+                    : '#334155'
+                }
+              />
+              {unreadNotifCount > 0 && (
+                <View style={[styles.bellBadge, isDark && styles.bellBadgeDark]}>
+                  <Text style={styles.bellBadgeText}>
+                    {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
+                  </Text>
+                </View>
+              )}
+            </TooltipTouchable>
           </View>
+        </View>
+
+        {/* Sticky Learner Summary Card (Total Progress & Total XP) */}
+        <View style={styles.statsOverviewCard}>
+          {/* Left Side: Student Total Progress */}
+          <TooltipTouchable
+            tooltip="Study Progress"
+            style={styles.statsCardHalf}
+            onPress={() => onNavigate ? onNavigate('stats') : onSelectTab && onSelectTab('stats')}
+            activeOpacity={0.75}
+          >
+            <View style={styles.progressCircleWrapper}>
+              <Svg width={44} height={44} viewBox="0 0 44 44">
+                <G rotation="-90" origin="22, 22">
+                  <Circle
+                    cx="22"
+                    cy="22"
+                    r="17"
+                    stroke={isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(217, 119, 6, 0.15)"}
+                    strokeWidth="4"
+                    fill="none"
+                  />
+                  <Circle
+                    cx="22"
+                    cy="22"
+                    r="17"
+                    stroke="#F59E0B"
+                    strokeWidth="4"
+                    strokeDasharray={2 * Math.PI * 17}
+                    strokeDashoffset={2 * Math.PI * 17 * (1 - (progressPercent || 75) / 100)}
+                    strokeLinecap="round"
+                    fill="none"
+                  />
+                </G>
+              </Svg>
+              <Text style={styles.progressCircleText}>{`${progressPercent || 75}%`}</Text>
+            </View>
+
+            <View style={styles.statsTextGroup}>
+              <Text style={styles.statsValueText}>{`${progressPercent || 75}%`}</Text>
+              <Text style={styles.statsLabelText}>{t("dashboard.totalProgress")}</Text>
+            </View>
+          </TooltipTouchable>
+
+          {/* Center Vertical Divider */}
+          <View style={styles.statsCardDivider} />
+
+          {/* Right Side: Student Total XP */}
+          <TooltipTouchable
+            tooltip="Total XP & Rank"
+            style={styles.statsCardHalf}
+            onPress={() => onNavigate ? onNavigate('leaderboard') : onSelectTab && onSelectTab('leaderboard')}
+            activeOpacity={0.75}
+          >
+            <View style={styles.xpIconCircle}>
+              <XpStarIcon size={20} color={isDark ? "#818CF8" : "#4F46E5"} />
+            </View>
+
+            <View style={styles.statsTextGroup}>
+              <Text style={styles.statsValueText}>
+                {(gamificationData?.totalXp || 2450).toLocaleString()}
+              </Text>
+              <Text style={styles.statsLabelText}>{t("dashboard.totalXp")}</Text>
+            </View>
+          </TooltipTouchable>
         </View>
       </View>
 
@@ -664,230 +1089,178 @@ export default function DashboardScreen({ user = { name: 'Alex' }, onSelectTab, 
       {/* 📜 2. SCROLLABLE DASHBOARD CONTENT                                         */}
       {/* ========================================================================= */}
       <ScrollView
+        ref={mainScrollViewRef}
         style={styles.scrollContainer}
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
         bounces={true}
       >
-        {/* 2. Architectural Midnight Goal & Focus Card */}
-        <TouchableOpacity
-          style={styles.heroCard}
-          onPress={() => setFocusModalVisible(true)}
-          activeOpacity={0.92}
-        >
-          <View style={styles.heroHeader}>
-            <View>
-              <Text style={styles.heroPretitle}>DAILY COMMITMENT</Text>
-              <Text style={styles.heroTitle}>{completedMins} of {targetMins} mins</Text>
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <TouchableOpacity
-                onPress={() => onNavigate && onNavigate('schedule')}
-                style={styles.heroScheduleBtn}
-                activeOpacity={0.7}
-              >
-                <CalendarHeaderIcon size={15} color="#93C5FD" />
-              </TouchableOpacity>
-              <View style={styles.xpBadge}>
-                <Text style={styles.xpBadgeText}>+{xp} XP</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Minimalist Progress Track */}
-          <View style={styles.trackContainer}>
-            <View style={styles.trackBg}>
-              <View style={[styles.trackFill, { width: `${progressPercent}%` }]} />
-            </View>
-            <View style={styles.trackMeta}>
-              <Text style={styles.trackSubtext}>
-                {completedMins >= targetMins
-                  ? 'Daily Target Achieved'
-                  : `${targetMins - completedMins} mins remaining today`}
-              </Text>
-              <Text style={styles.trackPercent}>{progressPercent}%</Text>
-            </View>
-          </View>
-
-          {/* Clean Action Button */}
-          <TouchableOpacity
-            style={styles.resumeBtn}
-            onPress={() => setFocusModalVisible(true)}
-            activeOpacity={0.88}
-          >
-            <Text style={styles.resumeBtnText}>Start 25m Focus Session</Text>
-            <Text style={styles.resumeArrow}>→</Text>
-          </TouchableOpacity>
-        </TouchableOpacity>
-
-        {/* 3. Quiet & Clean AI Search Bar with Multi-Media File Upload Icon */}
+        {/* 1. Quiet & Clean AI Search Bar with Multi-Media File Upload Icon */}
         <View style={styles.searchBox}>
           <View style={styles.searchBar}>
             <SparklesIcon size={16} color="#2D62FF" />
             <TextInput
               style={styles.searchInput}
-              placeholder="Ask anything or explore a topic..."
+              placeholder={t("dashboard.askAnything")}
               placeholderTextColor="#94A3B8"
               value={searchQuery}
               onChangeText={setSearchQuery}
-              onSubmitEditing={() => handleOpenAiTopic(searchQuery || 'General Study')}
+              onSubmitEditing={() => {
+                if (searchQuery && searchQuery.trim()) {
+                  const q = searchQuery.trim();
+                  setSearchQuery('');
+                  handleOpenAiTopic(q);
+                }
+              }}
+              returnKeyType="search"
             />
             {/* Camera / Multi-Media File Upload Button */}
-            <TouchableOpacity
+            <TooltipTouchable
+              tooltip="Upload Study Material"
               style={styles.searchAction}
               onPress={() => setUploadModalVisible(true)}
               activeOpacity={0.7}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <CameraIcon size={18} color="#64748B" />
-            </TouchableOpacity>
+            </TooltipTouchable>
           </View>
 
-          {/* Refined Minimalist Topic Pills */}
+          {/* Daily Personalized & Adaptive Study Topic Pills */}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.pillsContainer}
           >
-            {['Calculus', 'Quantum Physics', 'Organic Chemistry', 'Summarize'].map((tag, idx) => (
-              <TouchableOpacity
-                key={idx}
+            {dailyPills.map((pill) => (
+              <TooltipTouchable
+                key={pill.id}
                 style={styles.minimalPill}
-                onPress={() => handleOpenAiTopic(tag)}
+                onPress={() => handleOpenAiTopic(pill)}
                 activeOpacity={0.65}
               >
-                <Text style={styles.minimalPillText}>{tag}</Text>
-              </TouchableOpacity>
+                <Text style={styles.minimalPillText}>{pill.label}</Text>
+              </TooltipTouchable>
             ))}
           </ScrollView>
         </View>
 
-        {/* 4. Active Subjects — Clean Modern Cards */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionHeading}>Subjects</Text>
-            <TouchableOpacity
-              onPress={() => {
-                if (onSelectTab) onSelectTab('subjects');
-                else if (onNavigate) onNavigate('subjects');
-                else setSelectedSubject(subjects[0]);
-              }}
-              activeOpacity={0.6}
-            >
-              <Text style={styles.seeAllLink}>View all</Text>
-            </TouchableOpacity>
-          </View>
+        {/* 2. Today's Study Plan Section */}
+        <View style={styles.homeSection}>
+          <Text style={styles.homeSectionHeading}>{t("dashboard.todaysPlan")}</Text>
+          <View style={styles.planList}>
+            {studyPlanItems.map((item) => (
+              <TooltipTouchable
+                key={item.id}
+                style={styles.planCard}
+                onPress={() => {
+                  if (item.action.type === 'aicoach') {
+                    handleOpenAiTopic(item.action.prompt);
+                  } else if (onNavigate) {
+                    onNavigate('study');
+                  } else if (onSelectTab) {
+                    onSelectTab('study');
+                  }
+                }}
+                activeOpacity={0.8}
+              >
+                <TooltipTouchable
+                  style={styles.planCheckBtn}
+                  onPress={() => handleTogglePlanItem(item.id)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  {item.completed ? (
+                    <CheckCircleIcon size={22} color="#059669" />
+                  ) : (
+                    <UncheckedCircleIcon size={22} color="#CBD5E1" />
+                  )}
+                </TooltipTouchable>
 
+                <View style={styles.planContent}>
+                  <Text
+                    style={[
+                      styles.planTitle,
+                      item.completed && styles.planTitleCompleted,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {item.titleKey ? t(item.titleKey, item.title) : item.title}
+                  </Text>
+                  <Text style={styles.planDuration}>{item.durationKey ? t(item.durationKey, item.duration) : item.duration}</Text>
+                </View>
+
+                <ChevronRightIcon size={16} color="#94A3B8" />
+              </TooltipTouchable>
+            ))}
+          </View>
+        </View>
+
+        {/* 3. Recent Subjects Section */}
+        <View style={styles.homeSection}>
+          <Text style={styles.homeSectionHeading}>{t("dashboard.recentSubjects")}</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.subjectsRow}
+            contentContainerStyle={styles.recentSubjectsRow}
           >
-            {subjects.map((sub) => {
-              const SubIcon = sub.IconComponent;
+            {recentSubjectsList.map((subj) => {
+              const IconComp = subj.IconComponent;
               return (
-                <TouchableOpacity
-                  key={sub.id}
-                  style={styles.cleanSubjectCard}
-                  onPress={() => setSelectedSubject(sub)}
+                <TooltipTouchable
+                  key={subj.id}
+                  style={styles.recentSubjectCard}
+                  onPress={() => {
+                    if (onNavigate) onNavigate('subjects');
+                    else if (onSelectTab) onSelectTab('subjects');
+                  }}
                   activeOpacity={0.8}
                 >
-                  <View style={styles.cardTopRow}>
-                    <View style={[styles.cleanIconBox, { backgroundColor: sub.bgTint }]}>
-                      <SubIcon size={18} color={sub.tint} />
-                    </View>
-                    <Text style={[styles.masteryBadge, { color: sub.tint }]}>
-                      {Math.round(sub.mastery * 100)}%
-                    </Text>
+                  <View style={[styles.recentSubjectIconBox, { backgroundColor: subj.bgTint }]}>
+                    <IconComp size={20} color={subj.iconColor} />
                   </View>
-
-                  <View style={styles.subjectContent}>
-                    <Text style={styles.cardTitle}>{sub.title}</Text>
-                    <Text style={styles.cardSubtitle} numberOfLines={1}>
-                      {sub.currentTopic}
-                    </Text>
-                  </View>
-
-                  {/* Micro Progress Bar */}
-                  <View style={styles.cardTrackBg}>
-                    <View
-                      style={[
-                        styles.cardTrackFill,
-                        { width: `${sub.mastery * 100}%`, backgroundColor: sub.tint },
-                      ]}
-                    />
-                  </View>
-                </TouchableOpacity>
+                  <Text style={styles.recentSubjectTitle} numberOfLines={2}>
+                    {subj.titleKey ? t(subj.titleKey, subj.title) : subj.title}
+                  </Text>
+                </TooltipTouchable>
               );
             })}
           </ScrollView>
         </View>
 
-        {/* 5. Revision Queue — Quiet List Design */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeaderRow}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={styles.sectionHeading}>Revision Queue</Text>
-              <View style={styles.countBadge}>
-                <Text style={styles.countBadgeText}>3</Text>
-              </View>
+        {/* 4. Sleek Study Analytics Banner (Navigates to Stats Screen) */}
+        <TooltipTouchable
+          tooltip="View Detailed Analytics"
+          style={styles.analyticsBannerCard}
+          onPress={() => onNavigate ? onNavigate('stats') : onSelectTab && onSelectTab('stats')}
+          activeOpacity={0.88}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <View style={[styles.analyticsIconBox, { backgroundColor: activeSettings?.accentColor ? `${activeSettings.accentColor}1A` : '#EFF6FF' }]}>
+              <AnalyticsIcon size={22} color={activeSettings?.accentColor || '#2D62FF'} />
             </View>
-            <TouchableOpacity
-              onPress={() => {
-                setCurrentCardIndex(0);
-                setIsCardFlipped(false);
-                setSrsModalVisible(true);
-              }}
-              activeOpacity={0.6}
-            >
-              <Text style={styles.seeAllLink}>Start all</Text>
-            </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.analyticsBannerPre, { color: activeSettings?.accentColor || '#2D62FF' }]}>{t("dashboard.studyAnalytics")}</Text>
+              <Text style={styles.analyticsBannerTitle}>{t("dashboard.viewDetailedStats")}</Text>
+              <Text style={styles.analyticsBannerSub}>{t("dashboard.analyticsSub")}</Text>
+            </View>
+            <View style={[styles.analyticsArrowCircle, activeSettings?.accentColor && { backgroundColor: `${activeSettings.accentColor}12`, borderColor: `${activeSettings.accentColor}25` }]}>
+              <ArrowRightIcon size={16} color={activeSettings?.accentColor || '#2D62FF'} />
+            </View>
           </View>
-
-          <View style={styles.queueList}>
-            {srsFlashcards.map((item, index) => {
-              const ItemIcon = item.IconComponent;
-              return (
-                <TouchableOpacity
-                  key={item.id}
-                  style={styles.quietQueueItem}
-                  onPress={() => {
-                    setCurrentCardIndex(index);
-                    setIsCardFlipped(false);
-                    setSrsModalVisible(true);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.queueIconBox}>
-                    <ItemIcon size={18} color="#2D62FF" />
-                  </View>
-
-                  <View style={styles.queueInfo}>
-                    <Text style={styles.queueTitle} numberOfLines={1}>
-                      {item.title}
-                    </Text>
-                    <Text style={styles.queueMeta}>
-                      {item.subject} • {item.retention}% retention
-                    </Text>
-                  </View>
-
-                  <View style={[styles.statusTag, item.urgent && styles.statusTagUrgent]}>
-                    <Text style={[styles.statusTagText, item.urgent && styles.statusTagTextUrgent]}>
-                      {item.status}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
+        </TooltipTouchable>
       </ScrollView>
 
-      {/* ========================================================================= */}
-      {/* 🌟 3. STICKY BOTTOM NAVBAR (Zero Border, Fixed at Bottom)                  */}
-      {/* ========================================================================= */}
-      <BottomNavBar activeTab={activeTab} onSelectTab={handleNavSelect} />
+      {/* Welcome Insights Pop-Up Info Card (Shown Once Daily per User) */}
+      <WelcomeInsightsModal
+        visible={isInsightsModalVisible}
+        onClose={handleCloseInsightsModal}
+      />
+
+      {/* Share Analytics Bottom Sheet Panel */}
+      <ShareAnalyticsModal
+        visible={isShareAnalyticsVisible}
+        onClose={() => setShareAnalyticsVisible(false)}
+      />
 
       {/* ========================================================================= */}
       {/* 🚀 1. MULTI-MEDIA FILE UPLOAD BOTTOM SHEET MODAL (PDF, Doc, Image, Video) */}
@@ -899,11 +1272,16 @@ export default function DashboardScreen({ user = { name: 'Alex' }, onSelectTab, 
         onRequestClose={() => setUploadModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setUploadModalVisible(false)}
+          />
           <View style={[styles.modalSheet, { maxHeight: '90%' }]}>
             <View style={styles.modalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Text style={{ fontSize: 22 }}>📁</Text>
-                <Text style={styles.modalSheetTitle}>Upload Study Material</Text>
+                <Text style={styles.modalSheetTitle}>{t("dashboard.uploadMaterial")}</Text>
               </View>
               <TouchableOpacity onPress={() => setUploadModalVisible(false)}>
                 <Text style={styles.modalCloseBtn}>✕</Text>
@@ -1014,7 +1392,7 @@ export default function DashboardScreen({ user = { name: 'Alex' }, onSelectTab, 
         transparent={false}
         onRequestClose={() => setFocusModalVisible(false)}
       >
-        <SafeAreaView style={styles.pomodoroScreenRoot} edges={['top', 'bottom']}>
+        <SafeAreaView style={styles.pomodoroScreenRoot} edges={['top', 'bottom', 'left', 'right']}>
           {/* 1. Header Bar (Back Arrow, Title & Subtitle, Settings Gear) */}
           <View style={styles.pomodoroHeaderRow}>
             <TouchableOpacity
@@ -1229,6 +1607,11 @@ export default function DashboardScreen({ user = { name: 'Alex' }, onSelectTab, 
           onRequestClose={() => setIsSettingsModalVisible(false)}
         >
           <View style={styles.modalOverlay}>
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              activeOpacity={1}
+              onPress={() => setIsSettingsModalVisible(false)}
+            />
             <View style={styles.modalSheet}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalSheetTitle}>⚙️ Pomodoro Settings</Text>
@@ -1320,6 +1703,11 @@ export default function DashboardScreen({ user = { name: 'Alex' }, onSelectTab, 
           onRequestClose={() => setIsSubjectChangeModalVisible(false)}
         >
           <View style={styles.modalOverlay}>
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              activeOpacity={1}
+              onPress={() => setIsSubjectChangeModalVisible(false)}
+            />
             <View style={styles.modalSheet}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalSheetTitle}>📘 Select Subject</Text>
@@ -1363,107 +1751,27 @@ export default function DashboardScreen({ user = { name: 'Alex' }, onSelectTab, 
       {/* ========================================================================= */}
       {/* 🚀 3. STUDY STREAK & HABIT MODAL                                          */}
       {/* ========================================================================= */}
-      <Modal
+      <StreakModal 
         visible={isStreakModalVisible}
-        animationType="fade"
-        transparent={true}
-        onRequestClose={() => setStreakModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalSheetTitle}>🔥 Study Streak</Text>
-              <TouchableOpacity onPress={() => setStreakModalVisible(false)}>
-                <Text style={styles.modalCloseBtn}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.streakHeroBox}>
-              <Text style={{ fontSize: 44 }}>🔥</Text>
-              <Text style={styles.streakHeroCount}>{streakCount} Days Active</Text>
-              <Text style={styles.streakHeroSub}>You're on fire! Keep studying daily to maintain momentum.</Text>
-            </View>
-
-            {/* Weekly Days Row */}
-            <View style={styles.weekRow}>
-              {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, idx) => {
-                const isChecked = idx < streakCount;
-                return (
-                  <View key={idx} style={styles.dayCol}>
-                    <View style={[styles.dayCircle, isChecked && styles.dayCircleActive]}>
-                      <Text style={[styles.dayCircleText, isChecked && styles.dayCircleTextActive]}>
-                        {isChecked ? '✓' : ''}
-                      </Text>
-                    </View>
-                    <Text style={styles.dayNameText}>{day}</Text>
-                  </View>
-                );
-              })}
-            </View>
-
-            <TouchableOpacity
-              style={styles.modalPrimaryBtn}
-              onPress={() => setStreakModalVisible(false)}
-            >
-              <Text style={styles.modalPrimaryBtnText}>Awesome, Keep Going!</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+        streakCount={streakCount}
+        onClose={() => setStreakModalVisible(false)}
+      />
 
       {/* ========================================================================= */}
-      {/* 🚀 4. NOTIFICATIONS MODAL                                                 */}
+      {/* 🚀 4. NOTIFICATIONS DROPDOWN                                              */}
       {/* ========================================================================= */}
-      <Modal
+      <NotificationDropdown
         visible={isNotifModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setNotifModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalSheetTitle}>🔔 Notifications</Text>
-              <TouchableOpacity onPress={() => setNotifModalVisible(false)}>
-                <Text style={styles.modalCloseBtn}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={{ gap: 12, marginVertical: 14 }}>
-              <View style={styles.notifCard}>
-                <Text style={{ fontSize: 20 }}>📐</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.notifCardTitle}>Calculus Revision Due</Text>
-                  <Text style={styles.notifCardSub}>Integration by Parts is due for Spaced Repetition review.</Text>
-                </View>
-              </View>
-
-              <View style={styles.notifCard}>
-                <Text style={{ fontSize: 20 }}>🏆</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.notifCardTitle}>Level 4 Scholar Achieved</Text>
-                  <Text style={styles.notifCardSub}>You earned +320 XP this week. Rank #3 on class leaderboard.</Text>
-                </View>
-              </View>
-
-              <View style={styles.notifCard}>
-                <Text style={{ fontSize: 20 }}>✨</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.notifCardTitle}>New AI Study Guide Ready</Text>
-                  <Text style={styles.notifCardSub}>Your customized notes for Organic Chemistry are compiled.</Text>
-                </View>
-              </View>
-            </View>
-
-            <TouchableOpacity
-              style={styles.modalPrimaryBtn}
-              onPress={() => setNotifModalVisible(false)}
-            >
-              <Text style={styles.modalPrimaryBtnText}>Mark All as Read</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+        onClose={() => setNotifModalVisible(false)}
+        onNavigate={(route, params) => {
+          setNotifModalVisible(false);
+          if (onNavigate) {
+            onNavigate(route, params);
+          } else if (onSelectTab) {
+            onSelectTab(route, params);
+          }
+        }}
+      />
 
       {/* ========================================================================= */}
       {/* 🚀 5. AI TUTOR CONCEPT BREAKDOWN MODAL                                     */}
@@ -1475,6 +1783,11 @@ export default function DashboardScreen({ user = { name: 'Alex' }, onSelectTab, 
         onRequestClose={() => setAiModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setAiModalVisible(false)}
+          />
           <View style={[styles.modalSheet, { maxHeight: '85%' }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalSheetTitle}>✨ AI Study Tutor</Text>
@@ -1529,9 +1842,14 @@ export default function DashboardScreen({ user = { name: 'Alex' }, onSelectTab, 
         onRequestClose={() => setSelectedSubject(null)}
       >
         <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setSelectedSubject(null)}
+          />
           <View style={[styles.modalSheet, { maxHeight: '85%' }]}>
             {selectedSubject && (
-              <>
+              <View style={{ flex: 1 }}>
                 <View style={styles.modalHeader}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <Text style={{ fontSize: 24 }}>{selectedSubject.emoji}</Text>
@@ -1574,7 +1892,7 @@ export default function DashboardScreen({ user = { name: 'Alex' }, onSelectTab, 
                 >
                   <Text style={styles.modalPrimaryBtnText}>Resume Next Lesson →</Text>
                 </TouchableOpacity>
-              </>
+              </View>
             )}
           </View>
         </View>
@@ -1590,6 +1908,11 @@ export default function DashboardScreen({ user = { name: 'Alex' }, onSelectTab, 
         onRequestClose={() => setSrsModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setSrsModalVisible(false)}
+          />
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalSheetTitle}>⚡ Spaced Repetition Drill</Text>
@@ -1670,6 +1993,11 @@ export default function DashboardScreen({ user = { name: 'Alex' }, onSelectTab, 
         onRequestClose={() => setProfileModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setProfileModalVisible(false)}
+          />
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalSheetTitle}>👤 Student Profile</Text>
@@ -1680,9 +2008,13 @@ export default function DashboardScreen({ user = { name: 'Alex' }, onSelectTab, 
 
             <View style={styles.profileModalHeader}>
               <View style={styles.profileAvatarLarge}>
-                <Text style={styles.profileAvatarText}>
-                  {user.name ? user.name[0].toUpperCase() : 'A'}
-                </Text>
+                {(user && user.avatarUri) ? (
+                  <Image source={{ uri: user.avatarUri }} style={{ width: 64, height: 64, borderRadius: 32 }} />
+                ) : (
+                  <Text style={{ fontSize: 32 }}>
+                    {user?.avatarEmoji || '👨‍🎓'}
+                  </Text>
+                )}
               </View>
               <Text style={styles.profileModalName}>{user.name || 'Alex'}</Text>
               <Text style={styles.profileModalEmail}>{user.email || 'alex@studpal.app'}</Text>
@@ -1694,8 +2026,8 @@ export default function DashboardScreen({ user = { name: 'Alex' }, onSelectTab, 
                 <Text style={styles.profileStatLabel}>Total XP</Text>
               </View>
               <View style={styles.profileStatItem}>
-                <Text style={styles.profileStatVal}>{streakCount}d</Text>
-                <Text style={styles.profileStatLabel}>Streak</Text>
+                <Text style={styles.profileStatVal}>{goalMetrics.weekly.completionPercentage}%</Text>
+                <Text style={styles.profileStatLabel}>Goal Rate</Text>
               </View>
               <View style={styles.profileStatItem}>
                 <Text style={styles.profileStatVal}>Lvl 4</Text>
@@ -1723,6 +2055,11 @@ export default function DashboardScreen({ user = { name: 'Alex' }, onSelectTab, 
         onRequestClose={() => setAiCoachVisible(false)}
       >
         <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setAiCoachVisible(false)}
+          />
           <View style={[styles.modalSheet, { maxHeight: '90%' }]}>
             <View style={styles.modalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -1772,10 +2109,60 @@ export default function DashboardScreen({ user = { name: 'Alex' }, onSelectTab, 
   );
 }
 
-const styles = StyleSheet.create({
+const baseDashboardStyles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+  },
+
+  // Analytics Banner Card
+  analyticsBannerCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(45, 98, 255, 0.15)',
+    marginVertical: 12,
+    shadowColor: '#2D62FF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  analyticsIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  analyticsBannerPre: {
+    fontSize: 9.5,
+    fontWeight: '900',
+    color: '#2D62FF',
+    letterSpacing: 1.2,
+    marginBottom: 2,
+  },
+  analyticsBannerTitle: {
+    fontSize: 14.5,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  analyticsBannerSub: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  analyticsArrowCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(45, 98, 255, 0.15)',
   },
 
   // 1. Sticky Top Navbar
@@ -1826,8 +2213,8 @@ const styles = StyleSheet.create({
   },
   greetingGreeting: {
     fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
+    color: '#334155',
+    fontWeight: '700',
   },
   greetingName: {
     fontSize: 19,
@@ -1840,13 +2227,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  headerSubjectsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#F0EEFF',
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    minHeight: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(98, 54, 255, 0.18)',
+  },
+  headerSubjectsBtnText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#6236FF',
+  },
   streakCapsule: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#EFF6FF',
     borderWidth: 1.2,
-    borderColor: '#E2E8F0',
+    borderColor: '#BFDBFE',
     paddingHorizontal: 12,
     paddingVertical: 8,
     minHeight: 44,
@@ -1857,13 +2261,35 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 1,
   },
-  streakFire: {
-    fontSize: 13,
-  },
-  streakNumber: {
-    fontSize: 13,
+  goalCapsuleText: {
+    fontSize: 14,
     fontWeight: '800',
-    color: Colors.brandOrange,
+    color: '#2D62FF',
+  },
+  weeklyHeroBox: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  weeklyHeroTitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#93C5FD',
+    letterSpacing: 0.5,
+  },
+  weeklyHeroTrend: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#34D399',
+  },
+  weeklyHeroValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginTop: 4,
   },
   bellBtn: {
     width: 44,
@@ -1879,9 +2305,14 @@ const styles = StyleSheet.create({
     position: 'relative',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
+    shadowOpacity: 0.04,
     shadowRadius: 6,
-    elevation: 1,
+    elevation: 2,
+  },
+  bellBtnActive: {
+    borderColor: '#2D62FF',
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1.5,
   },
   bellIcon: {
     fontSize: 16,
@@ -1894,6 +2325,31 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
     backgroundColor: Colors.brandOrange,
+  },
+  bellBadge: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#F97316',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+    zIndex: 3,
+  },
+  bellBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '800',
+    lineHeight: 11,
+    textAlign: 'center',
+  },
+  bellBadgeDark: {
+    borderColor: '#1E293B',
   },
 
   // 2. Scrollable Body
@@ -2011,10 +2467,71 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#0F1D4A',
   },
-  resumeArrow: {
+  // 2.5 Summary Stats Card (Total Progress & XP)
+  statsOverviewCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  statsCardHalf: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  progressCircleWrapper: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  progressCircleText: {
+    position: 'absolute',
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  xpIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  statsTextGroup: {
+    flexDirection: 'column',
+    justifyContent: 'center',
+  },
+  statsValueText: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors.accent,
+    color: '#0F172A',
+    letterSpacing: -0.3,
+  },
+  statsLabelText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#94A3B8',
+    marginTop: 1,
+  },
+  statsCardDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: '#F1F5F9',
+    marginHorizontal: 12,
   },
 
   // 3. Search Box
@@ -2028,8 +2545,8 @@ const styles = StyleSheet.create({
     minHeight: 48,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    borderWidth: 1.2,
-    borderColor: '#E2E8F0',
+    borderWidth: 0,
+    borderColor: 'transparent',
     paddingHorizontal: 16,
     gap: 12,
     shadowColor: '#000',
@@ -2075,6 +2592,90 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#475569',
+  },
+
+  // Home Sections (Study Plan & Recent Subjects)
+  homeSection: {
+    gap: 12,
+  },
+  homeSectionHeading: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#0F172A',
+    letterSpacing: -0.3,
+  },
+  planList: {
+    gap: 10,
+  },
+  planCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    gap: 14,
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1.5,
+  },
+  planCheckBtn: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  planContent: {
+    flex: 1,
+    gap: 3,
+  },
+  planTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  planTitleCompleted: {
+    textDecorationLine: 'line-through',
+    color: '#94A3B8',
+  },
+  planDuration: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#94A3B8',
+  },
+  recentSubjectsRow: {
+    gap: 12,
+    paddingRight: 10,
+  },
+  recentSubjectCard: {
+    width: 112,
+    height: 118,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 14,
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1.5,
+  },
+  recentSubjectIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  recentSubjectTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+    lineHeight: 16,
   },
 
   // 4. Subjects
@@ -3118,3 +3719,94 @@ const styles = StyleSheet.create({
     borderRadius: 18,
   },
 });
+
+const getDashboardStyles = (isDark, activeAccentColor, insets = { top: 0, bottom: 0, left: 0, right: 0 }) => {
+  const dynamicContainer = {
+    ...baseDashboardStyles.container,
+    paddingBottom: Math.max(insets?.bottom || 0, 20) + 110,
+  };
+  const dynamicModalSheet = {
+    ...baseDashboardStyles.modalSheet,
+    paddingBottom: Math.max(insets?.bottom || 0, 20) + 16,
+  };
+
+  return {
+    ...baseDashboardStyles,
+    container: dynamicContainer,
+    modalSheet: [dynamicModalSheet, isDark && { backgroundColor: '#0F172A' }],
+    safeArea: [baseDashboardStyles.safeArea, isDark && { backgroundColor: '#0B0F19' }],
+    stickyTopNavbar: [baseDashboardStyles.stickyTopNavbar, isDark && { backgroundColor: '#0B0F19' }],
+    greetingGreeting: [baseDashboardStyles.greetingGreeting, isDark && { color: '#94A3B8' }],
+    greetingName: [baseDashboardStyles.greetingName, isDark && { color: '#F8FAFC' }],
+    bellBtn: [baseDashboardStyles.bellBtn, isDark && { backgroundColor: '#1E293B', borderWidth: 1.2, borderColor: 'rgba(255, 255, 255, 0.09)' }],
+    bellBtnActive: [baseDashboardStyles.bellBtnActive, { borderColor: activeAccentColor || '#2D62FF', backgroundColor: isDark ? 'rgba(45, 98, 255, 0.22)' : '#EFF6FF' }],
+    bellBadge: [baseDashboardStyles.bellBadge, isDark && baseDashboardStyles.bellBadgeDark],
+    bellBadgeText: baseDashboardStyles.bellBadgeText,
+    headerSubjectsBtn: [baseDashboardStyles.headerSubjectsBtn, isDark && { backgroundColor: '#1E293B', borderWidth: 1.2, borderColor: 'rgba(255, 255, 255, 0.09)' }],
+    headerSubjectsBtnText: [baseDashboardStyles.headerSubjectsBtnText, isDark && { color: '#F8FAFC' }],
+    streakCapsule: [baseDashboardStyles.streakCapsule, isDark && { backgroundColor: '#1E293B', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.08)' }],
+    analyticsBannerCard: [baseDashboardStyles.analyticsBannerCard, isDark && { backgroundColor: '#1E293B', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.08)' }],
+    analyticsBannerTitle: [baseDashboardStyles.analyticsBannerTitle, isDark && { color: '#F8FAFC' }],
+    analyticsBannerSub: [baseDashboardStyles.analyticsBannerSub, isDark && { color: '#94A3B8' }],
+    analyticsIconBox: [baseDashboardStyles.analyticsIconBox, isDark && { backgroundColor: 'rgba(45, 98, 255, 0.18)' }],
+    analyticsArrowCircle: [baseDashboardStyles.analyticsArrowCircle, isDark && { backgroundColor: 'rgba(45, 98, 255, 0.18)', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.08)' }],
+    statsOverviewCard: [baseDashboardStyles.statsOverviewCard, isDark && { backgroundColor: '#1E293B', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.08)' }],
+    statsValueText: [baseDashboardStyles.statsValueText, isDark && { color: '#F8FAFC' }],
+    statsCardDivider: [baseDashboardStyles.statsCardDivider, isDark && { backgroundColor: '#334155' }],
+    searchBar: [baseDashboardStyles.searchBar, isDark && { backgroundColor: '#1E293B', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.08)' }],
+    searchInput: [baseDashboardStyles.searchInput, isDark && { color: '#F8FAFC' }],
+    minimalPill: [baseDashboardStyles.minimalPill, isDark && { backgroundColor: '#1E293B', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.08)' }],
+    minimalPillText: [baseDashboardStyles.minimalPillText, isDark && { color: '#CBD5E1' }],
+    homeSectionHeading: [baseDashboardStyles.homeSectionHeading, isDark && { color: '#F8FAFC' }],
+    planCard: [baseDashboardStyles.planCard, isDark && { backgroundColor: '#1E293B', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.08)' }],
+    planTitle: [baseDashboardStyles.planTitle, isDark && { color: '#F8FAFC' }],
+    recentSubjectCard: [baseDashboardStyles.recentSubjectCard, isDark && { backgroundColor: '#1E293B', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.08)' }],
+    recentSubjectTitle: [baseDashboardStyles.recentSubjectTitle, isDark && { color: '#F8FAFC' }],
+    sectionHeading: [baseDashboardStyles.sectionHeading, isDark && { color: '#F8FAFC' }],
+    cleanSubjectCard: [baseDashboardStyles.cleanSubjectCard, isDark && { backgroundColor: '#1E293B', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.08)' }],
+    cardTitle: [baseDashboardStyles.cardTitle, isDark && { color: '#F8FAFC' }],
+    cardSubtitle: [baseDashboardStyles.cardSubtitle, isDark && { color: '#94A3B8' }],
+    cardTrackBg: [baseDashboardStyles.cardTrackBg, isDark && { backgroundColor: '#334155' }],
+    quietQueueItem: [baseDashboardStyles.quietQueueItem, isDark && { backgroundColor: '#1E293B', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.08)' }],
+    queueIconBox: [baseDashboardStyles.queueIconBox, isDark && { backgroundColor: '#0F172A', borderWidth: 0, borderColor: 'transparent' }],
+    queueTitle: [baseDashboardStyles.queueTitle, isDark && { color: '#F8FAFC' }],
+    queueMeta: [baseDashboardStyles.queueMeta, isDark && { color: '#94A3B8' }],
+    statusTag: [baseDashboardStyles.statusTag, isDark && { backgroundColor: '#0F172A' }],
+    statusTagText: [baseDashboardStyles.statusTagText, isDark && { color: '#94A3B8' }],
+    modalSheetTitle: [baseDashboardStyles.modalSheetTitle, isDark && { color: '#F8FAFC' }],
+    uploadOptionCard: [baseDashboardStyles.uploadOptionCard, isDark && { backgroundColor: '#1E293B', borderWidth: 0, borderColor: 'transparent' }],
+    uploadOptionTitle: [baseDashboardStyles.uploadOptionTitle, isDark && { color: '#F8FAFC' }],
+    uploadOptionSub: [baseDashboardStyles.uploadOptionSub, isDark && { color: '#94A3B8' }],
+    pomodoroHeaderRow: [baseDashboardStyles.pomodoroHeaderRow, isDark && { backgroundColor: '#0B0F19' }],
+    pomoHeaderBtn: [baseDashboardStyles.pomoHeaderBtn, isDark && { backgroundColor: '#1E293B', borderWidth: 0, borderColor: 'transparent' }],
+    pomoHeaderBackIcon: [baseDashboardStyles.pomoHeaderBackIcon, isDark && { color: '#F8FAFC' }],
+    pomoHeaderTitle: [baseDashboardStyles.pomoHeaderTitle, isDark && { color: '#F8FAFC' }],
+    pomoHeaderSubtitle: [baseDashboardStyles.pomoHeaderSubtitle, isDark && { color: '#94A3B8' }],
+    modeSegmentContainer: [baseDashboardStyles.modeSegmentContainer, isDark && { backgroundColor: '#1E293B', borderWidth: 0, borderColor: 'transparent' }],
+    modeTabText: [baseDashboardStyles.modeTabText, isDark && { color: '#94A3B8' }],
+    chatBubbleAi: [baseDashboardStyles.chatBubbleAi, isDark && { backgroundColor: '#1E293B', borderWidth: 0, borderColor: 'transparent' }],
+    chatTextAi: [baseDashboardStyles.chatTextAi, isDark && { color: '#F8FAFC' }],
+    chatPromptChip: [baseDashboardStyles.chatPromptChip, isDark && { backgroundColor: '#1E293B', borderWidth: 0, borderColor: 'transparent' }],
+    notifCard: [baseDashboardStyles.notifCard, isDark && { backgroundColor: '#1E293B', borderWidth: 0, borderColor: 'transparent' }],
+    notifCardTitle: [baseDashboardStyles.notifCardTitle, isDark && { color: '#F8FAFC' }],
+    notifCardSub: [baseDashboardStyles.notifCardSub, isDark && { color: '#CBD5E1' }],
+    aiResultCard: [baseDashboardStyles.aiResultCard, isDark && { backgroundColor: '#1E293B', borderWidth: 0, borderColor: 'transparent' }],
+    aiResultBody: [baseDashboardStyles.aiResultBody, isDark && { color: '#E2E8F0' }],
+    aiQuizBtn: [baseDashboardStyles.aiQuizBtn, isDark && { backgroundColor: '#0F172A', borderWidth: 0, borderColor: 'transparent' }],
+    aiQuizBtnText: [baseDashboardStyles.aiQuizBtnText, isDark && { color: '#F8FAFC' }],
+    subjectMasteryRow: [baseDashboardStyles.subjectMasteryRow, isDark && { borderBottomWidth: 0, borderBottomColor: 'transparent' }],
+    lessonItem: [baseDashboardStyles.lessonItem, isDark && { borderBottomWidth: 0, borderBottomColor: 'transparent' }],
+    settingRow: [baseDashboardStyles.settingRow, isDark && { borderBottomWidth: 0, borderBottomColor: 'transparent' }],
+    subjectSelectOption: [baseDashboardStyles.subjectSelectOption, isDark && { backgroundColor: '#1E293B', borderWidth: 0, borderColor: 'transparent' }],
+    lessonText: [baseDashboardStyles.lessonText, isDark && { color: '#F8FAFC' }],
+    profileModalName: [baseDashboardStyles.profileModalName, isDark && { color: '#F8FAFC' }],
+    profileStatsRow: [baseDashboardStyles.profileStatsRow, isDark && { backgroundColor: '#1E293B', borderWidth: 0, borderColor: 'transparent' }],
+    dayNameText: [baseDashboardStyles.dayNameText, isDark && { color: '#94A3B8' }],
+    dayCircle: [baseDashboardStyles.dayCircle, isDark && { backgroundColor: '#1E293B' }],
+    dayCircleText: [baseDashboardStyles.dayCircleText, isDark && { color: '#CBD5E1' }],
+    progressCircleText: [baseDashboardStyles.progressCircleText, isDark && { color: '#F8FAFC' }],
+    xpIconCircle: [baseDashboardStyles.xpIconCircle, isDark && { backgroundColor: 'rgba(99, 102, 241, 0.15)', borderWidth: 1, borderColor: 'rgba(99, 102, 241, 0.3)' }],
+    statsLabelText: [baseDashboardStyles.statsLabelText, isDark && { color: '#94A3B8' }],
+  };
+};
+

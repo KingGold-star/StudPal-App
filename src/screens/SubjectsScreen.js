@@ -13,11 +13,16 @@ import {
   Platform,
 } from "react-native";
 import Modal from "../components/CustomModal";
-import Svg, { Path, Circle, Rect } from "react-native-svg";
+import Svg, { Path, Circle, Rect, G } from "react-native-svg";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import BottomNavBar from "../components/BottomNavBar";
+import TooltipTouchable from "../components/TooltipTouchable";
 import { gamificationService } from "../services/gamification/gamificationService";
 import { settingsService } from "../services/settings/settingsService";
+import { studyService } from "../services/studyService";
+import { useTranslation } from "../services/i18n/i18nService";
+import { Colors } from "../theme/colors";
+import { useTheme } from "../theme/themeContext";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -49,6 +54,12 @@ const FolderIcon = ({ color = "#6236FF", size = 20 }) => (
   </Svg>
 );
 
+const ChevronLeftIcon = ({ color = "#0F172A", size = 20 }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M15 18l-6-6 6-6" />
+  </Svg>
+);
+
 const ChevronRightIcon = ({ color = "#94A3B8", size = 16 }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <Path d="M9 18l6-6-6-6" />
@@ -62,6 +73,57 @@ const MoreVerticalIcon = ({ color = "#94A3B8", size = 18 }) => (
     <Circle cx="12" cy="19" r="1" />
   </Svg>
 );
+
+const MoreHorizontalIcon = ({ color = "#94A3B8", size = 18 }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <Circle cx="12" cy="12" r="1" />
+    <Circle cx="5" cy="12" r="1" />
+    <Circle cx="19" cy="12" r="1" />
+  </Svg>
+);
+
+// ─── CIRCULAR PROGRESS RING ──────────────────────────────────────────────────
+const CircularProgressRing = ({ percentage = 0, size = 48, strokeWidth = 4, color = "#6236FF", trackColor, textColor }) => {
+  const { isDark } = useTheme();
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (circumference * percentage) / 100;
+  const finalTrackColor = trackColor || (isDark ? "rgba(255, 255, 255, 0.12)" : "#E2E8F0");
+  const finalTextColor = textColor || (isDark ? "#F8FAFC" : "#1E293B");
+
+  return (
+    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+      <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <G rotation="-90" origin={`${size / 2}, ${size / 2}`}>
+          <Circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke={finalTrackColor}
+            strokeWidth={strokeWidth}
+            fill="none"
+          />
+          <Circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke={color}
+            strokeWidth={strokeWidth}
+            fill="none"
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+          />
+        </G>
+      </Svg>
+      <View style={{ position: "absolute", alignItems: "center", justifyContent: "center" }}>
+        <Text style={{ fontSize: 11, fontWeight: "800", color: finalTextColor }}>
+          {percentage}%
+        </Text>
+      </View>
+    </View>
+  );
+};
 
 // Stat Icons
 const BookIcon = ({ color = "#6236FF", size = 16 }) => (
@@ -78,10 +140,11 @@ const CheckCircleIcon = ({ color = "#10B981", size = 16 }) => (
   </Svg>
 );
 
-const FlameIcon = ({ color = "#F97316", size = 16 }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <Path d="M8.5 14.5A2.5 2.5 0 0 0 11 17c1.38 0 2.5-1.12 2.5-2.5 0-1.87-1.67-2.5-2.5-4-.83 1.5-2.5 2.13-2.5 4z" />
-    <Path d="M12 2c.67 2 2.8 4.2 3.5 6 1 2.5.5 5.5-1.5 7.5a6.5 6.5 0 0 1-10-3.5c-.3-1.5 0-3 1-4.5.8-1.2 2-2.5 3-4C9.5 4.5 11 3 12 2z" />
+const TargetIcon = ({ color = "#2D62FF", size = 16 }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <Circle cx="12" cy="12" r="10" />
+    <Circle cx="12" cy="12" r="6" />
+    <Circle cx="12" cy="12" r="2" />
   </Svg>
 );
 
@@ -231,25 +294,71 @@ const INITIAL_SUBJECTS = [
   },
 ];
 
+// Helper to map study service subjects to SubjectsScreen format
+const mapStudySubjectsToView = (studySubjects) => {
+  if (!Array.isArray(studySubjects) || studySubjects.length === 0) return INITIAL_SUBJECTS;
+  return studySubjects.map((s) => {
+    const topics = s.topics || [];
+    const avgMastery = topics.length > 0
+      ? Math.round(topics.reduce((acc, t) => acc + (t.mastery || 70), 0) / topics.length)
+      : (s.mastery || 75);
+    const status = s.status || (avgMastery >= 85 ? "Mastered" : avgMastery < 70 ? "Review" : "Learning");
+    return {
+      id: s.id,
+      name: s.name,
+      topicsCount: s.topicsCount || (topics.length ? topics.length * 4 : 16),
+      lastStudied: s.lastStudied || "Last studied today",
+      mastery: avgMastery,
+      status,
+      iconEmoji: s.iconEmoji || "📚",
+      color: s.color || "#6236FF",
+      bg: s.bg || "#F0EEFF",
+      topics: topics.map((t) => ({
+        id: t.id,
+        name: t.name,
+        mastery: t.mastery || 75,
+        status: (t.mastery || 75) >= 85 ? "Mastered" : (t.mastery || 75) < 70 ? "Review" : "Learning",
+      })),
+    };
+  });
+};
+
 // ─── MAIN COMPONENT ────────────────────────────────────────────────────────────
-export default function SubjectsScreen({ onSelectTab, onNavigate }) {
+export default function SubjectsScreen({ user, userSubjects, settings, onSelectTab, onNavigate, onBack }) {
   const insets = useSafeAreaInsets();
-  const [currentSettings, setCurrentSettings] = useState(settingsService.getSettingsSync());
+  const { t } = useTranslation();
+  const [currentSettings, setCurrentSettings] = useState(settings || settingsService.getSettingsSync());
 
   useEffect(() => {
     const unsub = settingsService.subscribe((s) => setCurrentSettings(s));
     return () => unsub();
   }, []);
 
-  const accentColor = currentSettings?.accentColor || Colors.accent || "#6236FF";
+  const { isDark, accentColor: themeAccentColor } = useTheme();
+  const accentColor = themeAccentColor || (currentSettings && currentSettings.accentColor) || Colors.accent || "#6236FF";
+  const styles = useMemo(() => getSubjectsStyles(isDark, accentColor), [isDark, accentColor]);
 
   // Search & Filter States
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTabFilter, setActiveTabFilter] = useState("All Subjects");
   const [sortOption, setSortOption] = useState("Progress");
 
-  // Data States
-  const [subjectsList, setSubjectsList] = useState(INITIAL_SUBJECTS);
+  // Dynamic Subjects List synchronized with user's selected subjects
+  const [subjectsList, setSubjectsList] = useState(() => {
+    const activeSubjs = userSubjects || user?.subjects;
+    if (Array.isArray(activeSubjs) && activeSubjs.length > 0) {
+      studyService.syncUserSubjects(activeSubjs);
+    }
+    return mapStudySubjectsToView(studyService.getSubjects());
+  });
+
+  useEffect(() => {
+    const activeSubjs = userSubjects || user?.subjects;
+    if (Array.isArray(activeSubjs) && activeSubjs.length > 0) {
+      studyService.syncUserSubjects(activeSubjs);
+      setSubjectsList(mapStudySubjectsToView(studyService.getSubjects()));
+    }
+  }, [userSubjects, user?.subjects]);
 
   // Modals Visibility
   const [isAddModalOpen, setAddModalOpen] = useState(false);
@@ -332,21 +441,36 @@ export default function SubjectsScreen({ onSelectTab, onNavigate }) {
 
   return (
     <SafeAreaView style={styles.root} edges={["top", "left", "right"]}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={isDark ? "#0B0F19" : "#FFFFFF"} />
 
       {/* ── Top Page Header ───────────────────────────────────────────── */}
       <View style={styles.pageHeader}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.pageTitle}>Subjects</Text>
-          <Text style={styles.pageSubtitle}>Manage your subjects and track mastery</Text>
+        <TooltipTouchable
+          tooltip="Back to Study"
+          style={styles.backBtn}
+          onPress={() => {
+            if (onNavigate) onNavigate("study");
+            else if (onBack) onBack();
+            else if (onSelectTab) onSelectTab("study");
+          }}
+          activeOpacity={0.7}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <ChevronLeftIcon size={22} color={isDark ? "#F8FAFC" : "#0F172A"} />
+        </TooltipTouchable>
+
+        <View style={{ flex: 1, marginLeft: 8 }}>
+          <Text style={styles.pageTitle}>{t("subjects.title")}</Text>
+          <Text style={styles.pageSubtitle}>Manage your workspace & track topic mastery</Text>
         </View>
-        <TouchableOpacity
+        <TooltipTouchable
+          tooltip="Add New Subject"
           style={[styles.plusBtn, { backgroundColor: accentColor, shadowColor: accentColor }]}
           onPress={() => setAddModalOpen(true)}
           activeOpacity={0.85}
         >
           <PlusIcon size={20} color="#FFFFFF" />
-        </TouchableOpacity>
+        </TooltipTouchable>
       </View>
 
       <ScrollView
@@ -358,7 +482,7 @@ export default function SubjectsScreen({ onSelectTab, onNavigate }) {
           <SearchIcon size={18} color="#94A3B8" />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search subjects..."
+            placeholder={t("subjects.searchSubjects")}
             placeholderTextColor="#94A3B8"
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -375,7 +499,7 @@ export default function SubjectsScreen({ onSelectTab, onNavigate }) {
           <View style={styles.overallTopRow}>
             <View style={styles.overallTitleGroup}>
               <View style={styles.folderIconBox}>
-                <FolderIcon size={20} color="#6236FF" />
+                <FolderIcon size={20} color={isDark ? (accentColor || "#818CF8") : (accentColor || "#6236FF")} />
               </View>
               <View>
                 <Text style={styles.overallTitle}>Overall Progress</Text>
@@ -391,13 +515,13 @@ export default function SubjectsScreen({ onSelectTab, onNavigate }) {
 
           {/* Progress Bar Track */}
           <View style={styles.overallTrack}>
-            <View style={[styles.overallFill, { width: `${overallAvgMastery}%` }]} />
+            <View style={[styles.overallFill, { width: `${overallAvgMastery}%`, backgroundColor: accentColor }]} />
           </View>
 
           {/* 4 Overview Stat Items */}
           <View style={styles.overallStatsRow}>
             <View style={styles.statCol}>
-              <BookIcon color="#6236FF" size={15} />
+              <BookIcon color={isDark ? (accentColor || "#818CF8") : (accentColor || "#6236FF")} size={15} />
               <Text style={styles.statColVal}>{totalSubjectsCount}</Text>
               <Text style={styles.statColLab}>Subjects</Text>
             </View>
@@ -413,15 +537,15 @@ export default function SubjectsScreen({ onSelectTab, onNavigate }) {
             <View style={styles.statDivider} />
 
             <View style={styles.statCol}>
-              <FlameIcon color="#F97316" size={15} />
-              <Text style={styles.statColVal}>8</Text>
-              <Text style={styles.statColLab}>Day Streak</Text>
+              <TargetIcon color={isDark ? "#60A5FA" : "#2D62FF"} size={15} />
+              <Text style={styles.statColVal}>78%</Text>
+              <Text style={styles.statColLab}>Goal Completion</Text>
             </View>
 
             <View style={styles.statDivider} />
 
             <View style={styles.statCol}>
-              <ClockIcon color="#3B82F6" size={15} />
+              <ClockIcon color={isDark ? "#38BDF8" : "#3B82F6"} size={15} />
               <Text style={styles.statColVal}>14h 32m</Text>
               <Text style={styles.statColLab}>Study Time</Text>
             </View>
@@ -431,10 +555,10 @@ export default function SubjectsScreen({ onSelectTab, onNavigate }) {
         {/* ── Filter Pills Bar ────────────────────────────────────────── */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillsRow}>
           {[
-            { id: "All Subjects", label: "All Subjects", Icon: GridIcon, activeColor: "#6236FF", activeBg: "#F0EEFF" },
-            { id: "Learning", label: "Learning", Icon: LearningBookIcon, activeColor: "#10B981", activeBg: "#E8FDF0" },
-            { id: "Review", label: "Review", Icon: ReviewClockIcon, activeColor: "#F97316", activeBg: "#FFF3E8" },
-            { id: "Mastered", label: "Mastered", Icon: MasteredStarIcon, activeColor: "#3B82F6", activeBg: "#EBF5FF" },
+            { id: "All Subjects", label: "All Subjects", Icon: GridIcon, activeColor: accentColor || "#6236FF", activeBg: "#F0EEFF", darkBg: `${accentColor || "#6236FF"}25` },
+            { id: "Learning", label: "Learning", Icon: LearningBookIcon, activeColor: "#10B981", activeBg: "#E8FDF0", darkBg: "rgba(16, 185, 129, 0.2)" },
+            { id: "Review", label: "Review", Icon: ReviewClockIcon, activeColor: "#F97316", activeBg: "#FFF3E8", darkBg: "rgba(249, 115, 22, 0.2)" },
+            { id: "Mastered", label: "Mastered", Icon: MasteredStarIcon, activeColor: "#3B82F6", activeBg: "#EBF5FF", darkBg: "rgba(59, 130, 246, 0.2)" },
           ].map((tab) => {
             const isActive = activeTabFilter === tab.id;
             return (
@@ -442,12 +566,15 @@ export default function SubjectsScreen({ onSelectTab, onNavigate }) {
                 key={tab.id}
                 style={[
                   styles.pillBtn,
-                  isActive && { backgroundColor: tab.activeBg, borderColor: tab.activeBg },
+                  isActive && (isDark
+                    ? { backgroundColor: tab.darkBg, borderColor: tab.activeColor }
+                    : { backgroundColor: tab.activeBg, borderColor: tab.activeBg }
+                  ),
                 ]}
                 onPress={() => setActiveTabFilter(tab.id)}
                 activeOpacity={0.75}
               >
-                <tab.Icon size={15} color={isActive ? tab.activeColor : "#64748B"} />
+                <tab.Icon size={15} color={isActive ? tab.activeColor : (isDark ? "#94A3B8" : "#64748B")} />
                 <Text style={[styles.pillText, isActive && { color: tab.activeColor, fontWeight: "800" }]}>
                   {tab.label}
                 </Text>
@@ -465,71 +592,52 @@ export default function SubjectsScreen({ onSelectTab, onNavigate }) {
             activeOpacity={0.7}
           >
             <Text style={styles.sortDropdownText}>Sort by: {sortOption}</Text>
-            <Svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#6236FF" strokeWidth="2.5" strokeLinecap="round">
+            <Svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={isDark ? (accentColor || "#818CF8") : (accentColor || "#6236FF")} strokeWidth="2.5" strokeLinecap="round">
               <Path d="M6 9l6 6 6-6" />
             </Svg>
           </TouchableOpacity>
         </View>
 
-        {/* ── Your Subjects Grouped Card List ──────────────────────────── */}
-        <View style={styles.subjectsGroupCard}>
-          {filteredSubjects.map((item, idx) => (
-            <React.Fragment key={item.id}>
-              <TouchableOpacity
-                style={styles.subjectRow}
-                onPress={() => setSelectedSubjectDetail(item)}
-                activeOpacity={0.75}
-              >
-                {/* Subject Icon Box */}
-                <View style={[styles.subjectIconBox, { backgroundColor: item.bg }]}>
-                  <Text style={{ fontSize: 20 }}>{item.iconEmoji}</Text>
-                </View>
-
-                {/* Subject Name & Meta info */}
-                <View style={styles.subjectMetaGroup}>
-                  <View style={styles.subjectTitleRow}>
-                    <Text style={styles.subjectNameText} numberOfLines={1}>
-                      {item.name}
-                    </Text>
-                    <View style={{ alignItems: "flex-end" }}>
-                      <Text style={[styles.masteryPctText, { color: item.color }]}>
-                        {item.mastery}%
-                      </Text>
-                      <Text style={styles.masterySubLabel}>Mastery</Text>
-                    </View>
-                  </View>
-
-                  <Text style={styles.subjectSubText} numberOfLines={1}>
-                    {item.topicsCount} topics • {item.lastStudied}
-                  </Text>
-
-                  {/* Subject Mini Progress Bar */}
-                  <View style={styles.miniTrack}>
-                    <View
-                      style={[
-                        styles.miniFill,
-                        { width: `${item.mastery}%`, backgroundColor: item.color },
-                      ]}
-                    />
-                  </View>
-                </View>
-
-                {/* 3-Dots Action Button */}
+        {/* ── Your Subjects Grid ──────────────────────────────────────── */}
+        <View style={styles.gridContainer}>
+          {filteredSubjects.map((item) => (
+            <TouchableOpacity
+              key={item.id}
+              style={styles.gridCard}
+              onPress={() => setSelectedSubjectDetail(item)}
+              activeOpacity={0.8}
+            >
+              {/* Top Row: Progress Ring & 3-Dots Menu */}
+              <View style={styles.gridCardTopRow}>
+                <CircularProgressRing
+                  percentage={item.mastery}
+                  color={item.color}
+                  size={48}
+                  strokeWidth={4}
+                />
                 <TouchableOpacity
-                  style={styles.optionsBtn}
+                  style={styles.gridOptionsBtn}
                   onPress={() => setSelectedOptionsMenuSubject(item)}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <MoreVerticalIcon size={18} color="#94A3B8" />
+                  <MoreHorizontalIcon size={18} color="#94A3B8" />
                 </TouchableOpacity>
-              </TouchableOpacity>
+              </View>
 
-              {idx < filteredSubjects.length - 1 && <View style={styles.rowDivider} />}
-            </React.Fragment>
+              {/* Subject Title & Meta */}
+              <View style={styles.gridCardBody}>
+                <Text style={styles.gridSubjectName} numberOfLines={2}>
+                  {item.name}
+                </Text>
+                <Text style={styles.gridSubjectSubText}>
+                  {item.topicsCount} flashcards
+                </Text>
+              </View>
+            </TouchableOpacity>
           ))}
 
           {filteredSubjects.length === 0 && (
-            <View style={styles.emptyContainer}>
+            <View style={styles.emptyContainerGrid}>
               <Text style={{ fontSize: 32, marginBottom: 6 }}>🔍</Text>
               <Text style={styles.emptyTitle}>No Subjects Found</Text>
               <Text style={styles.emptySub}>Try adjusting your search or tab filter.</Text>
@@ -537,34 +645,28 @@ export default function SubjectsScreen({ onSelectTab, onNavigate }) {
           )}
         </View>
 
-        {/* ── "Add New Subject" Bottom Card ───────────────────────────── */}
+        {/* ── "Add New Subject" Dashed Bottom Card ───────────────────────────── */}
         <TouchableOpacity
-          style={styles.addCardBtn}
+          style={styles.addDashedCardBtn}
           onPress={() => setAddModalOpen(true)}
-          activeOpacity={0.85}
+          activeOpacity={0.8}
         >
-          <View style={styles.addCardIconBox}>
-            <StarIcon color="#6236FF" size={18} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.addCardTitle}>Add New Subject</Text>
-            <Text style={styles.addCardSubtitle}>Create a new subject to start learning</Text>
-          </View>
-          <ChevronRightIcon color="#6236FF" size={18} />
+          <PlusIcon size={18} color={isDark ? (accentColor || "#818CF8") : (accentColor || "#6236FF")} />
+          <Text style={styles.addDashedCardText}>Add New Subject</Text>
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Floating Bottom Navigation Bar */}
-      <BottomNavBar activeTab="subjects" onSelectTab={onSelectTab} />
+      {/* Nested Screen - Access via Home Header Back Button */}
 
       {/* ── 1. ADD NEW SUBJECT MODAL ──────────────────────────────────── */}
       <Modal visible={isAddModalOpen} animationType="slide" transparent onRequestClose={() => setAddModalOpen(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlay}>
           <View style={styles.modalSheetContainer}>
+            <View style={styles.dragHandle} />
             <View style={styles.modalSheetHeader}>
               <Text style={styles.modalSheetTitle}>Add New Subject</Text>
-              <TouchableOpacity onPress={() => setAddModalOpen(false)}>
-                <CloseIcon size={18} />
+              <TouchableOpacity onPress={() => setAddModalOpen(false)} style={styles.closeBtnCircle}>
+                <CloseIcon size={18} color={isDark ? "#94A3B8" : "#64748B"} />
               </TouchableOpacity>
             </View>
 
@@ -573,7 +675,7 @@ export default function SubjectsScreen({ onSelectTab, onNavigate }) {
               <TextInput
                 style={styles.modalTextInput}
                 placeholder="e.g. Organic Chemistry, Microeconomics"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={isDark ? "#64748B" : "#94A3B8"}
                 value={newSubjectName}
                 onChangeText={setNewSubjectName}
               />
@@ -582,7 +684,7 @@ export default function SubjectsScreen({ onSelectTab, onNavigate }) {
               <TextInput
                 style={styles.modalTextInput}
                 placeholder="15"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={isDark ? "#64748B" : "#94A3B8"}
                 keyboardType="numeric"
                 value={newSubjectTopicsCount}
                 onChangeText={setNewSubjectTopicsCount}
@@ -600,19 +702,20 @@ export default function SubjectsScreen({ onSelectTab, onNavigate }) {
       <Modal visible={!!selectedSubjectDetail} animationType="slide" transparent onRequestClose={() => setSelectedSubjectDetail(null)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheetContainer}>
+            <View style={styles.dragHandle} />
             {selectedSubjectDetail && (
-              <>
+              <View>
                 <View style={styles.modalSheetHeader}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                     <View>
                       <Text style={styles.modalSheetTitle}>{selectedSubjectDetail.name}</Text>
-                      <Text style={{ fontSize: 12, color: "#64748B" }}>
+                      <Text style={styles.modalSheetSub}>
                         {selectedSubjectDetail.topicsCount} Topics • {selectedSubjectDetail.mastery}% Overall Mastery
                       </Text>
                     </View>
                   </View>
-                  <TouchableOpacity onPress={() => setSelectedSubjectDetail(null)}>
-                    <CloseIcon size={18} />
+                  <TouchableOpacity onPress={() => setSelectedSubjectDetail(null)} style={styles.closeBtnCircle}>
+                    <CloseIcon size={18} color={isDark ? "#94A3B8" : "#64748B"} />
                   </TouchableOpacity>
                 </View>
 
@@ -624,8 +727,8 @@ export default function SubjectsScreen({ onSelectTab, onNavigate }) {
                       <View style={{ flex: 1 }}>
                         <Text style={styles.topicDrawerName}>{t.name}</Text>
                         <View style={styles.topicDrawerMeta}>
-                          <Text style={{ fontSize: 11, color: "#64748B" }}>Mastery: {t.mastery}%</Text>
-                          <Text style={[styles.topicBadgeText, t.status === "Mastered" ? { color: "#10B981" } : { color: "#6236FF" }]}>
+                          <Text style={{ fontSize: 11, color: isDark ? "#94A3B8" : "#64748B" }}>Mastery: {t.mastery}%</Text>
+                          <Text style={[styles.topicBadgeText, t.status === "Mastered" ? { color: "#10B981" } : { color: isDark ? (accentColor || "#818CF8") : (accentColor || "#6236FF") }]}>
                             ● {t.status}
                           </Text>
                         </View>
@@ -635,7 +738,7 @@ export default function SubjectsScreen({ onSelectTab, onNavigate }) {
                 </ScrollView>
 
                 <TouchableOpacity
-                  style={styles.modalActionBtn}
+                  style={[styles.modalActionBtn, { backgroundColor: accentColor }]}
                   onPress={() => {
                     setSelectedSubjectDetail(null);
                     if (onSelectTab) onSelectTab("aicoach");
@@ -643,7 +746,7 @@ export default function SubjectsScreen({ onSelectTab, onNavigate }) {
                 >
                   <Text style={styles.modalActionBtnText}>Start AI Practice Session</Text>
                 </TouchableOpacity>
-              </>
+              </View>
             )}
           </View>
         </View>
@@ -657,16 +760,24 @@ export default function SubjectsScreen({ onSelectTab, onNavigate }) {
             {["Progress", "Name (A-Z)", "Topics Count"].map((opt) => (
               <TouchableOpacity
                 key={opt}
-                style={[styles.sortOptionRow, sortOption === opt && styles.sortOptionSelected]}
+                style={[
+                  styles.sortOptionRow,
+                  sortOption === opt && (isDark ? { backgroundColor: `${accentColor}25`, borderWidth: 1, borderColor: `${accentColor}55` } : styles.sortOptionSelected),
+                ]}
                 onPress={() => {
                   setSortOption(opt);
                   setSortModalOpen(false);
                 }}
               >
-                <Text style={[styles.sortOptionText, sortOption === opt && styles.sortOptionTextSelected]}>
+                <Text
+                  style={[
+                    styles.sortOptionText,
+                    sortOption === opt && { color: isDark ? (accentColor || "#818CF8") : (accentColor || "#6236FF"), fontWeight: "800" },
+                  ]}
+                >
                   {opt}
                 </Text>
-                {sortOption === opt && <Text style={{ color: "#6236FF", fontWeight: "800" }}>✓</Text>}
+                {sortOption === opt && <Text style={{ color: isDark ? (accentColor || "#818CF8") : (accentColor || "#6236FF"), fontWeight: "800" }}>✓</Text>}
               </TouchableOpacity>
             ))}
           </View>
@@ -674,50 +785,110 @@ export default function SubjectsScreen({ onSelectTab, onNavigate }) {
       </Modal>
 
       {/* ── 4. SUBJECT 3-DOTS OPTIONS MENU MODAL ──────────────────────── */}
-      <Modal visible={!!selectedOptionsMenuSubject} animationType="fade" transparent onRequestClose={() => setSelectedOptionsMenuSubject(null)}>
-        <View style={styles.modalOverlayCenter}>
-          <View style={styles.sortModalCard}>
-            {selectedOptionsMenuSubject && (
-              <>
-                <Text style={styles.modalSheetTitle}>{selectedOptionsMenuSubject.name} Options</Text>
-                <TouchableOpacity
-                  style={styles.sortOptionRow}
-                  onPress={() => {
-                    const s = selectedOptionsMenuSubject;
-                    setSelectedOptionsMenuSubject(null);
-                    setSelectedSubjectDetail(s);
-                  }}
-                >
-                  <Text style={styles.sortOptionText}>View Topics Breakdown</Text>
-                </TouchableOpacity>
+      <Modal visible={!!selectedOptionsMenuSubject} animationType="slide" transparent onRequestClose={() => setSelectedOptionsMenuSubject(null)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
+          <View style={styles.modalSheetContainer}>
+            <View style={styles.dragHandle} />
+            
+            <View style={styles.modalSheetHeader}>
+              <View>
+                <Text style={styles.modalSheetTitle}>
+                  {selectedOptionsMenuSubject?.name} Options
+                </Text>
+                <Text style={styles.modalSheetSub}>
+                  Manage subject topics, flashcards, or settings
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setSelectedOptionsMenuSubject(null)} style={styles.closeBtnCircle}>
+                <CloseIcon size={18} color={isDark ? '#94A3B8' : '#64748B'} />
+              </TouchableOpacity>
+            </View>
 
-                <TouchableOpacity
-                  style={styles.sortOptionRow}
-                  onPress={() => {
-                    setSelectedOptionsMenuSubject(null);
-                    if (onSelectTab) onSelectTab("study");
-                  }}
-                >
-                  <Text style={styles.sortOptionText}>Start Flashcard Review</Text>
-                </TouchableOpacity>
+            <View style={{ gap: 12, marginTop: 4 }}>
+              {/* Option 1: View Topics Breakdown */}
+              <TouchableOpacity
+                style={styles.actionCardTileOption}
+                onPress={() => {
+                  const s = selectedOptionsMenuSubject;
+                  setSelectedOptionsMenuSubject(null);
+                  setSelectedSubjectDetail(s);
+                }}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.actionCardIconBadgeOption, { backgroundColor: isDark ? 'rgba(99, 102, 241, 0.18)' : (selectedOptionsMenuSubject?.color || '#6236FF') + '1A' }]}>
+                  <Text style={{ fontSize: 18 }}>📊</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.actionCardTitleOption}>
+                    View Topics Breakdown
+                  </Text>
+                  <Text style={styles.actionCardSubOption}>
+                    Inspect detailed syllabus & topic mastery
+                  </Text>
+                </View>
+                <ChevronRightIcon size={18} color={isDark ? '#94A3B8' : '#64748B'} />
+              </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={styles.sortOptionRow}
-                  onPress={() => handleDeleteSubject(selectedOptionsMenuSubject.id, selectedOptionsMenuSubject.name)}
-                >
-                  <Text style={[styles.sortOptionText, { color: "#EF4444" }]}>Delete Subject</Text>
-                </TouchableOpacity>
-              </>
-            )}
+              {/* Option 2: Start Flashcard Review */}
+              <TouchableOpacity
+                style={styles.actionCardTileOption}
+                onPress={() => {
+                  const sName = selectedOptionsMenuSubject?.name;
+                  setSelectedOptionsMenuSubject(null);
+                  if (onSelectTab) onSelectTab("study");
+                }}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.actionCardIconBadgeOption, { backgroundColor: isDark ? 'rgba(245, 158, 11, 0.18)' : 'rgba(245, 158, 11, 0.14)' }]}>
+                  <Text style={{ fontSize: 18 }}>⚡</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.actionCardTitleOption}>
+                    Start Flashcard Review
+                  </Text>
+                  <Text style={styles.actionCardSubOption}>
+                    Practice active recall with smart flashcards
+                  </Text>
+                </View>
+                <ChevronRightIcon size={18} color={isDark ? '#94A3B8' : '#64748B'} />
+              </TouchableOpacity>
+
+              {/* Option 3: Delete Subject */}
+              <TouchableOpacity
+                style={[
+                  styles.actionCardTileOption,
+                  isDark ? { backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.35)' } : { backgroundColor: '#FEF2F2', borderColor: '#FCA5A5' }
+                ]}
+                onPress={() => {
+                  const s = selectedOptionsMenuSubject;
+                  setSelectedOptionsMenuSubject(null);
+                  if (s) handleDeleteSubject(s.id, s.name);
+                }}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.actionCardIconBadgeOption, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
+                  <Text style={{ fontSize: 18 }}>🗑️</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.actionCardTitleOption, { color: '#EF4444' }]}>
+                    Delete Subject
+                  </Text>
+                  <Text style={[styles.actionCardSubOption, isDark ? { color: '#FCA5A5' } : { color: '#B91C1C' }]}>
+                    Permanently remove subject & track history
+                  </Text>
+                </View>
+                <ChevronRightIcon size={18} color="#EF4444" />
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
 }
 
 // ─── STYLES ───────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
+const baseSubjectsStyles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: "#F8FAFC",
@@ -733,6 +904,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#F1F5F9",
   },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   pageTitle: {
     fontSize: 26,
     fontWeight: "800",
@@ -741,9 +920,9 @@ const styles = StyleSheet.create({
   },
   pageSubtitle: {
     fontSize: 13,
-    color: "#64748B",
+    color: "#334155",
     marginTop: 2,
-    fontWeight: "500",
+    fontWeight: "600",
   },
   plusBtn: {
     width: 44,
@@ -776,8 +955,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     gap: 10,
-    borderWidth: 1,
-    borderColor: "#F1F5F9",
+    borderWidth: 0,
+    borderColor: "transparent",
     shadowColor: "#0F172A",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.03,
@@ -788,7 +967,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     color: "#0F172A",
-    fontWeight: "500",
+    fontWeight: "700",
   },
 
   // Overall Progress Card
@@ -826,8 +1005,8 @@ const styles = StyleSheet.create({
   },
   overallSubtitle: {
     fontSize: 12,
-    color: "#64748B",
-    fontWeight: "500",
+    color: "#334155",
+    fontWeight: "600",
   },
   overallPctText: {
     fontSize: 22,
@@ -934,114 +1113,79 @@ const styles = StyleSheet.create({
     color: "#6236FF",
   },
 
-  // Subjects Group Card
-  subjectsGroupCard: {
+  // Subjects Grid Layout
+  gridContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    rowGap: 14,
+    width: "100%",
+  },
+  gridCard: {
+    width: "48%",
+    minHeight: 160,
     backgroundColor: "#FFFFFF",
-    borderRadius: 24,
+    borderRadius: 22,
+    padding: 16,
     borderWidth: 1,
     borderColor: "#F1F5F9",
-    overflow: "hidden",
     shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.04,
-    shadowRadius: 8,
+    shadowRadius: 10,
     elevation: 2,
-  },
-  subjectRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 14,
-  },
-  subjectIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  subjectMetaGroup: {
-    flex: 1,
-    gap: 4,
-  },
-  subjectTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
   },
-  subjectNameText: {
+  gridCardTopRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+  },
+  gridOptionsBtn: {
+    padding: 4,
+    marginRight: -4,
+    marginTop: -2,
+  },
+  gridCardBody: {
+    marginTop: 22,
+    gap: 4,
+  },
+  gridSubjectName: {
     fontSize: 16,
     fontWeight: "800",
     color: "#0F172A",
     letterSpacing: -0.3,
+    lineHeight: 21,
   },
-  masteryPctText: {
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  masterySubLabel: {
-    fontSize: 9.5,
+  gridSubjectSubText: {
+    fontSize: 12.5,
     color: "#94A3B8",
     fontWeight: "500",
   },
-  subjectSubText: {
-    fontSize: 12,
-    color: "#64748B",
-    fontWeight: "500",
-  },
-  miniTrack: {
-    height: 3.5,
-    backgroundColor: "#F1F5F9",
-    borderRadius: 2,
-    overflow: "hidden",
-    marginTop: 2,
-  },
-  miniFill: {
-    height: "100%",
-    borderRadius: 2,
-  },
-  optionsBtn: {
-    padding: 6,
-  },
-  rowDivider: {
-    height: 1,
-    backgroundColor: "#F8FAFC",
-    marginLeft: 74,
-  },
 
-  // Add Subject Card
-  addCardBtn: {
+  // Add Subject Dashed Card
+  addDashedCardBtn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F3F0FF",
-    borderRadius: 20,
-    padding: 16,
-    gap: 14,
-    borderWidth: 1,
-    borderColor: "#EBE5FF",
-  },
-  addCardIconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
     justifyContent: "center",
+    gap: 8,
+    backgroundColor: "transparent",
+    borderRadius: 24,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderWidth: 1.5,
+    borderColor: "#475569",
+    borderStyle: "dashed",
+    marginTop: 6,
   },
-  addCardTitle: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#6236FF",
-  },
-  addCardSubtitle: {
-    fontSize: 12,
-    color: "#64748B",
-    marginTop: 2,
-    fontWeight: "500",
+  addDashedCardText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#334155",
   },
 
-  emptyContainer: {
+  emptyContainerGrid: {
+    width: "100%",
     padding: 30,
     alignItems: "center",
     justifyContent: "center",
@@ -1075,7 +1219,8 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 20,
-    maxHeight: "80%",
+    paddingBottom: 40,
+    maxHeight: "85%",
   },
   modalSheetHeader: {
     flexDirection: "row",
@@ -1087,6 +1232,28 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "800",
     color: "#0F172A",
+  },
+  modalSheetSub: {
+    fontSize: 13,
+    color: "#64748B",
+    marginTop: 2,
+    fontWeight: "500",
+  },
+  dragHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#CBD5E1",
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  closeBtnCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(148, 163, 184, 0.15)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   formGroup: {
     gap: 12,
@@ -1108,27 +1275,6 @@ const styles = StyleSheet.create({
     color: "#0F172A",
     marginBottom: 8,
   },
-  emojiRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginVertical: 4,
-  },
-  emojiChip: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: "#F8FAFC",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
-  emojiChipSelected: {
-    borderColor: "#6236FF",
-    borderWidth: 2,
-    backgroundColor: "#F0EEFF",
-  },
   modalActionBtn: {
     backgroundColor: "#6236FF",
     borderRadius: 14,
@@ -1142,8 +1288,40 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     fontSize: 15,
   },
-
-  // Sort & Options Modal
+  actionCardTileOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#FFFFFF",
+    gap: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  actionCardIconBadgeOption: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actionCardTitleOption: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  actionCardSubOption: {
+    fontSize: 12,
+    color: "#64748B",
+    fontWeight: "500",
+    marginTop: 2,
+  },
   sortModalCard: {
     width: "100%",
     backgroundColor: "#FFFFFF",
@@ -1171,8 +1349,6 @@ const styles = StyleSheet.create({
     color: "#6236FF",
     fontWeight: "800",
   },
-
-  // Topic Drawer Item
   topicDrawerCard: {
     backgroundColor: "#F8FAFC",
     padding: 12,
@@ -1197,3 +1373,190 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
+
+const getSubjectsStyles = (isDark, activeAccentColor) => {
+  if (!isDark && activeAccentColor === "#6236FF") return baseSubjectsStyles;
+  return {
+    ...baseSubjectsStyles,
+    root: [
+      baseSubjectsStyles.root,
+      isDark && { backgroundColor: "#0B0F19" },
+    ],
+    pageHeader: [
+      baseSubjectsStyles.pageHeader,
+      isDark && { backgroundColor: "#0B0F19", borderBottomWidth: 0, borderBottomColor: "transparent" },
+    ],
+    backBtn: [
+      baseSubjectsStyles.backBtn,
+      isDark && { backgroundColor: "#1E293B", borderWidth: 0, borderColor: "transparent" },
+    ],
+    pageTitle: [
+      baseSubjectsStyles.pageTitle,
+      isDark && { color: "#F8FAFC" },
+    ],
+    pageSubtitle: [
+      baseSubjectsStyles.pageSubtitle,
+      isDark && { color: "#94A3B8" },
+    ],
+    searchBarContainer: [
+      baseSubjectsStyles.searchBarContainer,
+      isDark && { backgroundColor: "#1E293B", borderWidth: 0, borderColor: "transparent" },
+    ],
+    searchInput: [
+      baseSubjectsStyles.searchInput,
+      isDark && { color: "#F8FAFC" },
+    ],
+    overallCard: [
+      baseSubjectsStyles.overallCard,
+      isDark && { backgroundColor: "#1E293B", borderWidth: 0, borderColor: "transparent" },
+    ],
+    folderIconBox: [
+      baseSubjectsStyles.folderIconBox,
+      isDark && { backgroundColor: `${activeAccentColor || "#6236FF"}22`, borderWidth: 1, borderColor: `${activeAccentColor || "#6236FF"}44` },
+    ],
+    overallTitle: [
+      baseSubjectsStyles.overallTitle,
+      isDark && { color: "#F8FAFC" },
+    ],
+    overallSubtitle: [
+      baseSubjectsStyles.overallSubtitle,
+      isDark && { color: "#94A3B8" },
+    ],
+    overallPctText: [
+      baseSubjectsStyles.overallPctText,
+      { color: isDark ? (activeAccentColor || "#818CF8") : (activeAccentColor || "#6236FF") },
+    ],
+    overallPctLabel: [
+      baseSubjectsStyles.overallPctLabel,
+      isDark && { color: "#94A3B8" },
+    ],
+    overallTrack: [
+      baseSubjectsStyles.overallTrack,
+      isDark && { backgroundColor: "#334155" },
+    ],
+    overallFill: [
+      baseSubjectsStyles.overallFill,
+      { backgroundColor: activeAccentColor || "#6236FF" },
+    ],
+    statColVal: [
+      baseSubjectsStyles.statColVal,
+      isDark && { color: "#F8FAFC" },
+    ],
+    statColLab: [
+      baseSubjectsStyles.statColLab,
+      isDark && { color: "#94A3B8" },
+    ],
+    statDivider: [
+      baseSubjectsStyles.statDivider,
+      isDark && { backgroundColor: "#334155" },
+    ],
+    pillBtn: [
+      baseSubjectsStyles.pillBtn,
+      isDark && { backgroundColor: "#1E293B", borderWidth: 0, borderColor: "transparent" },
+    ],
+    pillText: [
+      baseSubjectsStyles.pillText,
+      isDark && { color: "#94A3B8" },
+    ],
+    sectionTitle: [
+      baseSubjectsStyles.sectionTitle,
+      isDark && { color: "#F8FAFC" },
+    ],
+    sortDropdownText: [
+      baseSubjectsStyles.sortDropdownText,
+      { color: isDark ? (activeAccentColor || "#818CF8") : (activeAccentColor || "#6236FF") },
+    ],
+    gridCard: [
+      baseSubjectsStyles.gridCard,
+      isDark && { backgroundColor: "#1E293B", borderWidth: 0, borderColor: "transparent" },
+    ],
+    gridSubjectName: [
+      baseSubjectsStyles.gridSubjectName,
+      isDark && { color: "#F8FAFC" },
+    ],
+    gridSubjectSubText: [
+      baseSubjectsStyles.gridSubjectSubText,
+      isDark && { color: "#94A3B8" },
+    ],
+    addDashedCardBtn: [
+      baseSubjectsStyles.addDashedCardBtn,
+      isDark && { borderColor: "#475569", backgroundColor: "rgba(255, 255, 255, 0.02)" },
+    ],
+    addDashedCardText: [
+      baseSubjectsStyles.addDashedCardText,
+      isDark && { color: "#CBD5E1" },
+    ],
+    emptyTitle: [
+      baseSubjectsStyles.emptyTitle,
+      isDark && { color: "#F8FAFC" },
+    ],
+    emptySub: [
+      baseSubjectsStyles.emptySub,
+      isDark && { color: "#94A3B8" },
+    ],
+    modalOverlay: [
+      baseSubjectsStyles.modalOverlay,
+      isDark && { backgroundColor: "rgba(0, 0, 0, 0.75)" },
+    ],
+    modalOverlayCenter: [
+      baseSubjectsStyles.modalOverlayCenter,
+      isDark && { backgroundColor: "rgba(0, 0, 0, 0.75)" },
+    ],
+    modalSheetContainer: [
+      baseSubjectsStyles.modalSheetContainer,
+      isDark && { backgroundColor: "#0F172A", borderTopWidth: 0, borderTopColor: "transparent" },
+    ],
+    modalSheetTitle: [
+      baseSubjectsStyles.modalSheetTitle,
+      isDark && { color: "#F8FAFC" },
+    ],
+    modalSheetSub: [
+      baseSubjectsStyles.modalSheetSub,
+      isDark && { color: "#94A3B8" },
+    ],
+    dragHandle: [
+      baseSubjectsStyles.dragHandle,
+      isDark && { backgroundColor: "#334155" },
+    ],
+    closeBtnCircle: [
+      baseSubjectsStyles.closeBtnCircle,
+      isDark && { backgroundColor: "#1E293B", borderWidth: 0, borderColor: "transparent" },
+    ],
+    inputLabel: [
+      baseSubjectsStyles.inputLabel,
+      isDark && { color: "#94A3B8" },
+    ],
+    modalTextInput: [
+      baseSubjectsStyles.modalTextInput,
+      isDark && { backgroundColor: "#1E293B", color: "#F8FAFC", borderWidth: 0, borderColor: "transparent" },
+    ],
+    actionCardTileOption: [
+      baseSubjectsStyles.actionCardTileOption,
+      isDark && { backgroundColor: "#1E293B", borderWidth: 0, borderColor: "transparent" },
+    ],
+    actionCardTitleOption: [
+      baseSubjectsStyles.actionCardTitleOption,
+      isDark && { color: "#F8FAFC" },
+    ],
+    actionCardSubOption: [
+      baseSubjectsStyles.actionCardSubOption,
+      isDark && { color: "#94A3B8" },
+    ],
+    sortModalCard: [
+      baseSubjectsStyles.sortModalCard,
+      isDark && { backgroundColor: "#1E293B", borderWidth: 0, borderColor: "transparent" },
+    ],
+    sortOptionText: [
+      baseSubjectsStyles.sortOptionText,
+      isDark && { color: "#F8FAFC" },
+    ],
+    topicDrawerCard: [
+      baseSubjectsStyles.topicDrawerCard,
+      isDark && { backgroundColor: "#1E293B", borderWidth: 0, borderColor: "transparent" },
+    ],
+    topicDrawerName: [
+      baseSubjectsStyles.topicDrawerName,
+      isDark && { color: "#F8FAFC" },
+    ],
+  };
+};

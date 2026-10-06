@@ -1,5 +1,6 @@
 // src/theme/themeService.js
 
+import { Appearance } from "react-native";
 import { settingsService } from "../services/settings/settingsService";
 import { Colors } from "./colors";
 
@@ -26,6 +27,19 @@ export const themeService = {
 
   getLightTint(opacity = 0.12) {
     return hexToRgba(currentAccentColor, opacity);
+  },
+
+  isDarkMode(themePreference) {
+    const pref = themePreference || settingsService.getSettingsSync()?.theme || 'system';
+    if (pref === 'dark') return true;
+    if (pref === 'light') return false;
+    const systemScheme = Appearance.getColorScheme() || 'light';
+    return systemScheme === 'dark';
+  },
+
+  getEffectiveTheme() {
+    const pref = settingsService.getSettingsSync()?.theme || 'system';
+    return this.isDarkMode(pref) ? 'dark' : 'light';
   },
 
   async init() {
@@ -69,3 +83,4 @@ export const themeService = {
     return () => LISTENERS.delete(listener);
   },
 };
+

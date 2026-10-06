@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Platform } from 'react-native';
-import Svg, { Path, Circle } from 'react-native-svg';
+import React from 'react';
+import { StyleSheet, View, Text, Platform } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
+import TooltipTouchable from './TooltipTouchable';
+import { useTheme } from '../theme/themeContext';
 import { Colors } from '../theme/colors';
-import { settingsService } from '../services/settings/settingsService';
 
 const ChevronLeftIcon = ({ size = 20, color = '#0F172A' }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -19,36 +20,27 @@ const LogoMarkIcon = ({ size = 24, color = '#2D62FF' }) => (
 );
 
 export default function Header({ onBack, showBack = false, title = 'StudPal', showDot = true }) {
-  const [accentColor, setAccentColor] = useState(Colors.accent || '#6236FF');
-
-  useEffect(() => {
-    const unsub = settingsService.subscribe((s) => {
-      if (s && s.accentColor) {
-        setAccentColor(s.accentColor);
-        Colors.accent = s.accentColor;
-      }
-    });
-    return () => unsub();
-  }, []);
+  const { isDark, accentColor } = useTheme();
 
   return (
     <View style={styles.container}>
       <View style={styles.sideSlot}>
         {showBack && (
-          <TouchableOpacity
-            style={styles.backButton}
+          <TooltipTouchable
+            tooltip="Back"
+            style={[styles.backButton, isDark && { backgroundColor: '#1E293B', borderWidth: 1.2, borderColor: 'rgba(255, 255, 255, 0.09)' }]}
             onPress={onBack}
             activeOpacity={0.75}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
-            <ChevronLeftIcon size={18} color="#0F172A" />
-          </TouchableOpacity>
+            <ChevronLeftIcon size={18} color={isDark ? '#F8FAFC' : '#0F172A'} />
+          </TooltipTouchable>
         )}
       </View>
 
       <View style={styles.logoGroup}>
         <LogoMarkIcon size={22} color={accentColor} />
-        <Text style={styles.logoTitle}>
+        <Text style={[styles.logoTitle, isDark && { color: '#F8FAFC' }]}>
           {title}
           {showDot && <Text style={[styles.logoDot, { color: accentColor }]}>.</Text>}
         </Text>

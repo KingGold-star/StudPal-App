@@ -10,7 +10,7 @@ export const LEVELS_CONFIG = [
       reviews: 0,
       masteredTopics: 0,
       quizzes: 0,
-      streak: 0,
+      completedGoals: 0,
     },
   },
   {
@@ -22,7 +22,7 @@ export const LEVELS_CONFIG = [
       reviews: 0,
       masteredTopics: 0,
       quizzes: 0,
-      streak: 0,
+      completedGoals: 1,
     },
   },
   {
@@ -34,7 +34,7 @@ export const LEVELS_CONFIG = [
       reviews: 5,
       masteredTopics: 0,
       quizzes: 0,
-      streak: 0,
+      completedGoals: 5,
     },
   },
   {
@@ -46,7 +46,7 @@ export const LEVELS_CONFIG = [
       reviews: 10,
       masteredTopics: 0,
       quizzes: 0,
-      streak: 3,
+      completedGoals: 15,
     },
   },
   {
@@ -58,7 +58,7 @@ export const LEVELS_CONFIG = [
       reviews: 15,
       masteredTopics: 5,
       quizzes: 2,
-      streak: 7,
+      completedGoals: 30,
     },
   },
   {
@@ -195,7 +195,7 @@ export function meetsLevelRequirements(progress, levelConfig) {
   if ((progress.completedReviews || 0) < (req.reviews || 0)) return false;
   if ((progress.masteredTopics || 0) < (req.masteredTopics || 0)) return false;
   if ((progress.completedQuizzes || 0) < (req.quizzes || 0)) return false;
-  if ((progress.currentStreak || 0) < (req.streak || 0)) return false;
+  if ((progress.completedGoals || 0) < (req.completedGoals || 0)) return false;
 
   return true;
 }
@@ -305,15 +305,15 @@ export function getNextLevelBreakdown(progress = {}) {
     });
   }
 
-  if (req.streak > 0) {
-    const currentStreak = progress.currentStreak || 0;
+  if (req.completedGoals > 0) {
+    const currentGoals = progress.completedGoals || 0;
     checklist.push({
-      id: "streak",
-      label: `${req.streak}-Day Study Streak`,
-      current: currentStreak,
-      target: req.streak,
-      met: currentStreak >= req.streak,
-      type: "streak",
+      id: "completedGoals",
+      label: `${req.completedGoals} Study Goals Completed`,
+      current: currentGoals,
+      target: req.completedGoals,
+      met: currentGoals >= req.completedGoals,
+      type: "count",
     });
   }
 

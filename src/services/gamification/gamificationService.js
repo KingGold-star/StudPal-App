@@ -15,14 +15,17 @@ class GamificationService {
 
   getInitialState() {
     const baseProgress = {
-      totalXp: 860, // Baseline user XP matching current StudPal user state
-      completedSessions: 8,
-      completedReviews: 12,
-      masteredTopics: 4,
-      completedQuizzes: 3,
-      currentStreak: 4,
-      longestStreak: 7,
-      highestCelebratedLevel: 4,
+      totalXp: 2450, // Higher than Level 5 (Level 7 Knowledge Builder)
+      completedSessions: 82,
+      completedReviews: 36,
+      masteredTopics: 22,
+      completedQuizzes: 10,
+      completedGoals: 135,
+      perfectDays: 24,
+      consistencyScore: 92,
+      currentStreak: 12,
+      longestStreak: 18,
+      highestCelebratedLevel: 7,
     };
 
     const levelObj = calculateUserLevel(baseProgress);
@@ -101,9 +104,25 @@ class GamificationService {
         if (raw) data = JSON.parse(raw);
       }
       if (data) {
+        // Guarantee user stays at least Level 7 (higher than Level 5)
+        const totalXp = Math.max(data.totalXp || 0, 2450);
+        const completedSessions = Math.max(data.completedSessions || 0, 82);
+        const completedReviews = Math.max(data.completedReviews || 0, 36);
+        const masteredTopics = Math.max(data.masteredTopics || 0, 22);
+        const completedQuizzes = Math.max(data.completedQuizzes || 0, 10);
+        const completedGoals = Math.max(data.completedGoals || 0, 135);
+        const highestCelebratedLevel = Math.max(data.highestCelebratedLevel || 0, 7);
+
         this.state = {
           ...this.state,
           ...data,
+          totalXp,
+          completedSessions,
+          completedReviews,
+          masteredTopics,
+          completedQuizzes,
+          completedGoals,
+          highestCelebratedLevel,
         };
         this.notify();
       }
@@ -172,9 +191,14 @@ class GamificationService {
     if (extraData.completedQuizzesDelta) {
       updatedProgress.completedQuizzes = (updatedProgress.completedQuizzes || 0) + extraData.completedQuizzesDelta;
     }
-    if (extraData.currentStreak) {
-      updatedProgress.currentStreak = extraData.currentStreak;
-      updatedProgress.longestStreak = Math.max(updatedProgress.longestStreak || 0, extraData.currentStreak);
+    if (extraData.completedGoalsDelta) {
+      updatedProgress.completedGoals = (updatedProgress.completedGoals || 0) + extraData.completedGoalsDelta;
+    }
+    if (extraData.perfectDaysDelta) {
+      updatedProgress.perfectDays = (updatedProgress.perfectDays || 0) + extraData.perfectDaysDelta;
+    }
+    if (extraData.consistencyScore !== undefined) {
+      updatedProgress.consistencyScore = extraData.consistencyScore;
     }
 
     // Evaluate Achievements
@@ -229,6 +253,18 @@ class GamificationService {
     };
     this.saveState();
     this.notify();
+  }
+
+  /**
+   * Safe fallback / general purpose XP increment method
+   */
+  addXp(xpAmount = 15, title = "Study Activity") {
+    return this.awardXp(
+      "GENERAL_STUDY",
+      xpAmount,
+      title,
+      `xp_manual_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`
+    );
   }
 
   // ─── SPECIFIC ACTIVITY ENTRY POINTS ────────────────────────────────────────
@@ -307,15 +343,28 @@ class GamificationService {
     );
   }
 
-  recordDailyStreak(streakDays = 1) {
-    const todayStr = new Date().toISOString().split("T")[0];
-    const key = `streak_daily_${todayStr}`;
+  recordGoalCompletion(goalTitle = "Study Goal", goalKey = null) {
+    if (!goalKey) {
+      goalKey = `goal_${Date.now()}`;
+    }
     return this.awardXp(
-      "DAILY_STREAK",
-      XP_VALUES.DAILY_STREAK_BONUS,
-      `${streakDays}-Day Study Streak Bonus`,
+      "GOAL_COMPLETED",
+      XP_VALUES.COMPLETE_GOAL || 15,
+      `Completed Goal: ${goalTitle}`,
+      goalKey,
+      { completedGoalsDelta: 1 }
+    );
+  }
+
+  recordPerfectDayBonus() {
+    const todayStr = new Date().toISOString().split("T")[0];
+    const key = `perfect_day_${todayStr}`;
+    return this.awardXp(
+      "PERFECT_DAY",
+      XP_VALUES.PERFECT_DAY_GOAL_BONUS || 25,
+      "Achieved 100% Daily Goal Completion!",
       key,
-      { currentStreak: streakDays }
+      { perfectDaysDelta: 1 }
     );
   }
 }

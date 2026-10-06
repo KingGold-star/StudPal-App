@@ -22,9 +22,9 @@ Cross-platform Mobile (iOS & Android via Flutter) + Interactive Web Preview on `
 - [x] **Subjects & Topics:** (Subject grid, Topic mastery %, Weak areas highlighted, Retention Status, Drawer breakdown)
 - [x] **Branco (AI Study Companion):** (Context-aware tutor, concept explanations, step-by-step breakdown, LaTeX formulas, quiz generator, SRS integration)
 - [x] **Profile & Progress:** (User profile, daily quote, Study Overview metrics, My Goals, Study Statistics, Saved Topics, Offline Resources, Privacy & Security, Notifications)
-- [ ] **Study & Spaced Repetition (SRS) Flashcards:** (Active review session, SuperMemo SM-2 SRS algorithm rating buttons: Again, Hard, Good, Easy, flip flashcard animation, audio pronunciation, focus timer, session summary)
+- [x] **Study & Spaced Repetition (SRS) Flashcards:** (Active review session, SuperMemo SM-2 SRS algorithm rating buttons: Again, Hard, Good, Easy, flip flashcard animation, audio pronunciation, focus timer, session summary)
 
 ## 5. Development Roadmap (Micro-Feature Baton Loop)
-- **Completed:** Onboarding Flow (Screens 1–3), Role Selection, Auth Screen, Main Home / Dashboard, Subjects Screen (Screen 7), Branco / AI Study Companion (Screen 8), & Profile Screen (Screen 9)
-- **Current Baton Task:** Screen 9 Complete — Ready for Screen 10 (Study & Spaced Repetition SRS Flashcard Session)
-- **Following Task:** Final App Integration & Full Production Test Flow
+- **Completed:** Onboarding Flow (Screens 1–3), Role Selection, Auth Screen, Main Home / Dashboard, Subjects Screen (Screen 7), Branco / AI Study Companion (Screen 8), Profile Screen (Screen 9), & Study & Spaced Repetition SRS Flashcard Session (Screen 10)
+- **Current Baton Task:** Screen 10 Complete — Ready for Final App Integration & Full Production Test Flow
+- **Following Task:** N/A - Project Complete

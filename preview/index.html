@@ -32,6 +32,59 @@
       -webkit-font-smoothing: antialiased;
     }
 
+    /* Screen backgrounds and device containers NEVER scale or animate */
+    body,
+    .main-canvas,
+    .device-mockup,
+    .phone-screen,
+    .onboarding-container,
+    .hero-stage,
+    .content-area,
+    .dashboard-container,
+    .dashboard-scroll-body,
+    .auth-container {
+      transform: none !important;
+      transition: none !important;
+    }
+
+    /* Universal Scale Down and Bounce Back ONLY for actual buttons and interactive elements */
+    button:not([data-no-bounce]):not(.no-bounce-bg),
+    [role="button"]:not([data-no-bounce]):not(.no-bounce-bg):not(.onboarding-container),
+    .btn-next,
+    .btn-icon-back,
+    .role-card,
+    .social-btn,
+    .dash-streak-pill,
+    .dash-notif-btn,
+    .device-btn,
+    .subject-pill,
+    .tab-item,
+    .nav-btn {
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, opacity 0.2s ease;
+      will-change: transform;
+      transform-origin: center center;
+    }
+
+    button:not([data-no-bounce]):not(.no-bounce-bg):active,
+    [role="button"]:not([data-no-bounce]):not(.no-bounce-bg):not(.onboarding-container):active,
+    .btn-next:active,
+    .btn-icon-back:active,
+    .role-card:active,
+    .social-btn:active,
+    .dash-streak-pill:active,
+    .dash-notif-btn:active,
+    .device-btn:active,
+    .subject-pill:active,
+    .tab-item:active,
+    .nav-btn:active {
+      transform: scale(0.92) !important;
+      transition: transform 0.08s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+    }
+
     body {
       background: #FAFAFA;
       color: var(--text-dark);
@@ -720,14 +773,19 @@
       justify-content: center;
       cursor: pointer;
       box-shadow: 0 8px 20px -4px rgba(17, 43, 138, 0.35);
-      transition: all 0.2s ease;
+      transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.2s ease, box-shadow 0.2s ease;
     }
 
     .phone-screen.dark .btn-next { background: var(--accent); }
 
     .btn-next:hover {
-      filter: brightness(1.1);
+      filter: brightness(1.08);
       transform: translateY(-1px);
+    }
+
+    .btn-next:active {
+      transform: scale(0.92) !important;
+      transition: transform 0.08s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
     }
 
     /* =========================================
@@ -1628,6 +1686,410 @@
       opacity: 1;
       transform: translateX(-50%) translateY(0);
     }
+
+    /* Study & SRS Session (Screen 10) Styles */
+    .study-srs-container {
+      display: none;
+      flex-direction: column;
+      height: calc(100% - 30px); /* Account for status bar */
+      padding: 16px;
+      overflow-y: auto;
+      background: var(--bg-white);
+      flex: 1;
+    }
+    
+    .phone-screen.dark .study-srs-container {
+      background: #0F172A;
+      color: #F8FAFC;
+    }
+    
+    .srs-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    
+    .srs-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+    
+    .phone-screen.dark .srs-title {
+      color: #38BDF8;
+    }
+    
+    .srs-timer-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: #F1F5F9;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--secondary);
+    }
+    
+    .phone-screen.dark .srs-timer-pill {
+      background: #1E293B;
+      color: #94A3B8;
+    }
+    
+    .srs-progress-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 20px;
+    }
+    
+    .srs-progress-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--secondary);
+    }
+    
+    .srs-progress-bar-bg {
+      height: 6px;
+      background: #E2E8F0;
+      border-radius: 9999px;
+      overflow: hidden;
+      width: 100%;
+    }
+    
+    .phone-screen.dark .srs-progress-bar-bg {
+      background: #1E293B;
+    }
+    
+    .srs-progress-bar-fill {
+      height: 100%;
+      background: var(--brand-orange);
+      border-radius: 9999px;
+      transition: width 0.3s ease;
+    }
+    
+    /* 3D Interactive Flashcard */
+    .srs-card-wrapper {
+      perspective: 1000px;
+      width: 100%;
+      height: 320px;
+      margin: 10px 0;
+      position: relative;
+    }
+    
+    .srs-card-inner {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+      cursor: pointer;
+    }
+    
+    .srs-card-inner.flipped {
+      transform: rotateY(180deg);
+    }
+    
+    .srs-card-front, .srs-card-back {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      border-radius: 12px;
+      border: 1px solid var(--border-light);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      background: #FFFFFF;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+    }
+    
+    .phone-screen.dark .srs-card-front, .phone-screen.dark .srs-card-back {
+      background: #1E293B;
+      border-color: #334155;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    
+    .srs-card-back {
+      transform: rotateY(180deg);
+    }
+    
+    .srs-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--secondary);
+    }
+    
+    .srs-card-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 10px 0;
+    }
+    
+    .srs-question-text {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-dark);
+      line-height: 1.4;
+    }
+    
+    .phone-screen.dark .srs-question-text {
+      color: #FFFFFF;
+    }
+    
+    .srs-card-formula {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-top: 12px;
+    }
+    
+    .phone-screen.dark .srs-card-formula {
+      color: #38BDF8;
+    }
+    
+    .srs-card-footer-tip {
+      font-size: 11px;
+      color: var(--secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      opacity: 0.7;
+    }
+    
+    .srs-explanation-box {
+      margin-top: 10px;
+      padding: 8px 12px;
+      background: #F8FAFC;
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--secondary);
+      border: 1px solid var(--border-light);
+      width: 100%;
+    }
+    
+    .phone-screen.dark .srs-explanation-box {
+      background: #111827;
+      border-color: #334155;
+      color: #94A3B8;
+    }
+    
+    /* SM-2 Buttons */
+    .srs-sm2-section {
+      margin-top: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    
+    .srs-sm2-section.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    
+    .srs-sm2-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--secondary);
+    }
+    
+    .srs-sm2-buttons {
+      display: flex;
+      width: 100%;
+      gap: 8px;
+    }
+    
+    .srs-sm2-btn {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 4px;
+      border-radius: 20px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: transform 0.15s ease;
+    }
+    
+    .srs-sm2-btn:active {
+      transform: scale(0.95);
+    }
+    
+    .srs-sm2-btn.again { background: #FEF2F2; border-color: #FECACA; color: #EF4444; }
+    .srs-sm2-btn.hard { background: #FFF7ED; border-color: #FFEDD5; color: #F97316; }
+    .srs-sm2-btn.good { background: #F0FDF4; border-color: #DCFCE7; color: #10B981; }
+    .srs-sm2-btn.easy { background: #F0EEFF; border-color: #E2D9FF; color: #6236FF; }
+    
+    .srs-sm2-btn-title {
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+    
+    .srs-sm2-btn-interval {
+      font-size: 9px;
+      font-weight: 600;
+      opacity: 0.8;
+    }
+    
+    /* Quick Tools Bar */
+    .srs-tools-row {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      margin-top: 18px;
+    }
+    
+    .srs-tool-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--secondary);
+      font-size: 11px;
+      font-weight: 600;
+      transition: color 0.15s ease;
+    }
+    
+    .srs-tool-btn:hover {
+      color: var(--accent);
+    }
+    
+    .srs-tool-icon-circle {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #F1F5F9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+    
+    .phone-screen.dark .srs-tool-icon-circle {
+      background: #1E293B;
+    }
+    
+    /* Reward Complete View */
+    .srs-reward-view {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 32px 16px;
+      flex: 1;
+      height: 100%;
+    }
+    
+    .srs-reward-badge {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: rgba(98, 54, 255, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      margin-bottom: 20px;
+    }
+    
+    .srs-reward-title {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text-dark);
+      margin-bottom: 8px;
+    }
+    
+    .phone-screen.dark .srs-reward-title {
+      color: #FFFFFF;
+    }
+    
+    .srs-reward-desc {
+      font-size: 14px;
+      color: var(--secondary);
+      margin-bottom: 24px;
+    }
+    
+    .srs-reward-stats {
+      display: flex;
+      width: 100%;
+      gap: 10px;
+      margin-bottom: 32px;
+    }
+    
+    .srs-reward-stat-card {
+      flex: 1;
+      background: #F8FAFC;
+      border: 1px solid var(--border-light);
+      padding: 12px 6px;
+      border-radius: 12px;
+    }
+    
+    .phone-screen.dark .srs-reward-stat-card {
+      background: #1E293B;
+      border-color: #334155;
+    }
+    
+    .srs-reward-stat-val {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--brand-orange);
+      margin-bottom: 2px;
+    }
+    
+    .srs-reward-stat-lbl {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--secondary);
+      text-transform: uppercase;
+    }
+    
+    .srs-reward-cta-btn {
+      width: 100%;
+      height: 52px;
+      border-radius: 26px;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--primary) 100%);
+      color: #FFFFFF;
+      font-size: 15px;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(45, 98, 255, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+    
+    .srs-reward-cta-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(45, 98, 255, 0.4);
+    }
   </style>
 </head>
 <body>
@@ -2057,7 +2519,7 @@
               </div>
 
               <!-- Start SRS CTA Button -->
-              <button class="dash-srs-cta-btn" onclick="showToast('🚀 Launching Spaced Repetition Queue (5 mins)...')">
+              <button class="dash-srs-cta-btn" onclick="switchScreen(10)">
                 <span>⚡</span>
                 <span>Start SRS Quick Review (5 mins)</span>
               </button>
@@ -2089,6 +2551,135 @@
           </div>
         </div>
 
+        <!-- Study & Spaced Repetition (SRS) Flashcards View (Screen 10) -->
+        <div class="study-srs-container" id="studySrsContainer">
+          <!-- 1. Active Review Session View -->
+          <div id="srsActiveView" style="display: flex; flex-direction: column; width: 100%; height: 100%;">
+            <!-- Header -->
+            <div class="srs-header" style="margin-top: 10px;">
+              <div class="srs-title" id="srsSubjectTitle">Calculus II</div>
+              <div class="srs-timer-pill">
+                <span>⏱️</span>
+                <span id="srsTimerDisplay">25:00</span>
+              </div>
+            </div>
+
+            <!-- Progress -->
+            <div class="srs-progress-row">
+              <div class="srs-progress-meta">
+                <span id="srsTopicTitle">Derivatives</span>
+                <span id="srsProgressText">4 of 15</span>
+              </div>
+              <div class="srs-progress-bar-bg">
+                <div class="srs-progress-bar-fill" id="srsProgressBarFill" style="width: 26%;"></div>
+              </div>
+            </div>
+
+            <!-- 3D Interactive Flashcard -->
+            <div class="srs-card-wrapper">
+              <div class="srs-card-inner" id="srsCardInner" onclick="flipSrsCard()">
+                <!-- Front -->
+                <div class="srs-card-front">
+                  <div class="srs-card-header">
+                    <span>Active Session</span>
+                    <span>🎓 StudPal</span>
+                  </div>
+                  <div class="srs-card-content">
+                    <div class="srs-question-text" id="srsQuestionText">Find the derivative of f(x) = sin(x) * e^x</div>
+                    <div class="srs-card-formula" id="srsFormulaText"></div>
+                  </div>
+                  <div class="srs-card-footer-tip">
+                    <span>👆 Tap card to flip and reveal answer</span>
+                  </div>
+                </div>
+
+                <!-- Back -->
+                <div class="srs-card-back">
+                  <div class="srs-card-header">
+                    <span>CORRECT ANSWER</span>
+                    <span onclick="event.stopPropagation(); playSrsAudio();" style="cursor: pointer; padding: 4px; font-weight: 700; color: var(--accent);">🔊 Audio</span>
+                  </div>
+                  <div class="srs-card-content">
+                    <div class="srs-card-formula" id="srsAnswerText" style="font-size: 20px; color: var(--accent);">f'(x) = cos(x)e^x + sin(x)e^x</div>
+                    <div class="srs-explanation-box" id="srsExplanationBox">
+                      <p class="italic">Explanation: Product Rule: f'g + fg'</p>
+                    </div>
+                  </div>
+                  <div class="srs-card-footer-tip">
+                    <span>👆 Tap card to flip back</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- SM-2 Rating Bar (Fades in when card is flipped) -->
+            <div class="srs-sm2-section" id="srsSm2Section">
+              <div class="srs-sm2-title">How well did you recall this?</div>
+              <div class="srs-sm2-buttons">
+                <div class="srs-sm2-btn again" onclick="rateSrsCard('Again', 5)">
+                  <span class="srs-sm2-btn-title">Again</span>
+                  <span class="srs-sm2-btn-interval">&lt; 1m</span>
+                </div>
+                <div class="srs-sm2-btn hard" onclick="rateSrsCard('Hard', 10)">
+                  <span class="srs-sm2-btn-title">Hard</span>
+                  <span class="srs-sm2-btn-interval">2 days</span>
+                </div>
+                <div class="srs-sm2-btn good" onclick="rateSrsCard('Good', 15)">
+                  <span class="srs-sm2-btn-title">Good</span>
+                  <span class="srs-sm2-btn-interval">4 days</span>
+                </div>
+                <div class="srs-sm2-btn easy" onclick="rateSrsCard('Easy', 25)">
+                  <span class="srs-sm2-btn-title">Easy</span>
+                  <span class="srs-sm2-btn-interval">7 days</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Quick Tools Bar -->
+            <div class="srs-tools-row">
+              <button class="srs-tool-btn" onclick="explainWithAi()">
+                <div class="srs-tool-icon-circle">🧠</div>
+                <span>AI Explain</span>
+              </button>
+              <button class="srs-tool-btn" onclick="showSrsHint()">
+                <div class="srs-tool-icon-circle">💡</div>
+                <span>Show Hint</span>
+              </button>
+              <button class="srs-tool-btn" onclick="toggleSrsBookmark()">
+                <div class="srs-tool-icon-circle" id="srsBookmarkIcon">⭐</div>
+                <span>Bookmark</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 2. Session Complete Reward View -->
+          <div id="srsRewardView" class="srs-reward-view">
+            <div class="srs-reward-badge">🎉</div>
+            <h2 class="srs-reward-title">Session Complete!</h2>
+            <p class="srs-reward-desc">Excellent progress! You reviewed all cards using the SuperMemo SM-2 algorithm.</p>
+            
+            <div class="srs-reward-stats">
+              <div class="srs-reward-stat-card">
+                <div class="srs-reward-stat-val" id="rewardXpVal">+50 XP</div>
+                <div class="srs-reward-stat-lbl">XP Earned</div>
+              </div>
+              <div class="srs-reward-stat-card">
+                <div class="srs-reward-stat-val" id="rewardAccuracyVal">100%</div>
+                <div class="srs-reward-stat-lbl">Recall Score</div>
+              </div>
+              <div class="srs-reward-stat-card">
+                <div class="srs-reward-stat-val">+1 Day</div>
+                <div class="srs-reward-stat-lbl">Streak Bonus</div>
+              </div>
+            </div>
+
+            <button class="srs-reward-cta-btn" onclick="exitSrsSession()">
+              <span>🏠</span>
+              <span>Return to Study Hub</span>
+            </button>
+          </div>
+        </div>
+
         <!-- Toast Floating Component -->
         <div class="toast-msg" id="toastMsg">Notification message</div>
       </div>
@@ -2116,6 +2707,7 @@
       <div class="screen-item" id="scr-4" onclick="switchScreen(4)">4. Role Selection</div>
       <div class="screen-item" id="scr-5" onclick="switchScreen(5)">5. Authentication</div>
       <div class="screen-item active" id="scr-6" onclick="switchScreen(6)">6. Dashboard Home 🚀</div>
+      <div class="screen-item" id="scr-10" onclick="switchScreen(10)">10. Study & SRS Flashcards</div>
     </div>
 
     <div class="tab-bar">
@@ -2345,6 +2937,7 @@
       const roleBox = document.getElementById('roleContainer');
       const authBox = document.getElementById('authContainer');
       const dashBox = document.getElementById('dashboardContainer');
+      const studySrsBox = document.getElementById('studySrsContainer');
 
       const img = document.getElementById('heroImg');
       const h1 = document.getElementById('headlineLine1');
@@ -2367,24 +2960,36 @@
         roleBox.style.display = 'none';
         authBox.style.display = 'none';
         dashBox.style.display = 'none';
+        if (studySrsBox) studySrsBox.style.display = 'none';
       } else if (step === 4) {
         brandHeader.style.display = 'flex';
         onboardingBox.style.display = 'none';
         roleBox.style.display = 'flex';
         authBox.style.display = 'none';
         dashBox.style.display = 'none';
+        if (studySrsBox) studySrsBox.style.display = 'none';
       } else if (step === 5) {
         brandHeader.style.display = 'flex';
         onboardingBox.style.display = 'none';
         roleBox.style.display = 'none';
         authBox.style.display = 'flex';
         dashBox.style.display = 'none';
+        if (studySrsBox) studySrsBox.style.display = 'none';
       } else if (step === 6) {
         brandHeader.style.display = 'none';
         onboardingBox.style.display = 'none';
         roleBox.style.display = 'none';
         authBox.style.display = 'none';
         dashBox.style.display = 'flex';
+        if (studySrsBox) studySrsBox.style.display = 'none';
+      } else if (step === 10) {
+        brandHeader.style.display = 'none';
+        onboardingBox.style.display = 'none';
+        roleBox.style.display = 'none';
+        authBox.style.display = 'none';
+        dashBox.style.display = 'none';
+        if (studySrsBox) studySrsBox.style.display = 'flex';
+        resetFlashcardSession();
       }
 
       if (step === 1) {
@@ -2500,7 +3105,173 @@
       showToast(`Navigated to ${names[tab]}`);
     }
 
+    // Spaced Repetition (SRS) Flashcards Session State
+    const srsCards = [
+      { question: "Find the derivative of f(x) = sin(x) * e^x", answer: "f'(x) = cos(x)e^x + sin(x)e^x", topic: "Derivatives", subject: "Calculus II", explanation: "Product Rule: (uv)' = u'v + uv'", hint: "Recall (uv)' = u'v + uv'" },
+      { question: "Find the integral of ln(x) dx", answer: "x * ln(x) - x + C", topic: "Integrals", subject: "Calculus II", explanation: "Integration by Parts: u = ln(x), dv = dx", hint: "Let u = ln(x) and dv = dx" },
+      { question: "Determine the limit of sin(x)/x as x approaches 0", answer: "1", topic: "Limits", subject: "Calculus II", explanation: "Standard trigonometric limit or L'Hopital's Rule", hint: "Recall standard limit properties" }
+    ];
+
+    let currentSrsIndex = 0;
+    let srsTimer = 25 * 60; // 25:00
+    let srsIntervalId = null;
+    let srsTimerRunning = false;
+    let srsXpEarned = 0;
+    let isSrsFlipped = false;
+    let isSrsBookmarked = false;
+
+    function resetFlashcardSession() {
+      currentSrsIndex = 0;
+      srsXpEarned = 0;
+      isSrsFlipped = false;
+      isSrsBookmarked = false;
+      srsTimer = 25 * 60;
+      
+      document.getElementById('srsActiveView').style.display = 'flex';
+      document.getElementById('srsRewardView').style.display = 'none';
+      
+      loadSrsCard(0);
+      startSrsTimer();
+    }
+
+    function loadSrsCard(idx) {
+      if (idx >= srsCards.length) {
+        completeSrsSession();
+        return;
+      }
+      
+      const card = srsCards[idx];
+      isSrsFlipped = false;
+      isSrsBookmarked = false;
+      
+      const cardInner = document.getElementById('srsCardInner');
+      cardInner.classList.remove('flipped');
+      document.getElementById('srsSm2Section').classList.remove('show');
+      
+      // Update bookmark icon
+      document.getElementById('srsBookmarkIcon').textContent = '⭐';
+      document.getElementById('srsBookmarkIcon').style.color = '#8F95A5';
+      
+      // Update text
+      document.getElementById('srsSubjectTitle').textContent = card.subject;
+      document.getElementById('srsTopicTitle').textContent = card.topic;
+      document.getElementById('srsQuestionText').textContent = card.question;
+      document.getElementById('srsAnswerText').textContent = card.answer;
+      document.getElementById('srsExplanationBox').innerHTML = `<p class="italic">Explanation: ${card.explanation}</p>`;
+      
+      // Progress
+      const pct = Math.round(((idx) / srsCards.length) * 100);
+      document.getElementById('srsProgressText').textContent = `${idx + 1} of ${srsCards.length}`;
+      document.getElementById('srsProgressBarFill').style.width = `${pct || 5}%`;
+    }
+
+    function flipSrsCard() {
+      isSrsFlipped = !isSrsFlipped;
+      const cardInner = document.getElementById('srsCardInner');
+      const sm2Section = document.getElementById('srsSm2Section');
+      
+      if (isSrsFlipped) {
+        cardInner.classList.add('flipped');
+        sm2Section.classList.add('show');
+      } else {
+        cardInner.classList.remove('flipped');
+        sm2Section.classList.remove('show');
+      }
+    }
+
+    function playSrsAudio() {
+      const card = srsCards[currentSrsIndex];
+      showToast(`🔊 Pronouncing: "${card.answer}"`);
+    }
+
+    function rateSrsCard(rating, xp) {
+      srsXpEarned += xp;
+      showToast(`✨ ${rating}! +${xp} XP Earned.`);
+      
+      currentSrsIndex++;
+      setTimeout(() => {
+        loadSrsCard(currentSrsIndex);
+      }, 300);
+    }
+
+    function explainWithAi() {
+      const card = srsCards[currentSrsIndex];
+      showToast(`🧠 Branco (AI): Expanding explanation for "${card.question}"...`);
+    }
+
+    function showSrsHint() {
+      const card = srsCards[currentSrsIndex];
+      showToast(`💡 Hint: ${card.hint}`);
+    }
+
+    function toggleSrsBookmark() {
+      isSrsBookmarked = !isSrsBookmarked;
+      const icon = document.getElementById('srsBookmarkIcon');
+      if (isSrsBookmarked) {
+        icon.textContent = '★';
+        icon.style.color = '#F59E0B';
+        showToast('⭐ Card bookmarked!');
+      } else {
+        icon.textContent = '⭐';
+        icon.style.color = '#8F95A5';
+        showToast('⭐ Card removed from bookmarks');
+      }
+    }
+
+    function startSrsTimer() {
+      if (srsIntervalId) clearInterval(srsIntervalId);
+      srsTimerRunning = true;
+      
+      srsIntervalId = setInterval(() => {
+        if (srsTimer > 0 && srsTimerRunning) {
+          srsTimer--;
+          const mins = Math.floor(srsTimer / 60);
+          const secs = srsTimer % 60;
+          document.getElementById('srsTimerDisplay').textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+      }, 1000);
+    }
+
+    function stopSrsTimer() {
+      srsTimerRunning = false;
+      if (srsIntervalId) clearInterval(srsIntervalId);
+    }
+
+    function completeSrsSession() {
+      stopSrsTimer();
+      document.getElementById('srsActiveView').style.display = 'none';
+      document.getElementById('srsRewardView').style.display = 'flex';
+      
+      document.getElementById('rewardXpVal').textContent = `+${srsXpEarned} XP`;
+      
+      // Update global XP counter in Dashboard
+      xpEarned += srsXpEarned;
+      document.getElementById('dashGoalXp').textContent = `+${xpEarned} XP`;
+      
+      // Add XP toast
+      showToast(`🎉 Review Session Complete! Awarded +${srsXpEarned} XP!`);
+    }
+
+    function exitSrsSession() {
+      switchScreen(6); // Return to Dashboard
+    }
+
     init();
   </script>
+
+  <!-- Floating Expo Go QR Code Badge -->
+  <div id="expo-qr-floating-badge" style="position: fixed; bottom: 24px; right: 24px; background: #0F172A; color: #FFFFFF; padding: 16px 20px; border-radius: 18px; box-shadow: 0 12px 36px rgba(0,0,0,0.35); z-index: 99999; display: flex; align-items: center; gap: 16px; border: 1px solid rgba(255,255,255,0.12); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+    <div style="background: #FFFFFF; padding: 8px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+      <img src="expo_qr.svg" alt="Expo Go QR" width="100" height="100" style="display: block; border-radius: 6px;" />
+    </div>
+    <div>
+      <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+        <span style="width: 8px; height: 8px; border-radius: 50%; background: #10B981; display: inline-block;"></span>
+        <strong style="font-size: 13px; letter-spacing: 0.3px; color: #F8FAFC;">Expo Go Mobile Live</strong>
+      </div>
+      <p style="font-size: 11px; color: #94A3B8; margin: 0 0 6px 0; max-width: 170px; line-height: 1.3;">Scan with camera or Expo Go on phone</p>
+      <code style="font-size: 10px; background: rgba(255,255,255,0.1); padding: 3px 6px; border-radius: 6px; color: #38BDF8; font-family: monospace;">exp://10.32.26.159:8081</code>
+    </div>
+  </div>
 </body>
 </html>

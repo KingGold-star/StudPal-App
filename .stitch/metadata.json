@@ -1,0 +1,25 @@
+{
+  "name": "projects/13855770145621967300",
+  "projectId": "13855770145621967300",
+  "title": "StudPal",
+  "visibility": "PRIVATE",
+  "createTime": "2026-08-31T12:27:23.891601Z",
+  "updateTime": "2026-08-31T12:27:23.891601Z",
+  "projectType": "PROJECT_DESIGN",
+  "origin": "STITCH",
+  "deviceType": "MOBILE",
+  "designTheme": {},
+  "screens": {
+    "study_srs_session": {
+      "id": "1875c10920d84e858a763af69449e134",
+      "sourceScreen": "projects/13855770145621967300/screens/1875c10920d84e858a763af69449e134",
+      "x": 0,
+      "y": 0,
+      "width": 780,
+      "height": 1768
+    }
+  },
+  "metadata": {
+    "userRole": "OWNER"
+  }
+}

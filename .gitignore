@@ -21,4 +21,7 @@ captures/
 .DS_Store
 Thumbs.db
 *.log
+*.exe
+scratch/
+
 

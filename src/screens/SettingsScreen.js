@@ -20,12 +20,17 @@ import Svg, { Path, Circle, Rect, G } from "react-native-svg";
 import * as ImagePicker from "expo-image-picker";
 import Header from "../components/Header";
 import Modal from "../components/CustomModal";
+import TooltipTouchable from "../components/TooltipTouchable";
 import BottomNavBar from "../components/BottomNavBar";
 import { settingsService, DEFAULT_SETTINGS } from "../services/settings/settingsService";
 import { themeService } from "../theme/themeService";
 import { gamificationService } from "../services/gamification/gamificationService";
 import { calculateUserLevel } from "../services/gamification/levels";
 import { Colors } from "../theme/colors";
+import { useTranslation, SUPPORTED_LANGUAGES } from "../services/i18n/i18nService";
+import { SUPPORTED_COUNTRIES } from "../services/gamification/countryLeaderboardData";
+import { ipLocationService } from "../services/ipLocationService";
+import { useTheme } from "../theme/themeContext";
 
 // ─── SVG Icons ───────────────────────────────────────────────────────────────
 
@@ -141,6 +146,36 @@ const CameraIcon = ({ size = 13, color = "#FFFFFF" }) => (
   </Svg>
 );
 
+const SyncIcon = ({ size = 13, color = "#0284C7" }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M23 4v6h-6" />
+    <Path d="M1 20v-6h6" />
+    <Path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+  </Svg>
+);
+
+const DownloadIcon = ({ size = 13, color = "#0284C7" }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <Path d="M7 10l5 5 5-5" />
+    <Path d="M12 15V3" />
+  </Svg>
+);
+
+const TrashIcon = ({ size = 14, color = "#E11D48" }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    <Path d="M10 11v6M14 11v6" />
+  </Svg>
+);
+
+const ResetIcon = ({ size = 15, color = "#475569" }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+    <Path d="M3 3v5h5" />
+  </Svg>
+);
+
 // ─── FAQ Data ────────────────────────────────────────────────────────────────
 
 const FAQ_ITEMS = [
@@ -223,8 +258,11 @@ const CustomToggle = ({ value, onValueChange, activeColor }) => {
 
 export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavigate, onSelectTab }) {
   const insets = useSafeAreaInsets();
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
-  const activeAccentColor = settings.accentColor || Colors.accent || "#6236FF";
+  const { t, currentLanguageCode, setLanguage } = useTranslation();
+  const { isDark, accentColor: themeAccent, setTheme } = useTheme();
+  const [settings, setSettings] = useState({ ...DEFAULT_SETTINGS, hapticFeedback: true, autoStartBreaks: true });
+  const activeAccentColor = settings.accentColor || themeAccent || Colors.accent || "#6236FF";
+  const styles = useMemo(() => getStyles(isDark, activeAccentColor, insets), [isDark, activeAccentColor, insets]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
@@ -249,6 +287,16 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
   const [selectedMinute, setSelectedMinute] = useState("00");
 
   const [isLangModalOpen, setLangModalOpen] = useState(false);
+  const [ipCountryCode, setIpCountryCode] = useState(() => (user?.countryCode || ipLocationService.getCountryCode() || "NG").toUpperCase());
+
+  useEffect(() => {
+    const unsubIp = ipLocationService.subscribe((code) => {
+      if (code && typeof code === "string" && code.length === 2) {
+        setIpCountryCode(code.toUpperCase());
+      }
+    });
+    return () => unsubIp();
+  }, []);
   const [isAiPersonaModalOpen, setAiPersonaModalOpen] = useState(false);
   const [isFaqModalOpen, setFaqModalOpen] = useState(false);
   const [expandedFaqIndex, setExpandedFaqIndex] = useState(null);
@@ -272,6 +320,14 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
     (async () => {
       const loaded = await settingsService.getSettings();
       if (mounted) {
+        if (loaded.hapticFeedback !== true) {
+          loaded.hapticFeedback = true;
+          await settingsService.updateSetting("hapticFeedback", true);
+        }
+        if (loaded.autoStartBreaks !== true) {
+          loaded.autoStartBreaks = true;
+          await settingsService.updateSetting("autoStartBreaks", true);
+        }
         setSettings(loaded);
         if (loaded.notificationTime) {
           const parts = loaded.notificationTime.split(":");
@@ -303,6 +359,9 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
     setSettings(newSettings);
     if (key === "accentColor") {
       await themeService.setAccentColor(val);
+    }
+    if (key === "theme") {
+      await setTheme(val);
     }
     if (toastLabel) {
       showToast(`${toastLabel}`);
@@ -483,10 +542,10 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
   };
 
   return (
-    <SafeAreaView style={styles.root} edges={["top", "bottom"]}>
+    <SafeAreaView style={styles.root} edges={["top", "left", "right"]}>
       {/* ── Top Header ─────────────────────────────────────────────────── */}
       <Header
-        title="Settings"
+        title={t("settings.title")}
         showBack={true}
         onBack={handleBack}
       />
@@ -502,7 +561,7 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: Math.max(insets.bottom, 16) + 90 },
+          { paddingBottom: Math.max(insets.bottom, 16) + 110 },
         ]}
       >
         {/* ── Search Bar ────────────────────────────────────────────────── */}
@@ -510,7 +569,7 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
           <SearchIcon size={18} color="#94A3B8" />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search settings, timer, theme, notifications..."
+            placeholder={t("settings.searchPlaceholder")}
             placeholderTextColor="#94A3B8"
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -530,19 +589,19 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
           contentContainerStyle={styles.categoryPillsRow}
         >
           {[
-            { id: "all", label: "All" },
-            { id: "appearance", label: "🎨 Appearance" },
-            { id: "study", label: "⏱️ Pomodoro" },
-            { id: "aicoach", label: "🤖 Branco" },
-            { id: "notifications", label: "🔔 Notifications" },
-            { id: "language", label: "🌐 Language" },
-            { id: "security", label: "🛡️ Security" },
-            { id: "data", label: "💾 Data & Sync" },
-            { id: "support", label: "ℹ️ Support" },
+            { id: "all", label: t("common.viewAll") },
+            { id: "appearance", label: `🎨 ${t("settings.appearance")}` },
+            { id: "study", label: `⏱️ ${t("settings.studyFocus")}` },
+            { id: "focus", label: `🎯 ${t("nav.focusMode")}` },
+            { id: "notifications", label: `🔔 ${t("settings.notifications")}` },
+            { id: "language", label: `🌐 ${t("settings.languageRegion")}` },
+            { id: "security", label: `🛡️ ${t("settings.accountSecurity")}` },
+            { id: "data", label: `💾 ${t("settings.dataStorage")}` },
+            { id: "support", label: `ℹ️ ${t("profile.helpCenter")}` },
           ].map((cat) => {
             const isActive = activeCategory === cat.id;
             return (
-              <TouchableOpacity
+              <TooltipTouchable
                 key={cat.id}
                 style={[styles.categoryPill, isActive && styles.categoryPillActive]}
                 onPress={() => setActiveCategory(cat.id)}
@@ -551,53 +610,11 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
                 <Text style={[styles.categoryPillText, isActive && styles.categoryPillTextActive]}>
                   {cat.label}
                 </Text>
-              </TouchableOpacity>
+              </TooltipTouchable>
             );
           })}
         </ScrollView>
 
-        {/* ── User Profile Hero Card ────────────────────────────────────── */}
-        {(!q || q.includes("profile") || q.includes("user") || q.includes("account")) && (
-          <View style={styles.userSummaryCard}>
-            <View style={styles.userAvatarWrap}>
-              {user?.avatarUri || editAvatarUri ? (
-                <Image source={{ uri: editAvatarUri || user?.avatarUri }} style={styles.userAvatarImg} />
-              ) : (
-                <Text style={styles.userAvatarText}>
-                  {user?.name ? user.name[0].toUpperCase() : "A"}
-                </Text>
-              )}
-              <TouchableOpacity
-                style={styles.avatarCameraBadge}
-                onPress={handlePickAvatar}
-                activeOpacity={0.85}
-              >
-                <CameraIcon size={11} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text style={styles.userNameText}>{user?.name || "Alex Johnson"}</Text>
-              <Text style={styles.userEmailText}>{user?.email || "alex.johnson@university.edu"}</Text>
-              <View style={styles.userBadgeRow}>
-                <View style={styles.levelBadgePill}>
-                  <Text style={styles.levelBadgeText}>Level {currentLevel.level} • {currentLevel.title}</Text>
-                </View>
-                <View style={styles.streakBadgePill}>
-                  <Text style={styles.streakBadgeText}>🔥 7-Day Streak</Text>
-                </View>
-              </View>
-            </View>
-
-            <TouchableOpacity
-              style={styles.editProfileBtn}
-              onPress={() => setEditProfileModalOpen(true)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.editProfileBtnText}>Edit</Text>
-            </TouchableOpacity>
-          </View>
-        )}
 
         {/* ========================================================================= */}
         {/* 🎨 1. APPEARANCE & INTERFACE SECTION                                     */}
@@ -609,52 +626,87 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
                 <MoonIcon size={18} color="#6236FF" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.sectionTitle}>Appearance & Interface</Text>
-                <Text style={styles.sectionSubtitle}>Theme, accent palette and visual density</Text>
+                <Text style={styles.sectionTitle}>{t("settings.appearance")}</Text>
+                <Text style={styles.sectionSubtitle}>{t("settings.appearanceSub")}</Text>
               </View>
             </View>
 
+            <View style={styles.sectionHeaderDivider} />
 
-
-            {/* Brand Accent Palette */}
-            <Text style={styles.settingLabelText}>Brand Accent Color</Text>
-            <View style={styles.accentColorsRow}>
-              {[
-                { color: "#6236FF", name: "StudPal Violet" },
-                { color: "#2563EB", name: "Royal Blue" },
-                { color: "#10B981", name: "Emerald Mint" },
-                { color: "#F59E0B", name: "Amber Gold" },
-                { color: "#EC4899", name: "Berry Rose" },
-              ].map((item) => {
-                const isSelected = settings.accentColor === item.color;
-                return (
-                  <TouchableOpacity
-                    key={item.color}
-                    style={[styles.accentColorDot, { backgroundColor: item.color }, isSelected && styles.accentColorDotSelected]}
-                    onPress={() => handleSelectSetting("accentColor", item.color, `Accent color updated to ${item.name}`)}
-                    activeOpacity={0.8}
-                  >
-                    {isSelected && <CheckIcon size={14} color="#FFFFFF" />}
-                  </TouchableOpacity>
-                );
-              })}
+            {/* Interface Theme (Light / Dark / System) */}
+            <View style={styles.settingGroup}>
+              <View style={styles.settingGroupHeader}>
+                <Text style={styles.settingGroupLabel}>{t("settings.theme") || "INTERFACE THEME"}</Text>
+                <View style={[styles.activeValBadge, { backgroundColor: activeAccentColor + "15" }]}>
+                  <Text style={[styles.activeValBadgeText, { color: activeAccentColor }]}>
+                    {settings.theme === "dark" ? (t("settings.themeDark") || "Dark") : settings.theme === "light" ? (t("settings.themeLight") || "Light") : (t("settings.themeSystem") || "System")}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.segmentedControlWrap}>
+                {[
+                  { key: "light", label: t("settings.themeLight") || "Light", icon: SunIcon },
+                  { key: "dark", label: t("settings.themeDark") || "Dark", icon: MoonIcon },
+                  { key: "system", label: t("settings.themeSystem") || "System", icon: MonitorIcon },
+                ].map(({ key, label, icon: IconComponent }) => {
+                  const isSelected = (settings.theme || "system") === key;
+                  return (
+                    <TouchableOpacity
+                      key={key}
+                      style={[styles.segmentBtn, isSelected && styles.segmentBtnActive]}
+                      onPress={() => handleSelectSetting("theme", key, `Theme set to ${label}`)}
+                      activeOpacity={0.8}
+                    >
+                      <IconComponent size={15} color={isSelected ? activeAccentColor : "#64748B"} />
+                      <Text style={[styles.segmentBtnText, isSelected && [styles.segmentBtnTextActive, { color: activeAccentColor }]]}>
+                        {label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </View>
 
             <View style={styles.settingRowDivider} />
 
-            {/* Compact Mode Toggle */}
-            <View style={styles.settingRow}>
-              <View style={{ flex: 1, paddingRight: 10 }}>
-                <Text style={styles.settingRowTitle}>Compact Dashboard Mode</Text>
-                <Text style={styles.settingRowSub}>
-                  Dense cards layout with tighter margins on the home dashboard
-                </Text>
+            {/* Brand Accent Palette */}
+            <View style={styles.settingGroup}>
+              <View style={styles.settingGroupHeader}>
+                <Text style={styles.settingGroupLabel}>{t("settings.accentColor") || "PRIMARY ACCENT HUE"}</Text>
+                <View style={[styles.activeValBadge, { backgroundColor: activeAccentColor + "15" }]}>
+                  <Text style={[styles.activeValBadgeText, { color: activeAccentColor }]}>
+                    {[
+                      { color: "#6236FF", name: "Violet" },
+                      { color: "#2563EB", name: "Royal Blue" },
+                      { color: "#10B981", name: "Emerald" },
+                      { color: "#F59E0B", name: "Amber" },
+                      { color: "#EC4899", name: "Rose" },
+                    ].find((i) => i.color === settings.accentColor)?.name || "Violet"}
+                  </Text>
+                </View>
               </View>
-              <CustomToggle
-                value={settings.compactMode}
-                onValueChange={() => handleToggle("compactMode", "Compact mode")}
-                activeColor={activeAccentColor}
-              />
+              <View style={styles.accentColorsRow}>
+                {[
+                  { color: "#6236FF", name: "StudPal Violet" },
+                  { color: "#2563EB", name: "Royal Blue" },
+                  { color: "#10B981", name: "Emerald Mint" },
+                  { color: "#F59E0B", name: "Amber Gold" },
+                  { color: "#EC4899", name: "Berry Rose" },
+                ].map((item) => {
+                  const isSelected = settings.accentColor === item.color;
+                  return (
+                    <TooltipTouchable
+                      key={item.color}
+                      tooltip={item.name}
+                      style={[styles.accentColorDot, { backgroundColor: item.color }, isSelected && styles.accentColorDotSelected]}
+                      onPress={() => handleSelectSetting("accentColor", item.color, `Accent color updated to ${item.name}`)}
+                      activeOpacity={0.8}
+                    >
+                      {isSelected && <CheckIcon size={14} color="#FFFFFF" />}
+                    </TooltipTouchable>
+                  );
+                })}
+              </View>
             </View>
 
             <View style={styles.settingRowDivider} />
@@ -662,13 +714,13 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
             {/* Haptic Feedback Toggle */}
             <View style={styles.settingRow}>
               <View style={{ flex: 1, paddingRight: 10 }}>
-                <Text style={styles.settingRowTitle}>Haptic Touch Feedback</Text>
+                <Text style={styles.settingRowTitle}>{t("settings.hapticTouch")}</Text>
                 <Text style={styles.settingRowSub}>
-                  Tactile vibrations on timer clicks, deck flips, and XP rewards
+                  {t("settings.hapticTouchSub")}
                 </Text>
               </View>
               <CustomToggle
-                value={settings.hapticFeedback}
+                value={settings.hapticFeedback !== false}
                 onValueChange={() => handleToggle("hapticFeedback", "Haptic feedback")}
                 activeColor={activeAccentColor}
               />
@@ -686,98 +738,102 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
                 <ClockIcon size={18} color="#2563EB" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.sectionTitle}>Focus & Pomodoro Timer</Text>
-                <Text style={styles.sectionSubtitle}>Intervals, breaks, daily goals and chime sounds</Text>
+                <Text style={styles.sectionTitle}>{t("settings.studyFocus")}</Text>
+                <Text style={styles.sectionSubtitle}>{t("settings.studyFocusSub")}</Text>
               </View>
             </View>
 
+            <View style={styles.sectionHeaderDivider} />
+
             {/* Default Focus Duration */}
-            <Text style={styles.settingLabelText}>Default Focus Interval</Text>
-            <View style={styles.segmentGrid}>
-              {[15, 25, 45, 60].map((dur) => {
-                const isSelected = settings.defaultSessionDuration === dur;
-                return (
-                  <TouchableOpacity
-                    key={dur}
-                    style={[styles.optionPill, isSelected && styles.optionPillSelectedBlue]}
-                    onPress={() => handleSelectSetting("defaultSessionDuration", dur, `Focus duration set to ${dur} min`)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.optionPillText, isSelected && styles.optionPillTextSelected]}>
-                      {dur}m
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+            <View style={styles.settingGroup}>
+              <View style={styles.settingGroupHeader}>
+                <Text style={styles.settingGroupLabel}>{t("settings.focusDuration") || "FOCUS INTERVAL DURATION"}</Text>
+                <View style={[styles.activeValBadge, { backgroundColor: activeAccentColor + "15" }]}>
+                  <Text style={[styles.activeValBadgeText, { color: activeAccentColor }]}>
+                    {settings.defaultSessionDuration || 25} min
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.segmentedControlWrap}>
+                {[15, 25, 45].map((dur) => {
+                  const isSelected = settings.defaultSessionDuration === dur;
+                  return (
+                    <TouchableOpacity
+                      key={dur}
+                      style={[styles.segmentBtn, isSelected && styles.segmentBtnActive]}
+                      onPress={() => handleSelectSetting("defaultSessionDuration", dur, `Focus duration set to ${dur} min`)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.segmentBtnText, isSelected && [styles.segmentBtnTextActive, { color: activeAccentColor }]]}>
+                        {dur} min
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </View>
 
             <View style={styles.settingRowDivider} />
 
-            {/* Short & Long Breaks Grid */}
-            <View style={{ flexDirection: "row", gap: 12 }}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.settingLabelText}>Short Break</Text>
-                <View style={styles.segmentGrid}>
-                  {[3, 5, 10].map((b) => {
-                    const isSelected = settings.shortBreakDuration === b;
-                    return (
-                      <TouchableOpacity
-                        key={b}
-                        style={[styles.optionPill, isSelected && styles.optionPillSelectedBlue]}
-                        onPress={() => handleSelectSetting("shortBreakDuration", b, `Short break set to ${b}m`)}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={[styles.optionPillText, isSelected && styles.optionPillTextSelected]}>
-                          {b}m
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
+            {/* Short Break Grid */}
+            <View style={styles.settingGroup}>
+              <View style={styles.settingGroupHeader}>
+                <Text style={styles.settingGroupLabel}>{t("settings.shortBreak") || "SHORT BREAK LENGTH"}</Text>
+                <View style={[styles.activeValBadge, { backgroundColor: activeAccentColor + "15" }]}>
+                  <Text style={[styles.activeValBadgeText, { color: activeAccentColor }]}>
+                    {settings.shortBreakDuration || 5} min
+                  </Text>
                 </View>
               </View>
-
-              <View style={{ flex: 1 }}>
-                <Text style={styles.settingLabelText}>Long Break</Text>
-                <View style={styles.segmentGrid}>
-                  {[15, 20, 30].map((b) => {
-                    const isSelected = settings.longBreakDuration === b;
-                    return (
-                      <TouchableOpacity
-                        key={b}
-                        style={[styles.optionPill, isSelected && styles.optionPillSelectedBlue]}
-                        onPress={() => handleSelectSetting("longBreakDuration", b, `Long break set to ${b}m`)}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={[styles.optionPillText, isSelected && styles.optionPillTextSelected]}>
-                          {b}m
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+              <View style={styles.segmentedControlWrap}>
+                {[3, 5, 10].map((b) => {
+                  const isSelected = settings.shortBreakDuration === b;
+                  return (
+                    <TouchableOpacity
+                      key={b}
+                      style={[styles.segmentBtn, isSelected && styles.segmentBtnActive]}
+                      onPress={() => handleSelectSetting("shortBreakDuration", b, `Short break set to ${b}m`)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.segmentBtnText, isSelected && [styles.segmentBtnTextActive, { color: activeAccentColor }]]}>
+                        {b} min
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
 
             <View style={styles.settingRowDivider} />
 
             {/* Daily Study Goal */}
-            <Text style={styles.settingLabelText}>Daily Study Goal</Text>
-            <View style={styles.segmentGrid}>
-              {[30, 45, 60, 90, 120].map((goal) => {
-                const isSelected = settings.dailyStudyGoal === goal;
-                return (
-                  <TouchableOpacity
-                    key={goal}
-                    style={[styles.optionPill, isSelected && styles.optionPillSelectedBlue]}
-                    onPress={() => handleSelectSetting("dailyStudyGoal", goal, `Daily goal set to ${goal} min`)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.optionPillText, isSelected && styles.optionPillTextSelected]}>
-                      {goal}m
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+            <View style={styles.settingGroup}>
+              <View style={styles.settingGroupHeader}>
+                <Text style={styles.settingGroupLabel}>{t("settings.dailyGoal") || "DAILY STUDY TARGET"}</Text>
+                <View style={[styles.activeValBadge, { backgroundColor: activeAccentColor + "15" }]}>
+                  <Text style={[styles.activeValBadgeText, { color: activeAccentColor }]}>
+                    {settings.dailyStudyGoal || 60} min
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.segmentedControlWrap}>
+                {[30, 60, 90].map((goal) => {
+                  const isSelected = settings.dailyStudyGoal === goal;
+                  return (
+                    <TouchableOpacity
+                      key={goal}
+                      style={[styles.segmentBtn, isSelected && styles.segmentBtnActive]}
+                      onPress={() => handleSelectSetting("dailyStudyGoal", goal, `Daily goal set to ${goal} min`)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.segmentBtnText, isSelected && [styles.segmentBtnTextActive, { color: activeAccentColor }]]}>
+                        {goal} min
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </View>
 
             <View style={styles.settingRowDivider} />
@@ -785,11 +841,11 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
             {/* Auto-start Breaks */}
             <View style={styles.settingRow}>
               <View style={{ flex: 1, paddingRight: 10 }}>
-                <Text style={styles.settingRowTitle}>Auto-start Breaks</Text>
-                <Text style={styles.settingRowSub}>Automatically begin break timer when focus block finishes</Text>
+                <Text style={styles.settingRowTitle}>{t("settings.autoBreaks")}</Text>
+                <Text style={styles.settingRowSub}>{t("settings.autoBreaksSub")}</Text>
               </View>
               <CustomToggle
-                value={settings.autoStartBreaks}
+                value={settings.autoStartBreaks !== false}
                 onValueChange={() => handleToggle("autoStartBreaks", "Auto-start breaks")}
                 activeColor={activeAccentColor}
               />
@@ -800,7 +856,7 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
             {/* Sound & Tone Selector */}
             <View style={styles.settingRow}>
               <View style={{ flex: 1, paddingRight: 10 }}>
-                <Text style={styles.settingRowTitle}>Completion Sound Effects</Text>
+                <Text style={styles.settingRowTitle}>{t("settings.soundEffects")}</Text>
                 <Text style={styles.settingRowSub}>Play joyful chime on session finish and XP level-up</Text>
               </View>
               <CustomToggle
@@ -813,88 +869,33 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
         )}
 
         {/* ========================================================================= */}
-        {/* 🤖 3. AI COACH & STUDY INTELLIGENCE SECTION                              */}
+        {/* 🎯 3. FOCUS MODE SECTION                                                 */}
         {/* ========================================================================= */}
-        {shouldShow("aicoach", ["ai", "coach", "tutor", "socratic", "persona", "pdf", "spaced", "srs"]) && (
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeaderRow}>
-              <View style={[styles.sectionIconBox, { backgroundColor: "#F3E8FF" }]}>
-                <BotIcon size={18} color="#8B5CF6" />
+        {shouldShow("focus", ["focus", "block", "restrict", "distraction"]) && (
+          <TouchableOpacity 
+            style={[styles.sectionCard, styles.actionNavCard]} 
+            activeOpacity={0.78}
+            onPress={() => {
+              if (onNavigate) {
+                onNavigate('focus-mode');
+              }
+            }}
+          >
+            <View style={styles.actionNavCardContent}>
+              <View style={[styles.sectionIconBox, { backgroundColor: "#FCE7F3" }]}>
+                <ShieldIcon size={18} color="#EC4899" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.sectionTitle}>Branco Intelligence</Text>
-                <Text style={styles.sectionSubtitle}>Tutoring style, explanation depth, and smart algorithms</Text>
+                <Text style={styles.sectionTitle}>Focus Mode Settings</Text>
+                <Text style={styles.sectionSubtitle}>Manage app restrictions, timetable automation, and strict mode.</Text>
+              </View>
+              <View style={styles.actionNavPill}>
+                <ChevronRightIcon size={16} color="#EC4899" />
               </View>
             </View>
-
-            {/* AI Coach Persona */}
-            <TouchableOpacity
-              style={styles.settingNavigationRow}
-              onPress={() => setAiPersonaModalOpen(true)}
-              activeOpacity={0.7}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={styles.settingRowTitle}>Companion Personality</Text>
-                <Text style={styles.settingRowSub}>
-                  {settings.aiPersonality === "encouraging"
-                    ? "✨ Encouraging & Warm (High Motivation)"
-                    : settings.aiPersonality === "rigorous"
-                    ? "🎯 Rigorous & Direct (Exam Focus)"
-                    : settings.aiPersonality === "socratic"
-                    ? "🧠 Socratic Tutor (Guided Questioning)"
-                    : "⚡ Concise & Quick (Bullet Summaries)"}
-                </Text>
-              </View>
-              <View style={styles.rowRightPill}>
-                <Text style={styles.rowRightPillText}>Change</Text>
-                <ChevronRightIcon size={15} color="#6236FF" />
-              </View>
-            </TouchableOpacity>
-
-            <View style={styles.settingRowDivider} />
-
-            {/* AI Reasoning Depth */}
-            <Text style={styles.settingLabelText}>Explanation Detail Level</Text>
-            <View style={styles.themeSegmentContainer}>
-              {[
-                { id: "fast", label: "⚡ Fast" },
-                { id: "balanced", label: "⚖️ Balanced" },
-                { id: "detailed", label: "🔬 In-Depth" },
-              ].map((item) => {
-                const isSelected = settings.aiModelDepth === item.id;
-                return (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={[styles.themePill, isSelected && styles.themePillSelectedPurple]}
-                    onPress={() => handleSelectSetting("aiModelDepth", item.id, `AI detail set to ${item.label}`)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.themePillText, isSelected && styles.themePillTextSelected]}>
-                      {item.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            <View style={styles.settingRowDivider} />
-
-            {/* Spaced Repetition SRS optimization */}
-            <View style={styles.settingRow}>
-              <View style={{ flex: 1, paddingRight: 10 }}>
-                <Text style={styles.settingRowTitle}>SM-2 Spaced Repetition</Text>
-                <Text style={styles.settingRowSub}>
-                  Dynamically space flashcard reviews based on your recall accuracy
-                </Text>
-              </View>
-              <CustomToggle
-                value={settings.spacedRepetitionSmartIntervals}
-                onValueChange={() => handleToggle("spacedRepetitionSmartIntervals", "Smart SRS intervals")}
-                activeColor={activeAccentColor}
-              />
-            </View>
-          </View>
+          </TouchableOpacity>
         )}
+
 
         {/* ========================================================================= */}
         {/* 🔔 4. NOTIFICATIONS SECTION                                               */}
@@ -906,16 +907,17 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
                 <BellIcon size={18} color="#F59E0B" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.sectionTitle}>Notifications & Routine</Text>
-                <Text style={styles.sectionSubtitle}>Daily study reminders, streak defense and alerts</Text>
+                <Text style={styles.sectionTitle}>{t("settings.notifications")}</Text>
+                <Text style={styles.sectionSubtitle}>{t("settings.notificationsSub")}</Text>
               </View>
             </View>
+            <View style={styles.sectionHeaderDivider} />
 
             {/* Study Reminders Toggle + Time Picker */}
             <View style={styles.settingRow}>
               <View style={{ flex: 1, paddingRight: 10 }}>
-                <Text style={styles.settingRowTitle}>Daily Study Reminder</Text>
-                <Text style={styles.settingRowSub}>Gentle daily push notification to start your focus session</Text>
+                <Text style={styles.settingRowTitle}>{t("settings.dailyReminders")}</Text>
+                <Text style={styles.settingRowSub}>{t("settings.dailyRemindersSub")}</Text>
               </View>
               <CustomToggle
                 value={settings.studyReminders}
@@ -930,13 +932,17 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
                 onPress={() => setTimePickerModalOpen(true)}
                 activeOpacity={0.75}
               >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Text style={{ fontSize: 16 }}>⏰</Text>
-                  <Text style={styles.timePickerLabel}>Reminder Time</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <View style={styles.timePickerIconWrap}>
+                    <ClockIcon size={15} color="#64748B" />
+                  </View>
+                  <Text style={styles.timePickerLabel}>{t("settings.reminderTime")}</Text>
                 </View>
                 <View style={styles.timeBadge}>
-                  <Text style={styles.timeBadgeText}>{settings.notificationTime || "20:00"}</Text>
-                  <ChevronRightIcon size={14} color="#D97706" />
+                  <Text style={[styles.timeBadgeText, { color: activeAccentColor || '#2563EB' }]}>
+                    {settings.notificationTime || "20:00"}
+                  </Text>
+                  <ChevronRightIcon size={13} color={activeAccentColor || '#2563EB'} />
                 </View>
               </TouchableOpacity>
             )}
@@ -946,7 +952,7 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
             {/* Flashcard Due Alerts */}
             <View style={styles.settingRow}>
               <View style={{ flex: 1, paddingRight: 10 }}>
-                <Text style={styles.settingRowTitle}>Flashcards Due for Review</Text>
+                <Text style={styles.settingRowTitle}>{t("settings.streakAlerts")}</Text>
                 <Text style={styles.settingRowSub}>Alerts when spaced repetition cards are due</Text>
               </View>
               <CustomToggle
@@ -958,15 +964,15 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
 
             <View style={styles.settingRowDivider} />
 
-            {/* Streak Alerts */}
+            {/* Goal Progress Alerts */}
             <View style={styles.settingRow}>
               <View style={{ flex: 1, paddingRight: 10 }}>
-                <Text style={styles.settingRowTitle}>Streak Defense Alert</Text>
-                <Text style={styles.settingRowSub}>Evening alert at 9:00 PM if your study streak is at risk</Text>
+                <Text style={styles.settingRowTitle}>Goal Progress Alert</Text>
+                <Text style={styles.settingRowSub}>Evening alert at 9:00 PM to encourage completing remaining daily goals</Text>
               </View>
               <CustomToggle
                 value={settings.streakAlerts}
-                onValueChange={() => handleToggle("streakAlerts", "Streak defense")}
+                onValueChange={() => handleToggle("streakAlerts", "Goal progress alerts")}
                 activeColor={activeAccentColor}
               />
             </View>
@@ -983,45 +989,73 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
                 <GlobeIcon size={18} color="#10B981" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.sectionTitle}>Language & Region</Text>
-                <Text style={styles.sectionSubtitle}>Localization, calendar week start and formats</Text>
+                <Text style={styles.sectionTitle}>{t("settings.languageRegion")}</Text>
+                <Text style={styles.sectionSubtitle}>{t("settings.languageRegionSub")}</Text>
               </View>
             </View>
+
+            <View style={styles.sectionHeaderDivider} />
 
             <TouchableOpacity
               style={styles.settingNavigationRow}
               onPress={() => setLangModalOpen(true)}
               activeOpacity={0.7}
             >
-              <View style={{ flex: 1 }}>
-                <Text style={styles.settingRowTitle}>App Interface Language</Text>
-                <Text style={styles.settingRowSub}>{settings.language}</Text>
+              <View style={{ flex: 1, paddingRight: 10 }}>
+                <Text style={styles.settingRowTitle}>{t("settings.appLanguage")}</Text>
+                <Text style={styles.settingRowSub}>12 languages supported • Native translation</Text>
               </View>
-              <View style={styles.rowRightPill}>
-                <Text style={styles.rowRightPillText}>{settings.language}</Text>
-                <ChevronRightIcon size={16} color="#10B981" />
+              <View style={[styles.rowRightPill, { backgroundColor: "#ECFDF5" }]}>
+                <Text style={[styles.rowRightPillText, { color: "#059669" }]}>{settings.language}</Text>
+                <ChevronRightIcon size={15} color="#059669" />
               </View>
             </TouchableOpacity>
 
             <View style={styles.settingRowDivider} />
 
-            <Text style={styles.settingLabelText}>First Day of the Week</Text>
-            <View style={styles.segmentGrid}>
-              {["Monday", "Sunday"].map((day) => {
-                const isSelected = settings.firstDayOfWeek === day;
-                return (
-                  <TouchableOpacity
-                    key={day}
-                    style={[styles.optionPill, isSelected && styles.optionPillSelectedGreen]}
-                    onPress={() => handleSelectSetting("firstDayOfWeek", day, `Week starts on ${day}`)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.optionPillText, isSelected && styles.optionPillTextSelected]}>
-                      {day}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+            <View style={styles.settingNavigationRow}>
+              <View style={{ flex: 1, paddingRight: 10 }}>
+                <Text style={styles.settingRowTitle}>Country Code</Text>
+                <Text style={styles.settingRowSub}>Tracked by IP address • National Leaderboard</Text>
+              </View>
+              <View style={[styles.rowRightPill, { backgroundColor: "#EEF2FF" }]}>
+                <Text style={[styles.rowRightPillText, { color: activeAccentColor, fontWeight: "800", letterSpacing: 0.8 }]}>
+                  {ipCountryCode}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.settingRowDivider} />
+
+            <View style={styles.settingGroup}>
+              <View style={styles.settingGroupHeader}>
+                <Text style={styles.settingGroupLabel}>{t("settings.firstDay") || "FIRST DAY OF THE WEEK"}</Text>
+                <View style={[styles.activeValBadge, { backgroundColor: activeAccentColor + "15" }]}>
+                  <Text style={[styles.activeValBadgeText, { color: activeAccentColor }]}>
+                    {settings.firstDayOfWeek === "Sunday" ? (t("settings.sunday") || "Sunday") : (t("settings.monday") || "Monday")}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.segmentedControlWrap}>
+                {[
+                  { key: "Monday", label: t("settings.monday") || "Monday" },
+                  { key: "Sunday", label: t("settings.sunday") || "Sunday" },
+                ].map(({ key, label }) => {
+                  const isSelected = settings.firstDayOfWeek === key;
+                  return (
+                    <TouchableOpacity
+                      key={key}
+                      style={[styles.segmentBtn, isSelected && styles.segmentBtnActive]}
+                      onPress={() => handleSelectSetting("firstDayOfWeek", key, `Week starts on ${label}`)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.segmentBtnText, isSelected && [styles.segmentBtnTextActive, { color: activeAccentColor }]]}>
+                        {label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </View>
           </View>
         )}
@@ -1036,10 +1070,12 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
                 <ShieldIcon size={18} color="#6236FF" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.sectionTitle}>Account & Security</Text>
-                <Text style={styles.sectionSubtitle}>Credentials, security logs and authentication</Text>
+                <Text style={styles.sectionTitle}>{t("settings.accountSecurity")}</Text>
+                <Text style={styles.sectionSubtitle}>{t("settings.accountSecuritySub")}</Text>
               </View>
             </View>
+
+            <View style={styles.sectionHeaderDivider} />
 
             {/* Change Password */}
             <TouchableOpacity
@@ -1047,11 +1083,13 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
               onPress={() => setPasswordModalOpen(true)}
               activeOpacity={0.7}
             >
-              <View style={{ flex: 1 }}>
+              <View style={{ flex: 1, paddingRight: 10 }}>
                 <Text style={styles.settingRowTitle}>Change Account Password</Text>
                 <Text style={styles.settingRowSub}>Update your login credentials securely</Text>
               </View>
-              <ChevronRightIcon size={18} color="#94A3B8" />
+              <View style={styles.navChevronCircle}>
+                <ChevronRightIcon size={16} color="#94A3B8" />
+              </View>
             </TouchableOpacity>
 
             <View style={styles.settingRowDivider} />
@@ -1059,7 +1097,7 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
             {/* 2FA Toggle */}
             <View style={styles.settingRow}>
               <View style={{ flex: 1, paddingRight: 10 }}>
-                <Text style={styles.settingRowTitle}>Two-Factor Authentication (2FA)</Text>
+                <Text style={styles.settingRowTitle}>{t("settings.twoFactor")}</Text>
                 <Text style={styles.settingRowSub}>Require verification code on new device sign-ins</Text>
               </View>
               <CustomToggle
@@ -1096,26 +1134,69 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
                 <DatabaseIcon size={18} color="#0EA5E9" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.sectionTitle}>Data & Storage Management</Text>
-                <Text style={styles.sectionSubtitle}>Cloud backup, cache size and export archives</Text>
+                <Text style={styles.sectionTitle}>{t("settings.dataStorage")}</Text>
+                <Text style={styles.sectionSubtitle}>{t("settings.dataStorageSub")}</Text>
               </View>
             </View>
 
-            {/* Storage Usage Bar */}
+            <View style={styles.sectionHeaderDivider} />
+
+            {/* Storage Usage Widget */}
             <View style={styles.storageMeterBox}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
-                <Text style={styles.storageMeterLabel}>Local Storage Used</Text>
-                <Text style={styles.storageMeterVal}>25.7 MB / 500 MB</Text>
+              <View style={styles.storageMeterHeader}>
+                <View>
+                  <Text style={styles.storageMeterTitle}>Local Storage Quota</Text>
+                  <Text style={styles.storageMeterSub}>25.7 MB used of 500 MB capacity</Text>
+                </View>
+                <View style={styles.storageFreeBadge}>
+                  <Text style={styles.storageFreeBadgeText}>95% Free</Text>
+                </View>
               </View>
+
+              {/* Quota Progress Bar: Shows Used Space vs Free Track */}
               <View style={styles.storageTrack}>
-                <View style={[styles.storageSegment, { flex: 0.35, backgroundColor: "#6236FF" }]} />
-                <View style={[styles.storageSegment, { flex: 0.45, backgroundColor: "#0EA5E9" }]} />
-                <View style={[styles.storageSegment, { flex: 0.20, backgroundColor: "#F59E0B" }]} />
+                <View style={{ width: "26%", flexDirection: "row", height: "100%" }}>
+                  <View style={[styles.storageSegment, { flex: 8.4, backgroundColor: "#6366F1" }]} />
+                  <View style={styles.storageSegmentGap} />
+                  <View style={[styles.storageSegment, { flex: 11.6, backgroundColor: "#0EA5E9" }]} />
+                  <View style={styles.storageSegmentGap} />
+                  <View style={[styles.storageSegment, { flex: 5.7, backgroundColor: "#F59E0B" }]} />
+                </View>
+                <View style={{ flex: 1, backgroundColor: isDark ? "#334155" : "#E2E8F0" }} />
               </View>
-              <View style={styles.storageLegendRow}>
-                <Text style={styles.storageLegendItem}>🟣 Decks (8.4MB)</Text>
-                <Text style={styles.storageLegendItem}>🔵 Notes (11.6MB)</Text>
-                <Text style={styles.storageLegendItem}>🟡 Cache (5.7MB)</Text>
+
+              {/* 3-Column Stats Row with Hairline Dividers */}
+              <View style={styles.storageMetricsRow}>
+                <View style={styles.storageMetricCol}>
+                  <View style={styles.storageMetricHeader}>
+                    <View style={[styles.storageDot, { backgroundColor: "#6366F1" }]} />
+                    <Text style={styles.storageMetricName}>Decks</Text>
+                  </View>
+                  <Text style={styles.storageMetricVal}>8.4 MB</Text>
+                  <Text style={styles.storageMetricPct}>33% of used</Text>
+                </View>
+
+                <View style={styles.storageMetricDivider} />
+
+                <View style={styles.storageMetricCol}>
+                  <View style={styles.storageMetricHeader}>
+                    <View style={[styles.storageDot, { backgroundColor: "#0EA5E9" }]} />
+                    <Text style={styles.storageMetricName}>Notes</Text>
+                  </View>
+                  <Text style={styles.storageMetricVal}>11.6 MB</Text>
+                  <Text style={styles.storageMetricPct}>45% of used</Text>
+                </View>
+
+                <View style={styles.storageMetricDivider} />
+
+                <View style={styles.storageMetricCol}>
+                  <View style={styles.storageMetricHeader}>
+                    <View style={[styles.storageDot, { backgroundColor: "#F59E0B" }]} />
+                    <Text style={styles.storageMetricName}>Cache</Text>
+                  </View>
+                  <Text style={styles.storageMetricVal}>5.7 MB</Text>
+                  <Text style={styles.storageMetricPct}>22% of used</Text>
+                </View>
               </View>
             </View>
 
@@ -1124,7 +1205,7 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
             {/* Offline Mode */}
             <View style={styles.settingRow}>
               <View style={{ flex: 1, paddingRight: 10 }}>
-                <Text style={styles.settingRowTitle}>Offline Study Storage</Text>
+                <Text style={styles.settingRowTitle}>{t("settings.offlineMode")}</Text>
                 <Text style={styles.settingRowSub}>Keep active decks & notes downloaded for offline study</Text>
               </View>
               <CustomToggle
@@ -1138,46 +1219,53 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
 
             {/* Force Cloud Sync */}
             <View style={styles.settingNavigationRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.settingRowTitle}>Cloud Sync Status</Text>
+              <View style={{ flex: 1, paddingRight: 10 }}>
+                <Text style={styles.settingRowTitle}>{t("settings.cloudSync")}</Text>
                 <Text style={styles.settingRowSub}>
                   Last backup: {new Date(settings.lastSyncedAt || Date.now()).toLocaleDateString()}
                 </Text>
               </View>
               <TouchableOpacity
-                style={[styles.syncNowBtn, isSyncing && { opacity: 0.6 }]}
+                style={[styles.actionPillBtn, isSyncing && { opacity: 0.6 }]}
                 onPress={handleSyncNow}
                 disabled={isSyncing}
                 activeOpacity={0.8}
               >
-                <Text style={styles.syncNowBtnText}>{isSyncing ? "Syncing..." : "⚡ Sync Now"}</Text>
+                <SyncIcon size={13} color={isDark ? "#38BDF8" : "#0284C7"} />
+                <Text style={styles.actionPillBtnText}>{isSyncing ? "Syncing..." : "Sync Now"}</Text>
               </TouchableOpacity>
             </View>
 
             <View style={styles.settingRowDivider} />
 
             {/* Export Data */}
-            <TouchableOpacity
-              style={styles.settingNavigationRow}
-              onPress={handleExportData}
-              activeOpacity={0.7}
-            >
-              <View style={{ flex: 1 }}>
+            <View style={styles.settingNavigationRow}>
+              <View style={{ flex: 1, paddingRight: 10 }}>
                 <Text style={styles.settingRowTitle}>Export Study Archive</Text>
                 <Text style={styles.settingRowSub}>Download all flashcards, notes and XP history in JSON</Text>
               </View>
-              <Text style={styles.exportBadge}>Export ↓</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.actionPillBtn}
+                onPress={handleExportData}
+                activeOpacity={0.8}
+              >
+                <DownloadIcon size={13} color={isDark ? "#38BDF8" : "#0284C7"} />
+                <Text style={styles.actionPillBtnText}>Export JSON</Text>
+              </TouchableOpacity>
+            </View>
 
             <View style={styles.settingRowDivider} />
 
             {/* Clear Cache Action */}
             <TouchableOpacity
-              style={styles.dangerRowBtn}
+              style={styles.clearCacheBtn}
               onPress={handleClearCache}
-              activeOpacity={0.7}
+              activeOpacity={0.82}
             >
-              <Text style={styles.dangerRowBtnText}>🧹 Clear Local Cache (25.7 MB)</Text>
+              <TrashIcon size={16} color="#FFFFFF" />
+              <Text style={styles.clearCacheBtnText}>{t("settings.clearCache") || "Clear Cached Documents"}</Text>
+              <View style={styles.clearCacheDot} />
+              <Text style={styles.clearCacheSizeText}>25.7 MB</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1192,22 +1280,29 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
                 <HelpIcon size={18} color="#475569" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.sectionTitle}>Help & Support</Text>
+                <Text style={styles.sectionTitle}>{t("profile.helpCenter")}</Text>
                 <Text style={styles.sectionSubtitle}>FAQs, bug reports, and app information</Text>
               </View>
             </View>
 
+            <View style={styles.sectionHeaderDivider} />
+
             {/* FAQ Item */}
             <TouchableOpacity
               style={styles.settingNavigationRow}
-              onPress={() => setFaqModalOpen(true)}
+              onPress={() => {
+                if (onNavigate) onNavigate("help");
+                else setFaqModalOpen(true);
+              }}
               activeOpacity={0.7}
             >
-              <View style={{ flex: 1 }}>
+              <View style={{ flex: 1, paddingRight: 10 }}>
                 <Text style={styles.settingRowTitle}>Frequently Asked Questions (FAQ)</Text>
                 <Text style={styles.settingRowSub}>SRS algorithm, offline mode, XP scoring</Text>
               </View>
-              <ChevronRightIcon size={18} color="#94A3B8" />
+              <View style={styles.navChevronCircle}>
+                <ChevronRightIcon size={16} color="#94A3B8" />
+              </View>
             </TouchableOpacity>
 
             <View style={styles.settingRowDivider} />
@@ -1215,14 +1310,19 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
             {/* Send Feedback */}
             <TouchableOpacity
               style={styles.settingNavigationRow}
-              onPress={() => setFeedbackModalOpen(true)}
+              onPress={() => {
+                if (onNavigate) onNavigate("help");
+                else setFeedbackModalOpen(true);
+              }}
               activeOpacity={0.7}
             >
-              <View style={{ flex: 1 }}>
+              <View style={{ flex: 1, paddingRight: 10 }}>
                 <Text style={styles.settingRowTitle}>Send Feedback or Bug Report</Text>
                 <Text style={styles.settingRowSub}>Help us improve your study experience</Text>
               </View>
-              <ChevronRightIcon size={18} color="#94A3B8" />
+              <View style={styles.navChevronCircle}>
+                <ChevronRightIcon size={16} color="#94A3B8" />
+              </View>
             </TouchableOpacity>
 
             <View style={styles.settingRowDivider} />
@@ -1231,28 +1331,14 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
             <TouchableOpacity
               style={styles.resetSettingsBtn}
               onPress={handleResetAllSettings}
-              activeOpacity={0.7}
+              activeOpacity={0.8}
             >
-              <Text style={styles.resetSettingsBtnText}>↺ Revert All Settings to Defaults</Text>
+              <ResetIcon size={15} color={isDark ? "#94A3B8" : "#475569"} />
+              <Text style={styles.resetSettingsBtnText}>{t("settings.resetDefaults")}</Text>
             </TouchableOpacity>
           </View>
         )}
-
-        {/* Footer info */}
-        <View style={styles.appFooterInfo}>
-          <View style={styles.footerBrandBadge}>
-            <Text style={styles.footerBrandText}>StudPal Pro</Text>
-            <View style={styles.upToDatePill}>
-              <Text style={styles.upToDateText}>✓ Up to date</Text>
-            </View>
-          </View>
-          <Text style={styles.appFooterVer}>Version 2.5.0 • Build 2026.8</Text>
-          <Text style={styles.appFooterCopyright}>Crafted with 💜 for ambitious students worldwide</Text>
-        </View>
       </ScrollView>
-
-      {/* Floating Bottom Nav */}
-      <BottomNavBar activeTab="profile" onSelectTab={onSelectTab} />
 
       {/* ========================================================================= */}
       {/* ── MODAL 1: EDIT PROFILE MODAL                                            */}
@@ -1445,72 +1531,6 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
         </View>
       </Modal>
 
-      {/* ========================================================================= */}
-      {/* ── MODAL 4: AI COACH PERSONALITY MODAL                                    */}
-      {/* ========================================================================= */}
-      <Modal visible={isAiPersonaModalOpen} animationType="slide" transparent onRequestClose={() => setAiPersonaModalOpen(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheetContainer}>
-            <View style={styles.modalSheetHeader}>
-              <Text style={styles.modalSheetTitle}>Select Companion Persona</Text>
-              <TouchableOpacity onPress={() => setAiPersonaModalOpen(false)} style={styles.modalCloseBtn}>
-                <CloseIcon size={18} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={{ gap: 10 }}>
-              {[
-                {
-                  id: "encouraging",
-                  emoji: "✨",
-                  title: "Encouraging & Motivating",
-                  desc: "Warm, positive reinforcement, celebrating micro-wins and building study confidence.",
-                },
-                {
-                  id: "rigorous",
-                  emoji: "🎯",
-                  title: "Rigorous & Exam-Focused",
-                  desc: "Direct, thorough explanations holding you to top standards for competitive exams.",
-                },
-                {
-                  id: "socratic",
-                  emoji: "🧠",
-                  title: "Socratic Tutor",
-                  desc: "Guides you with questions to help you discover solutions yourself rather than giving answers directly.",
-                },
-                {
-                  id: "concise",
-                  emoji: "⚡",
-                  title: "Concise & Direct",
-                  desc: "Brief bulleted summaries, formulas, and high-yield takeaways without extra fluff.",
-                },
-              ].map((persona) => {
-                const isSelected = settings.aiPersonality === persona.id;
-                return (
-                  <TouchableOpacity
-                    key={persona.id}
-                    style={[styles.personaOptionCard, isSelected && styles.personaOptionCardSelected]}
-                    onPress={() => {
-                      handleSelectSetting("aiPersonality", persona.id, `AI Persona set to ${persona.title}`);
-                      setAiPersonaModalOpen(false);
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={{ fontSize: 24 }}>{persona.emoji}</Text>
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <Text style={[styles.personaTitle, isSelected && styles.personaTitleSelected]}>
-                        {persona.title}
-                      </Text>
-                      <Text style={styles.personaDesc}>{persona.desc}</Text>
-                    </View>
-                    {isSelected && <CheckIcon size={18} color="#6236FF" />}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-        </View>
-      </Modal>
 
       {/* ========================================================================= */}
       {/* ── MODAL 5: LANGUAGE SELECTOR MODAL                                       */}
@@ -1519,44 +1539,51 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
         <View style={styles.modalOverlayCenter}>
           <View style={styles.langModalCard}>
             <View style={styles.modalSheetHeader}>
-              <Text style={styles.modalSheetTitle}>Select App Language</Text>
+              <Text style={styles.modalSheetTitle}>{t("settings.selectLanguage")}</Text>
               <TouchableOpacity onPress={() => setLangModalOpen(false)} style={styles.modalCloseBtn}>
                 <CloseIcon size={18} />
               </TouchableOpacity>
             </View>
 
-            <View style={{ gap: 8, marginTop: 4 }}>
-              {[
-                { name: "English (US)", flag: "🇺🇸" },
-                { name: "Spanish (Español)", flag: "🇪🇸" },
-                { name: "French (Français)", flag: "🇫🇷" },
-                { name: "German (Deutsch)", flag: "🇩🇪" },
-                { name: "Portuguese (Português)", flag: "🇧🇷" },
-                { name: "Japanese (日本語)", flag: "🇯🇵" },
-              ].map((lang) => {
-                const isSelected = settings.language === lang.name;
+            <ScrollView
+              style={styles.langScroll}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
+            >
+              {SUPPORTED_LANGUAGES.map((lang) => {
+                const isSelected = settings.language === lang.name || currentLanguageCode === lang.code;
                 return (
                   <TouchableOpacity
-                    key={lang.name}
+                    key={lang.code}
                     style={[styles.langOptionRow, isSelected && styles.langOptionSelected]}
                     onPress={() => {
-                      handleSelectSetting("language", lang.name, "Language updated");
+                      handleSelectSetting("language", lang.name, `Language updated to ${lang.name}`);
+                      setLanguage(lang.code);
                       setLangModalOpen(false);
                     }}
                     activeOpacity={0.7}
                   >
-                    <Text style={{ fontSize: 18 }}>{lang.flag}</Text>
-                    <Text style={[styles.langOptionText, isSelected && styles.langOptionTextSelected]}>
-                      {lang.name}
-                    </Text>
-                    {isSelected && <CheckIcon size={16} color="#6236FF" />}
+                    <View style={styles.langFlagTag}>
+                      <Text style={{ fontSize: 20 }}>{lang.flag}</Text>
+                      <View style={styles.langTagBadge}>
+                        <Text style={styles.langTagBadgeText}>{lang.tag}</Text>
+                      </View>
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 4 }}>
+                      <Text style={[styles.langOptionText, isSelected && styles.langOptionTextSelected]}>
+                        {lang.name}
+                      </Text>
+                      <Text style={styles.langOptionSub}>{lang.nativeName}</Text>
+                    </View>
+                    {isSelected && <CheckIcon size={18} color={activeAccentColor} />}
                   </TouchableOpacity>
                 );
               })}
-            </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
+
 
       {/* ========================================================================= */}
       {/* ── MODAL 6: FAQ MODAL                                                     */}
@@ -1648,15 +1675,15 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
 
 // ─── STYLES ───────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: "#F4F6FB",
   },
   scrollContent: {
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    gap: 14,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    gap: 20,
   },
 
   // Floating Toast
@@ -1695,8 +1722,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    borderWidth: 1.2,
-    borderColor: "#E2E8F0",
+    borderWidth: 0,
+    borderColor: "transparent",
     shadowColor: "#0F172A",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.03,
@@ -1845,309 +1872,429 @@ const styles = StyleSheet.create({
   // Section Card
   sectionCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 18,
-    borderWidth: 1.2,
+    borderRadius: 22,
+    padding: 20,
+    borderWidth: 1,
     borderColor: "#E2E8F0",
-    gap: 12,
     shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 8,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
   },
   sectionHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    marginBottom: 4,
+    gap: 14,
+    marginBottom: 14,
+  },
+  sectionHeaderDivider: {
+    height: 1,
+    backgroundColor: "#F1F5F9",
+    marginBottom: 14,
   },
   sectionIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    width: 42,
+    height: 42,
+    borderRadius: 13,
     alignItems: "center",
     justifyContent: "center",
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 16.5,
     fontWeight: "800",
     color: "#0F172A",
     letterSpacing: -0.3,
   },
   sectionSubtitle: {
-    fontSize: 12,
+    fontSize: 12.5,
     color: "#64748B",
-    marginTop: 1,
+    marginTop: 2,
+    lineHeight: 17,
   },
 
-  settingLabelText: {
+  // Action Navigation Card (Focus Mode)
+  actionNavCard: {
+    paddingVertical: 18,
+  },
+  actionNavCardContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  actionNavPill: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#FCE7F3",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Setting Group (Label + Active Badge + Segmented Control)
+  settingGroup: {
+    gap: 8,
+    marginVertical: 2,
+  },
+  settingGroupHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  settingGroupLabel: {
     fontSize: 11.5,
     fontWeight: "800",
     color: "#64748B",
     textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginTop: 4,
+    letterSpacing: 0.6,
+  },
+  activeValBadge: {
+    paddingHorizontal: 9,
+    paddingVertical: 3.5,
+    borderRadius: 8,
+  },
+  activeValBadgeText: {
+    fontSize: 11.5,
+    fontWeight: "700",
   },
 
-  // Theme Segmented Control
-  themeSegmentContainer: {
+  // Unified Segmented Control Track
+  segmentedControlWrap: {
     flexDirection: "row",
-    gap: 8,
+    backgroundColor: "#F1F5F9",
+    borderRadius: 13,
+    padding: 4,
+    gap: 4,
   },
-  themePill: {
+  segmentBtn: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 14,
     paddingVertical: 10,
-    minHeight: 44,
+    borderRadius: 10,
   },
-  themePillSelected: {
-    backgroundColor: "#6236FF",
-    borderColor: "#6236FF",
+  segmentBtnActive: {
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  themePillSelectedPurple: {
-    backgroundColor: "#8B5CF6",
-    borderColor: "#8B5CF6",
-  },
-  themePillText: {
+  segmentBtnText: {
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "600",
     color: "#64748B",
   },
-  themePillTextSelected: {
-    color: "#FFFFFF",
+  segmentBtnTextActive: {
+    fontWeight: "800",
   },
 
   // Brand Accent Dots
   accentColorsRow: {
     flexDirection: "row",
-    gap: 12,
-    paddingVertical: 4,
+    justifyContent: "space-between",
+    paddingVertical: 6,
+    paddingHorizontal: 6,
   },
   accentColorDot: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
   },
   accentColorDotSelected: {
-    borderWidth: 3,
+    borderWidth: 3.5,
     borderColor: "#0F172A",
-    transform: [{ scale: 1.1 }],
+    transform: [{ scale: 1.12 }],
   },
 
-  // Option Grid
-  segmentGrid: {
-    flexDirection: "row",
-    gap: 6,
-  },
-  optionPill: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 12,
-    paddingVertical: 10,
-    minHeight: 42,
-  },
-  optionPillSelectedBlue: {
-    backgroundColor: "#2563EB",
-    borderColor: "#2563EB",
-  },
-  optionPillSelectedGreen: {
-    backgroundColor: "#10B981",
-    borderColor: "#10B981",
-  },
-  optionPillText: {
-    fontSize: 12.5,
-    fontWeight: "700",
-    color: "#475569",
-  },
-  optionPillTextSelected: {
-    color: "#FFFFFF",
-  },
-
-  // Row
+  // Setting Row (Toggles & Simple Inputs)
   settingRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingVertical: 4,
+    minHeight: 46,
   },
   settingRowTitle: {
-    fontSize: 14,
+    fontSize: 14.5,
     fontWeight: "700",
     color: "#0F172A",
+    lineHeight: 20,
   },
   settingRowSub: {
-    fontSize: 12,
+    fontSize: 12.5,
     color: "#64748B",
     marginTop: 2,
-    lineHeight: 16,
+    lineHeight: 17,
   },
   settingRowDivider: {
     height: 1,
     backgroundColor: "#F1F5F9",
-    marginVertical: 4,
+    marginVertical: 12,
   },
 
+  // Navigation Rows (Language, Password, FAQ, Feedback)
   settingNavigationRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingVertical: 4,
-    minHeight: 44,
+    minHeight: 48,
+  },
+  navChevronCircle: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    alignItems: "center",
+    justifyContent: "center",
   },
   rowRightPill: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#F0EEFF",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 11,
   },
   rowRightPillText: {
-    fontSize: 12,
+    fontSize: 12.5,
     fontWeight: "700",
-    color: "#6236FF",
   },
 
-  // Time Picker Row
+  // Time Picker Row (Calm & Un-alarming)
   timePickerRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#FFFBEB",
+    backgroundColor: "#F8FAFC",
     borderWidth: 1,
-    borderColor: "#FDE68A",
+    borderColor: "#E2E8F0",
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    marginTop: 4,
+    marginTop: 8,
+  },
+  timePickerIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: "#EDF2F7",
+    alignItems: "center",
+    justifyContent: "center",
   },
   timePickerLabel: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#92400E",
+    fontSize: 13.5,
+    fontWeight: "600",
+    color: "#334155",
   },
   timeBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    backgroundColor: "#FEF3C7",
+    gap: 6,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 8,
+    borderRadius: 10,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
   },
   timeBadgeText: {
     fontSize: 13,
-    fontWeight: "800",
-    color: "#B45309",
+    fontWeight: "700",
+    color: "#2563EB",
   },
 
   // Storage Meter Box
   storageMeterBox: {
     backgroundColor: "#F8FAFC",
-    borderRadius: 14,
-    padding: 14,
+    borderRadius: 18,
+    padding: 16,
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
-  storageMeterLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#64748B",
+  storageMeterHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
   },
-  storageMeterVal: {
-    fontSize: 12,
-    fontWeight: "800",
+  storageMeterTitle: {
+    fontSize: 13.5,
+    fontWeight: "700",
     color: "#0F172A",
+    letterSpacing: -0.2,
+  },
+  storageMeterSub: {
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 2,
+  },
+  storageFreeBadge: {
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 10,
+    paddingVertical: 4.5,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  storageFreeBadgeText: {
+    fontSize: 11.5,
+    fontWeight: "700",
+    color: "#059669",
+    letterSpacing: 0.2,
   },
   storageTrack: {
-    height: 10,
+    height: 9,
     borderRadius: 5,
     backgroundColor: "#E2E8F0",
     flexDirection: "row",
     overflow: "hidden",
-    marginVertical: 8,
+    marginBottom: 14,
   },
   storageSegment: {
     height: "100%",
   },
-  storageLegendRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 4,
+  storageSegmentGap: {
+    width: 2,
+    backgroundColor: "#FFFFFF",
   },
-  storageLegendItem: {
-    fontSize: 11,
-    color: "#64748B",
+  storageMetricsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  storageMetricCol: {
+    flex: 1,
+    alignItems: "center",
+  },
+  storageMetricHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginBottom: 3,
+  },
+  storageDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+  },
+  storageMetricName: {
+    fontSize: 11.5,
     fontWeight: "600",
+    color: "#64748B",
+  },
+  storageMetricVal: {
+    fontSize: 13.5,
+    fontWeight: "800",
+    color: "#0F172A",
+    letterSpacing: -0.2,
+  },
+  storageMetricPct: {
+    fontSize: 10.5,
+    color: "#94A3B8",
+    fontWeight: "500",
+    marginTop: 1.5,
+  },
+  storageMetricDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: "#E2E8F0",
   },
 
-  // Sync / Action Buttons
-  syncNowBtn: {
-    backgroundColor: "#E0F2FE",
+  // Action Buttons (Sync & Export)
+  actionPillBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#F0F9FF",
     borderWidth: 1,
     borderColor: "#BAE6FD",
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
+    paddingVertical: 7.5,
+    borderRadius: 10,
   },
-  syncNowBtnText: {
-    fontSize: 12.5,
-    fontWeight: "800",
-    color: "#0284C7",
-  },
-  exportBadge: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: "#0EA5E9",
-    backgroundColor: "#E0F2FE",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-  },
-  dangerRowBtn: {
-    backgroundColor: "#FEF2F2",
-    borderWidth: 1,
-    borderColor: "#FECACA",
-    borderRadius: 14,
-    paddingVertical: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  dangerRowBtnText: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#EF4444",
-  },
-  resetSettingsBtn: {
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 14,
-    paddingVertical: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  resetSettingsBtnText: {
+  actionPillBtnText: {
     fontSize: 12.5,
     fontWeight: "700",
-    color: "#64748B",
+    color: "#0284C7",
+  },
+
+  // Clear Cache Action Button
+  clearCacheBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#E11D48",
+    borderRadius: 14,
+    height: 48,
+    paddingHorizontal: 18,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.18)",
+    shadowColor: "#E11D48",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.26,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  clearCacheBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    letterSpacing: 0.2,
+  },
+  clearCacheDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(255, 255, 255, 0.45)",
+  },
+  clearCacheSizeText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "rgba(255, 255, 255, 0.9)",
+  },
+  resetSettingsBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.2,
+    borderColor: "#E2E8F0",
+    borderRadius: 14,
+    height: 48,
+    paddingHorizontal: 16,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  resetSettingsBtnText: {
+    fontSize: 13.5,
+    fontWeight: "700",
+    color: "#334155",
+    letterSpacing: 0.1,
   },
 
   // App Footer
@@ -2206,7 +2353,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    padding: 22,
+    paddingHorizontal: 22,
+    paddingTop: 22,
+    paddingBottom: 36,
     gap: 16,
   },
   modalSheetHeader: {
@@ -2294,8 +2443,8 @@ const styles = StyleSheet.create({
   },
   modalTextInput: {
     backgroundColor: "#F8FAFC",
-    borderWidth: 1.2,
-    borderColor: "#E2E8F0",
+    borderWidth: 0,
+    borderColor: "transparent",
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -2406,11 +2555,15 @@ const styles = StyleSheet.create({
   // Language Modal
   langModalCard: {
     width: "100%",
-    maxWidth: 340,
+    maxWidth: 350,
+    maxHeight: "82%",
     backgroundColor: "#FFFFFF",
     borderRadius: 24,
     padding: 20,
     gap: 12,
+  },
+  langScroll: {
+    maxHeight: 400,
   },
   langOptionRow: {
     flexDirection: "row",
@@ -2427,8 +2580,25 @@ const styles = StyleSheet.create({
     backgroundColor: "#F0EEFF",
     borderColor: "#C7D2FE",
   },
+  langFlagTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  langTagBadge: {
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  langTagBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#64748B",
+  },
   langOptionText: {
-    flex: 1,
     fontSize: 14,
     fontWeight: "600",
     color: "#0F172A",
@@ -2436,6 +2606,11 @@ const styles = StyleSheet.create({
   langOptionTextSelected: {
     fontWeight: "800",
     color: "#6236FF",
+  },
+  langOptionSub: {
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 1,
   },
 
   // FAQ Card
@@ -2495,3 +2670,100 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
 });
+
+const getStyles = (isDark, activeAccentColor, insets = { bottom: 0 }) => {
+  return {
+    ...baseStyles,
+    root: [baseStyles.root, isDark && { backgroundColor: "#0B0F19" }],
+    searchBarWrap: [baseStyles.searchBarWrap, isDark && { backgroundColor: "#1E293B", borderWidth: 0, borderColor: "transparent" }],
+    searchInput: [baseStyles.searchInput, isDark && { color: "#F8FAFC" }],
+    categoryPill: [baseStyles.categoryPill, isDark && { backgroundColor: "#1E293B", borderWidth: 0, borderColor: "transparent" }],
+    categoryPillActive: [baseStyles.categoryPillActive, { backgroundColor: activeAccentColor, borderColor: activeAccentColor, shadowColor: activeAccentColor }],
+    categoryPillText: [baseStyles.categoryPillText, isDark && { color: "#94A3B8" }],
+    userSummaryCard: [baseStyles.userSummaryCard, isDark && { backgroundColor: "#1E293B", borderWidth: 0, borderColor: "transparent" }],
+    userAvatarWrap: [baseStyles.userAvatarWrap, isDark && { backgroundColor: "#0F172A" }],
+    userNameText: [baseStyles.userNameText, isDark && { color: "#F8FAFC" }],
+    userEmailText: [baseStyles.userEmailText, isDark && { color: "#94A3B8" }],
+    editProfileBtn: [baseStyles.editProfileBtn, isDark && { backgroundColor: "#0F172A", borderWidth: 0, borderColor: "transparent" }],
+    editProfileBtnText: [baseStyles.editProfileBtnText, isDark && { color: "#F8FAFC" }],
+    sectionCard: [baseStyles.sectionCard, isDark && { backgroundColor: "#1E293B", borderWidth: 0, borderColor: "transparent" }],
+    sectionHeaderDivider: [baseStyles.sectionHeaderDivider, isDark && { backgroundColor: "transparent", height: 0 }],
+    sectionTitle: [baseStyles.sectionTitle, isDark && { color: "#F8FAFC" }],
+    sectionSubtitle: [baseStyles.sectionSubtitle, isDark && { color: "#94A3B8" }],
+    settingGroupLabel: [baseStyles.settingGroupLabel, isDark && { color: "#94A3B8" }],
+    segmentedControlWrap: [baseStyles.segmentedControlWrap, isDark && { backgroundColor: "#0F172A", borderWidth: 0, borderColor: "transparent" }],
+    segmentBtnActive: [baseStyles.segmentBtnActive, isDark && { backgroundColor: "#1E293B", borderWidth: 0, borderColor: "transparent" }],
+    segmentBtnText: [baseStyles.segmentBtnText, isDark && { color: "#94A3B8" }],
+    settingRowTitle: [baseStyles.settingRowTitle, isDark && { color: "#F8FAFC" }],
+    settingRowSub: [baseStyles.settingRowSub, isDark && { color: "#94A3B8" }],
+    settingRowDivider: [baseStyles.settingRowDivider, isDark && { backgroundColor: "transparent", height: 0 }],
+    navChevronCircle: [baseStyles.navChevronCircle, isDark && { backgroundColor: "#0F172A", borderWidth: 0, borderColor: "transparent" }],
+    timePickerRow: [baseStyles.timePickerRow, isDark && { backgroundColor: "#0F172A", borderWidth: 0, borderColor: "transparent" }],
+    timePickerIconWrap: [baseStyles.timePickerIconWrap, isDark && { backgroundColor: "#1E293B" }],
+    timePickerLabel: [baseStyles.timePickerLabel, isDark && { color: "#F8FAFC" }],
+    timeBadge: [baseStyles.timeBadge, isDark && { backgroundColor: "#1E293B", borderWidth: 0, borderColor: "transparent" }],
+    storageMeterBox: [baseStyles.storageMeterBox, isDark && { backgroundColor: "#0F172A", borderWidth: 0, borderColor: "transparent" }],
+    storageMeterTitle: [baseStyles.storageMeterTitle, isDark && { color: "#F8FAFC" }],
+    storageMeterSub: [baseStyles.storageMeterSub, isDark && { color: "#94A3B8" }],
+    storageFreeBadge: [baseStyles.storageFreeBadge, isDark && { backgroundColor: "rgba(16, 185, 129, 0.15)", borderColor: "rgba(16, 185, 129, 0.3)" }],
+    storageFreeBadgeText: [baseStyles.storageFreeBadgeText, isDark && { color: "#34D399" }],
+    storageTrack: [baseStyles.storageTrack, isDark && { backgroundColor: "#334155" }],
+    storageSegmentGap: [baseStyles.storageSegmentGap, isDark && { backgroundColor: "#0F172A" }],
+    storageMetricsRow: [baseStyles.storageMetricsRow, isDark && { backgroundColor: "#1E293B", borderWidth: 0, borderColor: "transparent" }],
+    storageMetricName: [baseStyles.storageMetricName, isDark && { color: "#94A3B8" }],
+    storageMetricVal: [baseStyles.storageMetricVal, isDark && { color: "#F8FAFC" }],
+    storageMetricPct: [baseStyles.storageMetricPct, isDark && { color: "#64748B" }],
+    storageMetricDivider: [baseStyles.storageMetricDivider, isDark && { backgroundColor: "transparent", width: 0 }],
+    actionPillBtn: [baseStyles.actionPillBtn, isDark && { backgroundColor: "rgba(14, 165, 233, 0.15)", borderColor: "rgba(14, 165, 233, 0.3)" }],
+    actionPillBtnText: [baseStyles.actionPillBtnText, isDark && { color: "#38BDF8" }],
+    clearCacheBtn: [
+      baseStyles.clearCacheBtn,
+      isDark && {
+        backgroundColor: "#BE123C",
+        borderColor: "transparent",
+        borderWidth: 0,
+        shadowColor: "#000000",
+        shadowOpacity: 0.35,
+      },
+    ],
+    resetSettingsBtn: [
+      baseStyles.resetSettingsBtn,
+      isDark && {
+        backgroundColor: "#1E293B",
+        borderWidth: 0,
+        borderColor: "transparent",
+        shadowColor: "#000000",
+        shadowOpacity: 0.25,
+      },
+    ],
+    resetSettingsBtnText: [baseStyles.resetSettingsBtnText, isDark && { color: "#F8FAFC" }],
+    footerBrandText: [baseStyles.footerBrandText, isDark && { color: "#F8FAFC" }],
+    modalSheetContainer: [
+      baseStyles.modalSheetContainer,
+      { paddingBottom: Math.max(insets?.bottom || 0, 16) + 20 },
+      isDark && { backgroundColor: "#0F172A" }
+    ],
+    modalSheetTitle: [baseStyles.modalSheetTitle, isDark && { color: "#F8FAFC" }],
+    modalSubDesc: [baseStyles.modalSubDesc, isDark && { color: "#94A3B8" }],
+    modalCloseBtn: [baseStyles.modalCloseBtn, isDark && { backgroundColor: "#1E293B" }],
+    avatarEditRow: [baseStyles.avatarEditRow, isDark && { backgroundColor: "#1E293B", borderWidth: 0, borderColor: "transparent" }],
+    avatarHintTitle: [baseStyles.avatarHintTitle, isDark && { color: "#F8FAFC" }],
+    avatarHintSub: [baseStyles.avatarHintSub, isDark && { color: "#94A3B8" }],
+    inputLabel: [baseStyles.inputLabel, isDark && { color: "#CBD5E1" }],
+    modalTextInput: [baseStyles.modalTextInput, isDark && { backgroundColor: "#1E293B", borderWidth: 0, borderColor: "transparent", color: "#F8FAFC" }],
+    timePickerCard: [baseStyles.timePickerCard, isDark && { backgroundColor: "#0F172A" }],
+    timeItemText: [baseStyles.timeItemText, isDark && { color: "#F8FAFC" }],
+    personaOptionCard: [baseStyles.personaOptionCard, isDark && { backgroundColor: "#1E293B", borderWidth: 0, borderColor: "transparent" }],
+    personaTitle: [baseStyles.personaTitle, isDark && { color: "#F8FAFC" }],
+    personaDesc: [baseStyles.personaDesc, isDark && { color: "#94A3B8" }],
+    langModalCard: [baseStyles.langModalCard, isDark && { backgroundColor: "#0F172A" }],
+    langOptionRow: [baseStyles.langOptionRow, isDark && { backgroundColor: "#1E293B", borderWidth: 0, borderColor: "transparent" }],
+    langOptionText: [baseStyles.langOptionText, isDark && { color: "#F8FAFC" }],
+    langOptionSub: [baseStyles.langOptionSub, isDark && { color: "#94A3B8" }],
+    faqCard: [baseStyles.faqCard, isDark && { backgroundColor: "#1E293B", borderWidth: 0, borderColor: "transparent" }],
+    faqQuestionText: [baseStyles.faqQuestionText, isDark && { color: "#F8FAFC" }],
+    faqAnswerText: [baseStyles.faqAnswerText, isDark && { color: "#CBD5E1", borderTopWidth: 0, borderTopColor: "transparent" }],
+    feedbackPill: [baseStyles.feedbackPill, isDark && { backgroundColor: "#1E293B", borderWidth: 0, borderColor: "transparent" }],
+    feedbackPillText: [baseStyles.feedbackPillText, isDark && { color: "#94A3B8" }],
+  };
+};

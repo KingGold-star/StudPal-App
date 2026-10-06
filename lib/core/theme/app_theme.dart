@@ -76,6 +76,13 @@ abstract class AppTheme {
           side: const BorderSide(color: AppColors.borderLight, width: 1),
         ),
       ),
+      inputDecorationTheme: const InputDecorationTheme(
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
+        errorBorder: InputBorder.none,
+        focusedErrorBorder: InputBorder.none,
+      ),
     );
   }
 
@@ -130,6 +137,13 @@ abstract class AppTheme {
           borderRadius: BorderRadius.circular(borderRadiusValue),
           side: const BorderSide(color: AppColors.borderDark, width: 1),
         ),
+      ),
+      inputDecorationTheme: const InputDecorationTheme(
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
+        errorBorder: InputBorder.none,
+        focusedErrorBorder: InputBorder.none,
       ),
     );
   }
