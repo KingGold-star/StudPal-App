@@ -1,6 +1,9 @@
 // src/services/liveVoiceChatService.js
 import { Platform } from 'react-native';
+import { aiService } from './ai/aiService';
+import { brancoBrainService } from './ai/brancoBrainService';
 import { getLocalizedAiResponse } from './i18n/aiCoachTranslations';
+import { findBestRealisticFemaleVoice } from './ai/fishAudioPlaybackService';
 
 class LiveVoiceChatService {
   constructor() {
@@ -241,23 +244,61 @@ class LiveVoiceChatService {
       this.onUserFinal(query);
     }
 
-    // Generate response from Branco
-    const aiResponse = getLocalizedAiResponse({
-      query,
-      mode: 'explain',
-      lang,
-      persona,
-      depth,
-    });
+    // Generate response from Branco using live AI & long-term brain memory
+    let aiAnswerText = '';
+    try {
+      const history = (this.sessionHistory || []).slice(-6).map(h => [
+        { sender: 'user', text: h.userText },
+        { sender: 'ai', text: h.aiText },
+      ]).flat();
+
+      // Retrieve relevant past memories from Branco's Brain
+      const { brainContext } = await brancoBrainService.queryBrain(query, { currentConversationId: 'live_voice' });
+
+      const aiResponse = await aiService.askTutor({
+        prompt: query,
+        conversationHistory: history,
+        mode: 'general',
+        persona,
+        depth: depth || 'fast',
+        language: lang,
+        brainContext,
+      });
+
+      aiAnswerText = aiResponse?.text || '';
+    } catch (err) {
+      console.warn('[liveVoiceChatService] Live AI error, fallback:', err);
+      const aiResponse = getLocalizedAiResponse({
+        query,
+        mode: 'explain',
+        lang,
+        persona,
+        depth,
+      });
+      aiAnswerText = aiResponse?.text || "I'm right here. How can I help you with your studies today?";
+    }
 
     if (this.isStopped) return;
 
-    const aiAnswerText = aiResponse.text || "I'm right here. How can I help you with your studies today?";
+    if (!aiAnswerText) {
+      aiAnswerText = "I'm right here. How can I help you with your studies today?";
+    }
 
     this.sessionHistory.push({
       userText: query,
       aiText: aiAnswerText,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    });
+
+    // Save this interaction into Branco's Brain
+    brancoBrainService.recordTurn({
+      conversationId: 'live_voice',
+      conversationTitle: 'Live Voice Session',
+      userText: query,
+      aiText: aiAnswerText,
+      mode: 'general',
+      persona,
+      type: 'live_voice',
     });
 
     // Speak Branco's response out loud
@@ -326,9 +367,17 @@ class LiveVoiceChatService {
           const cleanText = text.replace(/[*_#`$]/g, '').trim();
           const utterance = new SpeechSynthesisUtterance(cleanText);
           this.currentUtterance = utterance;
-          utterance.lang = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
-          utterance.rate = 1.05;
-          utterance.pitch = 1.02;
+
+          const voices = this.synth.getVoices ? this.synth.getVoices() : [];
+          const femaleVoice = findBestRealisticFemaleVoice(voices);
+          if (femaleVoice) {
+            utterance.voice = femaleVoice;
+            utterance.lang = femaleVoice.lang || (lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US');
+          } else {
+            utterance.lang = lang === 'es' ? 'es-ES' : lang === 'fr' ? 'fr-FR' : 'en-US';
+          }
+          utterance.rate = 0.98;
+          utterance.pitch = 1.04;
 
           utterance.onend = finishSpeaking;
           utterance.onerror = finishSpeaking;

@@ -242,7 +242,7 @@ export default function OnboardingReminderPermissionScreen({
           {/* Bottom Actions */}
           <View style={styles.actionsContainer}>
             <TouchableOpacity
-              style={styles.primaryButton}
+              style={[styles.primaryButton, isDark && { backgroundColor: '#2563EB', shadowColor: '#2563EB' }]}
               onPress={handleEnable}
               activeOpacity={0.85}
             >

@@ -60,6 +60,7 @@ const SparklesIcon = ({ size = 26, color = "#FFFFFF" }) => (
   </Svg>
 );
 
+
 // ─── Reusable click-pop animation helper ─────────────────────────────────────
 function playClickPop(animValue) {
   animValue.stopAnimation();
@@ -316,13 +317,13 @@ const AiCoachButton = ({
   tooltipKey = 0,
 }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
- 
+
   // Short tap: immediate navigation without showing the card
   const handlePress = () => {
     if (onSelectTab) onSelectTab("aicoach");
   };
 
-  // Long press: triggers the sliding screen name card for AI Coach
+  // Long press: triggers the sliding screen name card for AI Coach / Nia
   const handleLongPress = () => {
     if (onLongPressTab) onLongPressTab("aicoach");
   };
@@ -348,12 +349,12 @@ const AiCoachButton = ({
       useNativeDriver: USE_NATIVE,
     }).start();
   };
- 
+
   return (
     <View style={styles.centerSlot}>
       {/* Tiny Simple Card sliding from center AI Coach button on long press */}
       <TooltipCard
-        label={tab?.screenName || "AI Coach"}
+        label={tab?.screenName || "Nia"}
         isVisible={showTooltip}
         animKey={tooltipKey}
         accentColor={accentColor}
@@ -433,7 +434,7 @@ export default function BottomNavBar({ activeTab = "home", onSelectTab }) {
       case "community":
         return t("nav.community", "Community");
       case "aicoach":
-        return t("nav.aiCoach", "AI Coach");
+        return t("aiCoach.title", "Nia");
       case "study":
         return t("study.hubTitle", "Study Hub");
       case "stats":
@@ -446,7 +447,7 @@ export default function BottomNavBar({ activeTab = "home", onSelectTab }) {
   const tabs = [
     { id: "home", icon: HomeIcon, label: t("nav.home"), screenName: getScreenName("home") },
     { id: "community", icon: CommunityIcon, label: t("nav.community"), screenName: getScreenName("community") },
-    { id: "aicoach", special: true, label: t("nav.aiCoach"), screenName: getScreenName("aicoach") },
+    { id: "aicoach", special: true, label: t("aiCoach.title", "Nia"), screenName: getScreenName("aicoach") },
     { id: "study", icon: StudyIcon, label: t("nav.study"), screenName: getScreenName("study") },
     { id: "stats", icon: StatsIcon, label: t("nav.stats"), screenName: getScreenName("stats") },
   ];

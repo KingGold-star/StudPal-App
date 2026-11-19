@@ -92,17 +92,17 @@ function BarChartIcon() {
   );
 }
 
-function MathIcon() {
+function MathIcon({ isDark }) {
   return (
-    <View style={[styles.subjectIconBox, { backgroundColor: '#EFF6FF' }]}>
+    <View style={[styles.subjectIconBox, { backgroundColor: isDark ? 'rgba(37, 99, 235, 0.2)' : '#EFF6FF' }]}>
       <Text style={{ fontSize: 10, fontWeight: '800', color: '#2563EB' }}>÷×</Text>
     </View>
   );
 }
 
-function PhysicsIcon() {
+function PhysicsIcon({ isDark }) {
   return (
-    <View style={[styles.subjectIconBox, { backgroundColor: '#ECFEFF' }]}>
+    <View style={[styles.subjectIconBox, { backgroundColor: isDark ? 'rgba(2, 132, 199, 0.2)' : '#ECFEFF' }]}>
       <Svg width="13" height="13" viewBox="0 0 24 24" fill="none">
         <Circle cx="12" cy="12" r="3" fill="#0284C7" />
         <Path d="M 12 3 C 17 3 21 7 21 12 C 21 17 17 21 12 21 C 7 21 3 17 3 12 C 3 7 7 3 12 3 Z" stroke="#0284C7" strokeWidth="1.8" />
@@ -111,9 +111,9 @@ function PhysicsIcon() {
   );
 }
 
-function ChemIcon() {
+function ChemIcon({ isDark }) {
   return (
-    <View style={[styles.subjectIconBox, { backgroundColor: '#ECFDF5' }]}>
+    <View style={[styles.subjectIconBox, { backgroundColor: isDark ? 'rgba(5, 150, 105, 0.2)' : '#ECFDF5' }]}>
       <Svg width="13" height="13" viewBox="0 0 24 24" fill="none">
         <Path d="M 9 3 H 15 M 10 3 V 8 L 5 18 C 4.5 19 5.2 20.5 6.5 20.5 H 17.5 C 18.8 20.5 19.5 19 19 18 L 14 8 V 3" stroke="#059669" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
       </Svg>
@@ -121,9 +121,9 @@ function ChemIcon() {
   );
 }
 
-function EnglishIcon() {
+function EnglishIcon({ isDark }) {
   return (
-    <View style={[styles.subjectIconBox, { backgroundColor: '#FAF5FF' }]}>
+    <View style={[styles.subjectIconBox, { backgroundColor: isDark ? 'rgba(147, 51, 234, 0.2)' : '#FAF5FF' }]}>
       <Svg width="13" height="13" viewBox="0 0 24 24" fill="none">
         <Path d="M 4 19.5 C 4 17.5 6 16 8.5 16 H 20 V 4 H 8.5 C 6 4 4 5.5 4 7.5 V 19.5 Z" stroke="#9333EA" strokeWidth="2" strokeLinejoin="round" />
       </Svg>
@@ -199,8 +199,8 @@ export default function OnboardingSaveAccountScreen({
             <Svg width="360" height="360" viewBox="0 0 360 360">
               <Defs>
                 <LinearGradient id="blobGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <Stop offset="0%" stopColor="#DBEAFE" stopOpacity={isDark ? 0.15 : 0.88} />
-                  <Stop offset="100%" stopColor="#EFF6FF" stopOpacity={isDark ? 0.05 : 0.45} />
+                  <Stop offset="0%" stopColor={isDark ? "#2563EB" : "#DBEAFE"} stopOpacity={isDark ? 0.22 : 0.88} />
+                  <Stop offset="100%" stopColor={isDark ? "#1E3A8A" : "#EFF6FF"} stopOpacity={isDark ? 0.05 : 0.45} />
                 </LinearGradient>
               </Defs>
               <Circle cx="180" cy="180" r="170" fill="url(#blobGrad)" />
@@ -241,25 +241,25 @@ export default function OnboardingSaveAccountScreen({
                 <Text style={[styles.sectionHeaderTitle, { color: theme.textPrimary }]}>Your Subjects</Text>
 
                 <View style={styles.subjectRow}>
-                  <MathIcon />
+                  <MathIcon isDark={isDark} />
                   <Text style={[styles.subjectName, { color: theme.textPrimary }]}>Mathematics</Text>
                   <Text style={[styles.subjectPercent, { color: theme.textSecondary }]}>75%</Text>
                 </View>
 
                 <View style={styles.subjectRow}>
-                  <PhysicsIcon />
+                  <PhysicsIcon isDark={isDark} />
                   <Text style={[styles.subjectName, { color: theme.textPrimary }]}>Physics</Text>
                   <Text style={[styles.subjectPercent, { color: theme.textSecondary }]}>60%</Text>
                 </View>
 
                 <View style={styles.subjectRow}>
-                  <ChemIcon />
+                  <ChemIcon isDark={isDark} />
                   <Text style={[styles.subjectName, { color: theme.textPrimary }]}>Chemistry</Text>
                   <Text style={[styles.subjectPercent, { color: theme.textSecondary }]}>48%</Text>
                 </View>
 
                 <View style={styles.subjectRow}>
-                  <EnglishIcon />
+                  <EnglishIcon isDark={isDark} />
                   <Text style={[styles.subjectName, { color: theme.textPrimary }]}>English</Text>
                   <Text style={[styles.subjectPercent, { color: theme.textSecondary }]}>88%</Text>
                 </View>

@@ -10,11 +10,14 @@ import {
   Platform,
   Easing,
   Dimensions,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { useTheme } from '../theme/themeContext';
 import { getOnboardingTheme } from '../theme/onboardingTheme';
+import StudyTimetableTable from '../components/StudyTimetableTable';
+import { timetableService } from '../services/timetable';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -254,7 +257,7 @@ function StudPalScoreCard({ score = 65 }) {
 }
 
 // Crisp SVG Checkmark Icon for Feature Cards
-function PremiumCheckIcon({ size = 15, color = '#1200C6' }) {
+function PremiumCheckIcon({ size = 15, color = '#2563EB' }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 16 16" fill="none">
       <Path
@@ -495,6 +498,42 @@ export default function OnboardingSystemBuildingScreen({
 
   const [displayScore, setDisplayScore] = useState(0);
 
+  // Timetable State & Sync for Real Intelligent Timetable Table
+  const [timetableSessions, setTimetableSessions] = useState([]);
+  const [isLoadingTimetable, setIsLoadingTimetable] = useState(false);
+
+  const loadTimetable = async () => {
+    setIsLoadingTimetable(true);
+    try {
+      const now = new Date();
+      const day = now.getDay();
+      const diffToMonday = now.getDate() - day + (day === 0 ? -6 : 1);
+      const monday = new Date(new Date().setDate(diffToMonday));
+      monday.setHours(0, 0, 0, 0);
+
+      const generated = await timetableService.regenerateTimetable(
+        { name: userName },
+        onboardingData,
+        { startDate: monday }
+      );
+      const sessionList = Array.isArray(generated) ? generated : (generated?.sessions || []);
+      setTimetableSessions(sessionList);
+    } catch (err) {
+      console.warn('Error loading timetable in OnboardingSystemBuildingScreen:', err);
+    } finally {
+      setIsLoadingTimetable(false);
+    }
+  };
+
+  useEffect(() => {
+    loadTimetable();
+    const unsubscribe = timetableService.subscribe((updated) => {
+      const sessionList = Array.isArray(updated) ? updated : (updated?.sessions || []);
+      setTimetableSessions(sessionList);
+    });
+    return () => unsubscribe();
+  }, [userName, onboardingData]);
+
   useEffect(() => {
     // Screen entrance animation
     Animated.timing(fadeAnim, {
@@ -645,7 +684,7 @@ export default function OnboardingSystemBuildingScreen({
           </Animated.View>
         ) : (
           /* ============================================================ */
-          /* 2. CONGRATULATORY PHASE: Score Card & Celebration Details     */
+          /* 2. CONGRATULATORY PHASE: Square Timetable Card & Continue     */
           /* ============================================================ */
           <Animated.View
             style={[
@@ -656,50 +695,41 @@ export default function OnboardingSystemBuildingScreen({
               },
             ]}
           >
-            {/* StudPal Dynamic Calculated Score / 100 Card */}
-            <StudPalScoreCard score={displayScore || calculatedScore} />
+            {/* Main Content: Title positioned right on top of Timetable Card */}
+            <View style={styles.congratsMainContent}>
+              <View style={styles.congratsHeaderSection}>
+                <Text
+                  style={[styles.congratsTitle, { color: theme.textPrimary }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                >
+                  your study system is built!
+                </Text>
+              </View>
 
-            {/* Congratulatory Headline */}
-            <View style={styles.congratsHeaderSection}>
-              <Text style={[styles.congratsTitle, { color: theme.textPrimary }]}>
-                your study system{'\n'}is built!
-              </Text>
-              <Text style={[styles.congratsSubtitle, { color: theme.textSecondary }]}>
-                Congratulations {displayName}, your personalized study plan has been generated and calibrated for your success.
-              </Text>
+              {/* Square Study Timetable Card */}
+              <View style={styles.timetableSection}>
+                <StudyTimetableTable
+                  sessions={timetableSessions}
+                  user={{ name: userName }}
+                  onboardingData={onboardingData}
+                  onSessionUpdated={loadTimetable}
+                  showRegenerateBtn={false}
+                />
+              </View>
             </View>
 
-            {/* System Highlights Cards */}
-            <View style={styles.highlightsContainer}>
-              <HighlightFeatureCard
-                title="Goals & Milestones"
-                desc="Customized to your target timeline"
-              />
-              <HighlightFeatureCard
-                title="Distraction Defense"
-                desc="Optimized for consistent deep focus"
-              />
-              <HighlightFeatureCard
-                title="Adaptive Schedule"
-                desc="Structured around your peak study hours"
-              />
-            </View>
-
-            {/* Action Footer Card matching reference */}
-            <View style={[styles.footerPromptCard, { backgroundColor: isDark ? theme.card : '#E5E7EB' }]}>
-              <Text style={[styles.buttonPromptTitle, { color: theme.textPrimary }]}>
-                Your study plan is almost ready.
-              </Text>
-              <Text style={[styles.buttonPromptSubtitle, { color: theme.textSecondary }]}>
-                Keep going to make it yours.
-              </Text>
-
+            {/* Action Continue Button */}
+            <View style={styles.congratsButtonWrapper}>
               <TouchableOpacity
                 style={styles.primaryActionButton}
                 onPress={onContinue}
                 activeOpacity={0.88}
               >
-                <Text style={styles.primaryActionButtonText}>continue building</Text>
+                <View style={styles.buttonContentRow}>
+                  <Text style={styles.primaryActionButtonText}>continue building</Text>
+                  <Text style={styles.primaryActionButtonArrow}> ➔</Text>
+                </View>
               </TouchableOpacity>
             </View>
           </Animated.View>
@@ -717,12 +747,14 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     justifyContent: 'space-between',
-    paddingHorizontal: 28,
-    paddingVertical: 24,
+    paddingHorizontal: 12,
+    paddingTop: Platform.OS === 'android' ? 16 : 8,
+    paddingBottom: Platform.OS === 'ios' ? 12 : 16,
   },
   contentContainer: {
     flex: 1,
     paddingTop: 48,
+    paddingHorizontal: 12,
     alignItems: 'center',
   },
   headerSection: {
@@ -871,106 +903,43 @@ const styles = StyleSheet.create({
   congratsContainer: {
     flex: 1,
     justifyContent: 'space-between',
-    paddingTop: 8,
-    paddingBottom: 8,
+    alignItems: 'center',
+    width: '100%',
+  },
+  congratsMainContent: {
+    flex: 1,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   congratsHeaderSection: {
     alignItems: 'center',
-    marginBottom: 16,
+    justifyContent: 'center',
+    width: '100%',
+    marginBottom: 10,
   },
   congratsTitle: {
-    fontSize: 28,
+    fontSize: 23,
     fontWeight: '800',
     color: '#0F172A',
-    lineHeight: 35,
     textAlign: 'center',
-    letterSpacing: -0.7,
-    marginBottom: 8,
+    letterSpacing: -0.6,
   },
-  congratsSubtitle: {
-    fontSize: 14,
-    fontWeight: '400',
-    color: '#64748B',
-    lineHeight: 20,
-    textAlign: 'center',
-    paddingHorizontal: 8,
-  },
-  highlightsContainer: {
-    gap: 10,
-    marginBottom: 16,
-  },
-  highlightCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderWidth: 1.2,
-    borderColor: '#E8EEF8',
-    shadowColor: '#3B82F6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  highlightIconBox: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#EEF4FF',
-    borderWidth: 1,
-    borderColor: '#DBEAFE',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 14,
-  },
-  highlightContent: {
-    flex: 1,
-  },
-  highlightTitle: {
-    fontSize: 14.5,
-    fontWeight: '800',
-    color: '#0F172A',
-    letterSpacing: -0.25,
-    marginBottom: 2,
-  },
-  highlightDesc: {
-    fontSize: 12.5,
-    fontWeight: '500',
-    color: '#64748B',
-    lineHeight: 17,
-  },
-  footerPromptCard: {
+  timetableSection: {
     width: '100%',
-    backgroundColor: '#E5E7EB',
-    borderRadius: 22,
-    paddingVertical: 18,
-    paddingHorizontal: 16,
     alignItems: 'center',
-    marginTop: 6,
+    justifyContent: 'center',
   },
-  buttonPromptTitle: {
-    fontSize: 16.5,
-    fontWeight: '800',
-    color: '#000000',
-    textAlign: 'center',
-    letterSpacing: -0.3,
-  },
-  buttonPromptSubtitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#555A64',
-    textAlign: 'center',
-    letterSpacing: -0.2,
-    marginTop: 4,
-    marginBottom: 16,
+  congratsButtonWrapper: {
+    width: '100%',
+    paddingTop: 6,
+    paddingBottom: Platform.OS === 'ios' ? 4 : 6,
   },
   primaryActionButton: {
     width: '100%',
     backgroundColor: '#1200C6',
     borderRadius: 16,
-    paddingVertical: 15,
+    paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#1200C6',
@@ -979,11 +948,22 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
+  buttonContentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   primaryActionButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
-    letterSpacing: 0.1,
+    letterSpacing: -0.1,
+  },
+  primaryActionButtonArrow: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    marginLeft: 4,
   },
 
   /* Premium Confetti Styles */

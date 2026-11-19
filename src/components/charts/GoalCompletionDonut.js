@@ -4,7 +4,7 @@ import Svg, { Circle, G, Defs, LinearGradient, Stop } from "react-native-svg";
 import ScrollDownAnimatedCard from "./ScrollDownAnimatedCard";
 import { useTheme } from "../../theme/themeContext";
 
-const USE_NATIVE = Platform.OS !== "web";
+const USE_NATIVE = false;
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 export default function GoalCompletionDonut({
@@ -16,41 +16,55 @@ export default function GoalCompletionDonut({
   strokeWidth = 18,
   hasGoals = true,
   delay = 0,
+  isVisible = true,
 }) {
   const { isDark, accentColor } = useTheme();
   const animatedValue = useRef(new Animated.Value(0)).current;
-  const centerScale = useRef(new Animated.Value(0.9)).current;
+  const centerScale = useRef(new Animated.Value(0.85)).current;
   const centerOpacity = useRef(new Animated.Value(0)).current;
 
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
 
   useEffect(() => {
+    if (!isVisible) {
+      animatedValue.stopAnimation();
+      animatedValue.setValue(0);
+      centerScale.stopAnimation();
+      centerScale.setValue(0.85);
+      centerOpacity.stopAnimation();
+      centerOpacity.setValue(0);
+      return;
+    }
+
     animatedValue.setValue(0);
-    centerScale.setValue(0.9);
+    centerScale.setValue(0.85);
     centerOpacity.setValue(0);
 
     Animated.parallel([
       Animated.timing(animatedValue, {
         toValue: hasGoals ? Math.min(100, Math.max(0, percentage)) : 0,
-        duration: 1400,
+        duration: 1200,
+        delay: delay + 80,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: USE_NATIVE,
       }),
       Animated.timing(centerScale, {
         toValue: 1,
-        duration: 1400,
+        duration: 1200,
+        delay: delay + 80,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: USE_NATIVE,
       }),
       Animated.timing(centerOpacity, {
         toValue: 1,
-        duration: 1400,
+        duration: 1200,
+        delay: delay + 80,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: USE_NATIVE,
       }),
     ]).start();
-  }, [percentage, hasGoals]);
+  }, [percentage, hasGoals, isVisible]);
 
   const strokeDashoffset = animatedValue.interpolate({
     inputRange: [0, 100],
@@ -58,7 +72,7 @@ export default function GoalCompletionDonut({
   });
 
   return (
-    <ScrollDownAnimatedCard delay={delay} duration={1400}>
+    <ScrollDownAnimatedCard delay={delay} duration={1200} isVisible={isVisible}>
       <View style={styles.container}>
         <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
           <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>

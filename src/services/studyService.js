@@ -1,6 +1,10 @@
 // ─── STUDPAL STUDY SERVICE ───────────────────────────────────────────────────
 // Central service linking SRS Flashcards, Quizzes, Notes, and Topic Mastery.
 import { getLocalizedCards, getLocalizedQuizzes } from "./i18n/studyContentTranslations.js";
+import { authService } from "./supabase/authService";
+import { studySupabaseService } from "./supabase/studyService";
+import { networkService } from "./networkService";
+import { offlineSyncService } from "./offlineSyncService";
 
 export const INITIAL_STUDY_SUBJECTS = [
   {
@@ -102,8 +106,21 @@ export const INITIAL_SRS_CARDS = [
     answer: "∫ u dv = u·v - ∫ v du",
     explanation: "Derived directly from the product rule of differentiation: d/dx(u·v) = u'v + uv'. Integrating both sides yields ∫ u dv = u·v - ∫ v du.",
     takeaway: "Choose u in order of LIATE: Logarithmic, Inverse Trig, Algebraic, Trigonometric, Exponential.",
-    priority: "high", // Struggled topic
+    priority: "high", // Struggled topic from quiz attempt
     isDue: true,
+    repetition: 0,
+    interval: 1,
+    easeFactor: 2.4,
+    quizBridge: {
+      quizId: "q-m3",
+      quizTitle: "Integration by Parts Mastery Quiz",
+      missedQuestion: "In applying Integration by Parts to ∫ x·e^x dx, which choice of u is best according to LIATE?",
+      userChoice: "u = e^x",
+      correctAnswer: "u = x",
+      explanation: "Algebraic functions (x) come before Exponential functions (e^x) in LIATE, so set u = x.",
+      timestamp: Date.now() - 1000 * 60 * 60 * 12,
+      resolved: false,
+    },
   },
   {
     id: "3",
@@ -506,6 +523,146 @@ export const SAMPLE_QUIZZES = [
       },
     ],
   },
+  {
+    id: "q-m2",
+    subjectId: "math",
+    topicId: "m2",
+    topicName: "Derivatives & Chain Rule",
+    title: "Chain Rule & Differentiation Mastery Quiz",
+    questionCount: 5,
+    questions: [
+      {
+        id: "qm2-1",
+        question: "What is the general formulation of the Chain Rule for composite function h(x) = f(g(x))?",
+        options: [
+          "h'(x) = f'(g(x)) · g'(x)",
+          "h'(x) = f'(x) · g'(x)",
+          "h'(x) = f'(g'(x))",
+          "h'(x) = f'(g(x)) + g'(x)",
+        ],
+        correctIndex: 0,
+        explanation: "The derivative of a composite function equals the outer derivative evaluated at the inner function times the inner derivative.",
+      },
+      {
+        id: "qm2-2",
+        question: "Differentiate f(x) = sin(x²) with respect to x using the Chain Rule.",
+        options: [
+          "2x · cos(x²)",
+          "cos(2x)",
+          "cos(x²)",
+          "2 · sin(x) · cos(x)",
+        ],
+        correctIndex: 0,
+        explanation: "Outer function is sin(u) with derivative cos(u). Inner function u = x² with derivative 2x. Multiplying yields 2x · cos(x²).",
+      },
+      {
+        id: "qm2-3",
+        question: "What is the derivative of y = e^(3x² + 1)?",
+        options: [
+          "6x · e^(3x² + 1)",
+          "e^(6x)",
+          "3x · e^(3x² + 1)",
+          "6x · e^(3x)",
+        ],
+        correctIndex: 0,
+        explanation: "Derivative of e^u is e^u · du/dx. Here du/dx of 3x² + 1 is 6x.",
+      },
+      {
+        id: "qm2-4",
+        question: "If y = ln(cos(x)), what is dy/dx?",
+        options: [
+          "-tan(x)",
+          "sec(x)",
+          "1 / cos(x)",
+          "-cot(x)",
+        ],
+        correctIndex: 0,
+        explanation: "dy/dx = (1 / cos(x)) · (-sin(x)) = -sin(x)/cos(x) = -tan(x).",
+      },
+      {
+        id: "qm2-5",
+        question: "Evaluate the derivative of f(x) = (2x + 5)⁴.",
+        options: [
+          "8(2x + 5)³",
+          "4(2x + 5)³",
+          "2(2x + 5)³",
+          "16(2x + 5)³",
+        ],
+        correctIndex: 0,
+        explanation: "Using the power-chain rule: 4(2x + 5)³ · d/dx[2x + 5] = 4(2x + 5)³ · 2 = 8(2x + 5)³.",
+      },
+    ],
+  },
+  {
+    id: "q-p1",
+    subjectId: "physics",
+    topicId: "p1",
+    topicName: "Kinematics & Motion",
+    title: "Kinematics & Motion Equations Quiz",
+    questionCount: 5,
+    questions: [
+      {
+        id: "qp1-1",
+        question: "Which kinematic equation relates velocity, constant acceleration, and displacement when time t is unknown?",
+        options: [
+          "v² = v₀² + 2aΔx",
+          "v = v₀ + at",
+          "Δx = v₀t + ½at²",
+          "Δx = ½(v₀ + v)t",
+        ],
+        correctIndex: 0,
+        explanation: "The equation v² = v₀² + 2aΔx eliminates time by combining the definition of average acceleration with displacement.",
+      },
+      {
+        id: "qp1-2",
+        question: "An object is dropped from rest from a cliff (g = 9.8 m/s²). What is its downward velocity after 3.0 seconds?",
+        options: [
+          "29.4 m/s",
+          "19.6 m/s",
+          "44.1 m/s",
+          "9.8 m/s",
+        ],
+        correctIndex: 0,
+        explanation: "v = v₀ + gt = 0 + (9.8 m/s²)(3.0 s) = 29.4 m/s.",
+      },
+      {
+        id: "qp1-3",
+        question: "What physical quantity does the area under a Velocity vs. Time graph represent?",
+        options: [
+          "Displacement (Δx)",
+          "Acceleration (a)",
+          "Jerk",
+          "Instantaneous speed",
+        ],
+        correctIndex: 0,
+        explanation: "Integrating velocity over time (∫ v dt) yields the displacement of the moving object.",
+      },
+      {
+        id: "qp1-4",
+        question: "What physical quantity does the slope of a Position vs. Time graph represent?",
+        options: [
+          "Instantaneous Velocity",
+          "Acceleration",
+          "Displacement",
+          "Momentum",
+        ],
+        correctIndex: 0,
+        explanation: "The derivative of position with respect to time (dx/dt) equals the instantaneous velocity.",
+      },
+      {
+        id: "qp1-5",
+        question: "If an object moves with constant non-zero velocity, what is its acceleration?",
+        options: [
+          "0 m/s²",
+          "9.8 m/s²",
+          "Equal to velocity",
+          "Cannot be determined",
+        ],
+        correctIndex: 0,
+        explanation: "Acceleration is the time rate of change of velocity (dv/dt). Constant velocity means dv/dt = 0.",
+      },
+    ],
+  },
 ];
 
 export const INITIAL_NOTES = [
@@ -607,6 +764,45 @@ class StudyService {
         correctCount: 2,
         totalQuestions: 3,
         date: Date.now() - 1000 * 60 * 60 * 24 * 1,
+      },
+    ];
+
+    // ── KNOWLEDGE CROSS-TALK / CONNECTED BRAIN STATE ──────────────────────────
+    // Flashcard struggles that inform adaptive quizzes
+    this.strugglingCardConcepts = [
+      {
+        id: "str_init_1",
+        cardId: "7",
+        subjectId: "chemistry",
+        topicId: "c3",
+        category: "ORGANIC CHEMISTRY MECHANISMS",
+        question: "What distinguishes SN1 from SN2 substitution reactions?",
+        takeaway: "Tertiary substrates favor SN1; primary substrates favor SN2.",
+        struggledAt: Date.now() - 1000 * 60 * 60 * 8,
+      },
+    ];
+
+    // Bidirectional learning event stream
+    this.knowledgeEvents = [
+      {
+        id: "evt_init_1",
+        type: "quiz_gap_identified",
+        subjectId: "math",
+        topicId: "m3",
+        title: "Integration by Parts: Quiz Gap Prioritized",
+        summary: "Missed LIATE choice in quiz. Flashcard #2 promoted to high priority for immediate recall.",
+        timestamp: Date.now() - 1000 * 60 * 60 * 12,
+        actionType: "review",
+      },
+      {
+        id: "evt_init_2",
+        type: "flashcard_struggle",
+        subjectId: "chemistry",
+        topicId: "c3",
+        title: "Organic Chemistry Mechanisms: Card Rated Hard",
+        summary: "SN1 vs SN2 mechanism rated Hard. Practice Quiz queued testing carbocation intermediate.",
+        timestamp: Date.now() - 1000 * 60 * 60 * 8,
+        actionType: "quiz",
       },
     ];
   }
@@ -746,18 +942,250 @@ class StudyService {
     return this.subjects;
   }
 
+  // ── KNOWLEDGE CROSS-TALK HELPERS ─────────────────────────────────────────
+  areConceptsRelated(cardOrStruggle, question) {
+    if (!cardOrStruggle || !question) return false;
+    if (cardOrStruggle.topicId && question.topicId && cardOrStruggle.topicId === question.topicId) {
+      return true;
+    }
+    const cText = `${cardOrStruggle.category || ''} ${cardOrStruggle.question || ''} ${cardOrStruggle.takeaway || ''}`.toLowerCase();
+    const qText = `${question.question || ''} ${question.explanation || ''} ${(question.options || []).join(' ')}`.toLowerCase();
+
+    const keywords = [
+      'liate', 'integration by parts', 'derivative', 'chain rule', 'limit', 'l\'hopital',
+      'faraday', 'lenz', 'magnetic flux', 'electromagnetism', 'kinematics',
+      'sn1', 'sn2', 'carbocation', 'racemization', 'nucleophile', 'solvent',
+      'atp', 'glycolysis', 'respiration', 'electron transport', 'mitochondri', 'krebs',
+      'stoichiometry', 'equilibrium', 'le chatelier', 'velocity', 'acceleration'
+    ];
+
+    for (const kw of keywords) {
+      if (cText.includes(kw) && qText.includes(kw)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  logKnowledgeEvent(evt) {
+    const fullEvt = {
+      id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      timestamp: Date.now(),
+      ...evt,
+    };
+    this.knowledgeEvents.unshift(fullEvt);
+    if (this.knowledgeEvents.length > 25) {
+      this.knowledgeEvents.pop();
+    }
+    return fullEvt;
+  }
+
+  getStrugglingConceptsForSubject(subjectId) {
+    if (!subjectId) return this.strugglingCardConcepts;
+    const cleanId = String(subjectId).toLowerCase();
+    return this.strugglingCardConcepts.filter(
+      (s) => String(s.subjectId).toLowerCase() === cleanId || String(s.category).toLowerCase().includes(cleanId)
+    );
+  }
+
+  getKnowledgeSyncSummary() {
+    const quizBridges = this.cards.filter((c) => c.quizBridge && !c.quizBridge.resolved);
+    const flashcardStruggles = this.strugglingCardConcepts;
+    const totalRemediated = this.cards.filter((c) => c.quizBridge && c.quizBridge.resolved).length;
+
+    let totalMastery = 0;
+    let topicCount = 0;
+    this.subjects.forEach((s) => {
+      if (Array.isArray(s.topics)) {
+        s.topics.forEach((t) => {
+          totalMastery += t.mastery || 50;
+          topicCount += 1;
+        });
+      }
+    });
+    const unifiedMasteryAvg = topicCount > 0 ? Math.round(totalMastery / topicCount) : 75;
+
+    let activeBridge = null;
+    if (quizBridges.length > 0) {
+      const topBridge = quizBridges[0];
+      activeBridge = {
+        type: "quiz_to_flashcard",
+        title: `${quizBridges.length} Flashcard${quizBridges.length > 1 ? "s" : ""} Prioritized from Quiz`,
+        subtitle: `Missed in "${topBridge.quizBridge?.quizTitle || 'Practice Quiz'}". Reinforce foundational rules now.`,
+        actionText: "Review Missed Now",
+        subjectId: topBridge.subjectId,
+        topicId: topBridge.topicId,
+        filterQuizMissedOnly: true,
+      };
+    } else if (flashcardStruggles.length > 0) {
+      const topStruggle = flashcardStruggles[0];
+      activeBridge = {
+        type: "flashcard_to_quiz",
+        title: `Adaptive Quiz Ready for ${topStruggle.category || "Weak Topic"}`,
+        subtitle: `You marked flashcards as Hard. Test your application with a practice quiz.`,
+        actionText: "Take Adaptive Quiz",
+        subjectId: topStruggle.subjectId,
+        topicId: topStruggle.topicId,
+      };
+    }
+
+    return {
+      quizMissedPrioritized: quizBridges.length,
+      flashcardStrugglesQueued: flashcardStruggles.length,
+      totalRemediated,
+      unifiedMasteryAvg,
+      activeBridge,
+      recentEvents: this.knowledgeEvents.slice(0, 5),
+    };
+  }
+
   // ── SRS & CARDS ──────────────────────────────────────────────────────────
   getDueCardsCount() {
     return this.cards.filter((c) => c.isDue).length;
   }
 
-  getCardsForReview(subjectId = null, topicId = null, lang = 'en') {
-    const raw = this.cards.filter((c) => {
+  getCardsForReview(subjectId = null, topicId = null, lang = 'en', options = {}) {
+    let raw = this.cards.filter((c) => {
       if (subjectId && c.subjectId !== subjectId) return false;
       if (topicId && c.topicId !== topicId) return false;
+      if (options.filterQuizMissedOnly) {
+        return c.quizBridge && !c.quizBridge.resolved;
+      }
       return true;
     });
-    return getLocalizedCards(raw, lang);
+
+    if (options.filterQuizMissedOnly && raw.length === 0) {
+      // Fallback: return all topic cards
+      raw = this.cards.filter((c) => {
+        if (subjectId && c.subjectId !== subjectId) return false;
+        if (topicId && c.topicId !== topicId) return false;
+        return true;
+      });
+    }
+
+    // Prioritize cards:
+    // 1. Unresolved quizBridge cards FIRST (direct remediation)
+    // 2. High priority cards
+    // 3. Normal cards
+    const sorted = [...raw].sort((a, b) => {
+      const aBridge = a.quizBridge && !a.quizBridge.resolved ? 2 : 0;
+      const bBridge = b.quizBridge && !b.quizBridge.resolved ? 2 : 0;
+      if (aBridge !== bBridge) return bBridge - aBridge;
+
+      const aPrio = a.priority === "high" ? 1 : 0;
+      const bPrio = b.priority === "high" ? 1 : 0;
+      if (aPrio !== bPrio) return bPrio - aPrio;
+
+      return 0;
+    });
+
+    return getLocalizedCards(sorted, lang);
+  }
+
+  recordCardRating({ cardId, rating, responseTimeMs = 3000, cardObj = null }) {
+    const card = this.cards.find((c) => c.id === cardId) || cardObj;
+    if (!card) return null;
+
+    card.lastReviewedAt = Date.now();
+    card.repetition = (card.repetition || 0) + 1;
+    card.easeFactor = card.easeFactor || 2.5;
+
+    let masteryDelta = 0;
+
+    if (rating === "Hard") {
+      card.easeFactor = Math.max(1.3, card.easeFactor - 0.2);
+      card.interval = 1;
+      card.priority = "high";
+      card.isDue = true;
+      masteryDelta = -3;
+
+      // Register struggle in strugglingCardConcepts
+      const struggleEntry = {
+        id: `str_${card.id}_${Date.now()}`,
+        cardId: card.id,
+        subjectId: card.subjectId,
+        topicId: card.topicId,
+        category: card.category,
+        question: card.question,
+        takeaway: card.takeaway,
+        struggledAt: Date.now(),
+      };
+      this.strugglingCardConcepts = this.strugglingCardConcepts.filter((s) => s.cardId !== card.id);
+      this.strugglingCardConcepts.unshift(struggleEntry);
+
+      // Attach flashcard bridge to matching quiz questions
+      this.quizzes.forEach((quiz) => {
+        if (quiz.subjectId === card.subjectId || quiz.topicId === card.topicId) {
+          (quiz.questions || []).forEach((q) => {
+            if (this.areConceptsRelated(card, q)) {
+              q.flashcardBridge = {
+                cardId: card.id,
+                cardCategory: card.category,
+                cardQuestion: card.question,
+                cardTakeaway: card.takeaway,
+                reason: "You found this concept challenging during flashcard review",
+                timestamp: Date.now(),
+              };
+            }
+          });
+        }
+      });
+
+      this.logKnowledgeEvent({
+        type: "flashcard_struggle",
+        subjectId: card.subjectId,
+        topicId: card.topicId,
+        title: `Flashcard Struggle: ${card.category || "Concept"}`,
+        summary: `Marked "${card.question.slice(0, 45)}..." as Hard. Practice Quiz engine queued to test this rule.`,
+        actionType: "quiz",
+      });
+    } else if (rating === "Easy") {
+      card.easeFactor = (card.easeFactor || 2.5) + 0.15;
+      card.interval = card.repetition === 1 ? 1 : card.repetition === 2 ? 6 : Math.round((card.interval || 1) * card.easeFactor);
+      card.priority = "normal";
+      card.isDue = false;
+      masteryDelta = 2;
+
+      // Remove from struggles
+      this.strugglingCardConcepts = this.strugglingCardConcepts.filter((s) => s.cardId !== card.id);
+
+      // Resolve quiz bridge if this card was prioritized from a quiz
+      if (card.quizBridge) {
+        card.quizBridge.resolved = true;
+        card.quizBridge.remediatedAt = Date.now();
+        this.logKnowledgeEvent({
+          type: "bridge_resolved",
+          subjectId: card.subjectId,
+          topicId: card.topicId,
+          title: `Quiz Gap Remediated: ${card.category || "Concept"}`,
+          summary: `Successfully mastered flashcard for "${card.quizBridge.quizTitle || 'Quiz'}". Foundational recall reinforced.`,
+          actionType: "quiz",
+        });
+      }
+    } else {
+      // Good rating
+      card.interval = card.repetition === 1 ? 1 : card.repetition === 2 ? 3 : Math.round((card.interval || 1) * (card.easeFactor || 2.5));
+      card.priority = "normal";
+      card.isDue = false;
+      masteryDelta = 1;
+
+      if (card.quizBridge) {
+        card.quizBridge.resolved = true;
+        card.quizBridge.remediatedAt = Date.now();
+      }
+    }
+
+    // Dynamic Topic Mastery adjustment
+    const subj = this.subjects.find((s) => s.id === card.subjectId);
+    if (subj && subj.topics) {
+      const top = subj.topics.find((t) => t.id === card.topicId);
+      if (top) {
+        top.mastery = Math.min(100, Math.max(20, (top.mastery || 50) + masteryDelta));
+      }
+    }
+
+    return card;
   }
 
   // ── QUIZZES ──────────────────────────────────────────────────────────────
@@ -767,7 +1195,42 @@ class StudyService {
       if (topicId && q.topicId !== topicId) return false;
       return true;
     });
-    return getLocalizedQuizzes(raw, lang);
+
+    const localized = getLocalizedQuizzes(raw, lang);
+
+    return localized.map((quiz) => {
+      let bridgeCount = 0;
+      const enrichedQuestions = (quiz.questions || []).map((q) => {
+        const matchingStruggle = this.strugglingCardConcepts.find(
+          (s) =>
+            (s.topicId === quiz.topicId || s.subjectId === quiz.subjectId) &&
+            (q.question.toLowerCase().includes(s.category?.toLowerCase() || "") ||
+              this.areConceptsRelated(s, q))
+        );
+
+        if (matchingStruggle) {
+          bridgeCount += 1;
+          return {
+            ...q,
+            flashcardBridge: {
+              cardId: matchingStruggle.cardId,
+              cardCategory: matchingStruggle.category,
+              cardQuestion: matchingStruggle.question,
+              takeaway: matchingStruggle.takeaway,
+              reason: "Testing concept you found challenging on flashcards",
+            },
+          };
+        }
+        return q;
+      });
+
+      return {
+        ...quiz,
+        questions: enrichedQuestions,
+        flashcardBridgeCount: bridgeCount,
+        hasFlashcardReinforcement: bridgeCount > 0,
+      };
+    }).sort((a, b) => (b.flashcardBridgeCount || 0) - (a.flashcardBridgeCount || 0));
   }
 
   getRecentQuizAvg() {
@@ -802,6 +1265,119 @@ class StudyService {
       }
     }
 
+    const missedQuestions = [];
+    const correctQuestions = [];
+
+    questions.forEach((q, idx) => {
+      const isCorrect = answers[idx] === q.correctIndex;
+      if (isCorrect) {
+        correctQuestions.push({ question: q, index: idx });
+      } else {
+        missedQuestions.push({
+          question: q,
+          index: idx,
+          userChoice: q.options ? q.options[answers[idx]] : null,
+          correctAnswer: q.options ? q.options[q.correctIndex] : null,
+        });
+      }
+    });
+
+    // ── KNOWLEDGE BRIDGE: QUIZ → FLASHCARD ────────────────────────────────
+    // 1. Process missed questions: prioritize existing cards or synthesize high-yield cards
+    missedQuestions.forEach((item) => {
+      const q = item.question;
+      let matchedCard = this.cards.find(
+        (c) => (c.topicId === topicId || c.subjectId === subjectId) && this.areConceptsRelated(c, q)
+      );
+
+      if (!matchedCard) {
+        matchedCard = this.cards.find((c) => c.topicId === topicId);
+      }
+
+      if (matchedCard) {
+        matchedCard.priority = "high";
+        matchedCard.isDue = true;
+        matchedCard.quizBridge = {
+          quizId,
+          quizTitle: topicName || "Practice Quiz",
+          missedQuestion: q.question,
+          userChoice: item.userChoice,
+          correctAnswer: item.correctAnswer,
+          explanation: q.explanation,
+          timestamp: Date.now(),
+          resolved: false,
+        };
+      } else {
+        // Synthesize an active recall SRS flashcard from this missed quiz question
+        const synthesizedCard = {
+          id: `srs_synth_${quizId || 'q'}_${item.index}_${Date.now()}`,
+          subjectId: subjectId || "general",
+          topicId: topicId || "general",
+          category: (topicName || "QUIZ REINFORCEMENT").toUpperCase(),
+          question: q.question,
+          hint: `Core rule tested in ${topicName || 'Practice Quiz'}`,
+          answer: item.correctAnswer || (q.options ? q.options[q.correctIndex] : "Core Concept"),
+          explanation: q.explanation || `Understanding this foundational principle guarantees exam accuracy in ${topicName}.`,
+          takeaway: `Watch out for trap choice "${item.userChoice || 'distractor'}". Remember: ${item.correctAnswer || ''}.`,
+          priority: "high",
+          isDue: true,
+          repetition: 0,
+          interval: 1,
+          easeFactor: 2.3,
+          quizBridge: {
+            quizId,
+            quizTitle: topicName || "Practice Quiz",
+            missedQuestion: q.question,
+            userChoice: item.userChoice,
+            correctAnswer: item.correctAnswer,
+            explanation: q.explanation,
+            synthesized: true,
+            timestamp: Date.now(),
+            resolved: false,
+          },
+        };
+        this.cards.unshift(synthesizedCard);
+      }
+    });
+
+    // 2. Process correct questions: if user previously had a struggle/quizBridge on this concept from an earlier session, resolve it!
+    correctQuestions.forEach((item) => {
+      const q = item.question;
+      this.cards.forEach((c) => {
+        if ((c.topicId === topicId || c.subjectId === subjectId) && this.areConceptsRelated(c, q)) {
+          // Only resolve if the bridge was not created by a missed question in this same attempt
+          if (c.quizBridge && !c.quizBridge.resolved && c.quizBridge.quizId !== quizId) {
+            c.quizBridge.resolved = true;
+            c.quizBridge.remediatedAt = Date.now();
+          }
+          this.strugglingCardConcepts = this.strugglingCardConcepts.filter((s) => s.cardId !== c.id);
+          c.interval = Math.max(3, (c.interval || 1) + 2);
+          c.isDue = false;
+        }
+      });
+    });
+
+    // 3. Log Knowledge Event
+    if (missedQuestions.length > 0) {
+      this.logKnowledgeEvent({
+        type: "quiz_gap_identified",
+        subjectId,
+        topicId,
+        title: `${missedQuestions.length} Quiz Mistake${missedQuestions.length > 1 ? "s" : ""} in ${topicName || "Quiz"}`,
+        summary: `Prioritized ${missedQuestions.length} flashcard${missedQuestions.length > 1 ? "s" : ""} for immediate review so core concepts are cemented.`,
+        actionType: "review",
+      });
+    } else {
+      this.logKnowledgeEvent({
+        type: "quiz_flawless",
+        subjectId,
+        topicId,
+        title: `100% Mastery in ${topicName || "Quiz"}! 🎉`,
+        summary: `Flawless problem-solving. Flashcard review intervals expanded based on retention stability.`,
+        actionType: "review",
+      });
+    }
+
     const attempt = {
       id: `attempt-${Date.now()}`,
       quizId,
@@ -811,6 +1387,7 @@ class StudyService {
       score,
       correctCount,
       totalQuestions,
+      missedCount: missedQuestions.length,
       durationSeconds,
       answers,
       questions,
@@ -827,6 +1404,31 @@ class StudyService {
       this.boostSrsCardPriorityForTopic(topicId);
     }
 
+    // Cloud Sync to Supabase or Queue for Offline Reconnection
+    const sessionPayload = {
+      subject: (subj && subj.name) || subjectId,
+      topic: topicName || topicId,
+      durationMinutes: Math.round(durationSeconds / 60) || 1,
+      sessionType: 'quiz',
+      xpEarned,
+      notes: `Score: ${score}% (${correctCount}/${totalQuestions})`,
+      completedAt: new Date().toISOString(),
+    };
+
+    if (networkService.isOnline()) {
+      authService.getCurrentUser().then((user) => {
+        if (user?.id) {
+          studySupabaseService.recordStudySession(user.id, sessionPayload);
+        } else {
+          offlineSyncService.enqueueAction('STUDY_SESSION', sessionPayload);
+        }
+      }).catch(() => {
+        offlineSyncService.enqueueAction('STUDY_SESSION', sessionPayload);
+      });
+    } else {
+      offlineSyncService.enqueueAction('STUDY_SESSION', sessionPayload);
+    }
+
     return attempt;
   }
 
@@ -835,7 +1437,6 @@ class StudyService {
     if (subj) {
       const top = subj.topics.find((t) => t.id === topicId);
       if (top) {
-        // Weighted adjustment: 70% existing + 30% quiz score
         top.mastery = Math.min(100, Math.max(20, Math.round(top.mastery * 0.7 + quizScore * 0.3)));
       }
     }
@@ -924,7 +1525,39 @@ class StudyService {
   getSmartRecommendations() {
     const recs = [];
 
-    // 1. Check for due cards
+    // 1. Check for active Quiz → Flashcard bridges (unresolved quiz mistakes)
+    const quizBridges = this.cards.filter((c) => c.quizBridge && !c.quizBridge.resolved);
+    if (quizBridges.length > 0) {
+      const topBridge = quizBridges[0];
+      recs.push({
+        id: "rec-quiz-bridge",
+        type: "review",
+        title: `⚡ Reinforce ${quizBridges.length} Quiz Mistake${quizBridges.length > 1 ? "s" : ""}`,
+        reason: `Missed in "${topBridge.quizBridge?.quizTitle || 'Practice Quiz'}". Master the core rule via Spaced Repetition.`,
+        actionText: "Review Now",
+        targetView: "review",
+        subjectId: topBridge.subjectId,
+        topicId: topBridge.topicId,
+        filterQuizMissedOnly: true,
+      });
+    }
+
+    // 2. Check for active Flashcard → Quiz struggles (cards marked Hard)
+    if (this.strugglingCardConcepts.length > 0) {
+      const topStruggle = this.strugglingCardConcepts[0];
+      recs.push({
+        id: `rec-struggle-${topStruggle.cardId}`,
+        type: "quiz",
+        title: `🎯 Test Recall: ${topStruggle.category || "Practice Quiz"}`,
+        reason: `You marked flashcards as Hard. Verify your concept application with a targeted quiz.`,
+        actionText: "Take Quiz",
+        targetView: "quiz",
+        subjectId: topStruggle.subjectId,
+        topicId: topStruggle.topicId,
+      });
+    }
+
+    // 3. Check for due cards
     const dueCount = this.getDueCardsCount();
     if (dueCount > 0) {
       recs.push({
@@ -937,7 +1570,7 @@ class StudyService {
       });
     }
 
-    // 2. Check for weak topics (< 70% mastery)
+    // 4. Check for weak topics (< 70% mastery)
     const weakTopics = [];
     this.subjects.forEach((s) => {
       s.topics.forEach((t) => {
@@ -961,7 +1594,7 @@ class StudyService {
       });
     }
 
-    // 3. High mastery topic recommendation
+    // 5. High mastery topic recommendation
     const strongTopics = [];
     this.subjects.forEach((s) => {
       s.topics.forEach((t) => {
@@ -985,7 +1618,7 @@ class StudyService {
       });
     }
 
-    // 4. Notes check
+    // 6. Notes check
     if (this.notes.length > 0) {
       const oldestNote = [...this.notes].sort((a, b) => a.updatedAt - b.updatedAt)[0];
       recs.push({

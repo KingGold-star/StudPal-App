@@ -1,4 +1,8 @@
 // src/services/settings/settingsService.js
+import { authService } from "../supabase/authService";
+import { settingsSupabaseService } from "../supabase/settingsService";
+import { networkService } from "../networkService";
+import { offlineSyncService } from "../offlineSyncService";
 
 const SETTINGS_STORAGE_KEY = "@studpal_user_settings_v2";
 const PASSWORD_STORAGE_KEY = "@studpal_user_password_v1";
@@ -23,6 +27,7 @@ export const DEFAULT_SETTINGS = {
   timerSound: "chime", // 'chime' | 'bell' | 'marimba' | 'gentle'
 
   // 3. AI Coach & Intelligence
+  geminiApiKey: "", // Custom Gemini API Key for direct ChatGPT/Gemini cloud intelligence
   aiTeachingStyle: "socratic", // 'socratic' | 'step_by_step' | 'concise' | 'visual' | 'rigorous'
   aiPersonality: "all_round", // 'all_round' | 'advisor' | 'librarian' | 'tutor' | 'editor' | 'roommate'
   aiModelDepth: "balanced", // 'balanced' | 'fast' | 'detailed'
@@ -256,6 +261,14 @@ class SettingsService {
     try {
       if (typeof window !== "undefined" && window.localStorage) {
         window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(this.cachedSettings));
+      }
+      // Cloud Sync for authenticated users
+      if (networkService.isOnline()) {
+        authService.getCurrentUser().then((user) => {
+          if (user?.id) {
+            settingsSupabaseService.syncSettings(user.id, this.cachedSettings);
+          }
+        }).catch(() => {});
       }
     } catch (e) {
       console.warn("SettingsService saveToStorage error:", e);

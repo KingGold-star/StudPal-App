@@ -90,9 +90,11 @@ function XIcon({ size = 72 }) {
 }
 
 // --- Padlock Badge Overlay for Blocked State ---
-function PadlockOverlay({ size = 26 }) {
+function PadlockOverlay({ size = 26, isDark: isDarkProp }) {
+  const { isDark: isDarkTheme } = useTheme();
+  const isDark = isDarkProp !== undefined ? isDarkProp : isDarkTheme;
   return (
-    <View style={styles.padlockBadge}>
+    <View style={[styles.padlockBadge, isDark && { backgroundColor: '#141C2E', borderColor: 'rgba(255, 255, 255, 0.22)' }]}>
       <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
         <Rect x="4" y="9.5" width="16" height="11.5" rx="3" fill="#FFFFFF" />
         <Path

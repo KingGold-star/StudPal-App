@@ -135,7 +135,7 @@ export default function OnboardingPhoneTimeScreen({ onContinue, onBack, initialV
           <TouchableOpacity
             style={[
               styles.nextButton,
-              selectedOption ? styles.nextButtonActive : styles.nextButtonInactive,
+              selectedOption ? (isDark ? { backgroundColor: '#2563EB', shadowColor: '#2563EB' } : styles.nextButtonActive) : styles.nextButtonInactive,
             ]}
             onPress={handleNext}
             activeOpacity={0.85}
@@ -213,7 +213,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
   optionTextSelected: {
-    color: '#1200C6',
     fontWeight: '600',
   },
   radioCircle: {

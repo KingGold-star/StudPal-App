@@ -297,9 +297,9 @@ export default function QuizPerformanceScreen({
 
     let srsMessage = "";
     if (wrongIndices.length > 0) {
-      srsMessage = `StudPal Spaced Repetition has promoted ${wrongIndices.length} related flashcard${wrongIndices.length > 1 ? "s" : ""} to HIGH PRIORITY for immediate review within 24 hours.`;
+      srsMessage = `🧠 Knowledge Bridge Active: StudPal has linked your ${wrongIndices.length} missed question${wrongIndices.length > 1 ? "s" : ""} to prioritized flashcards for immediate active recall.`;
     } else {
-      srsMessage = `Topic mastery boosted to ${newMastery}%. Review intervals have been expanded according to the Ebbinghaus forgetting curve.`;
+      srsMessage = `🎯 Complete Recall! Topic mastery boosted to ${newMastery}%. Flashcard review intervals expanded based on verified test mastery.`;
     }
 
     return {
@@ -857,13 +857,13 @@ export default function QuizPerformanceScreen({
             {/* Primary Action: Spaced Repetition Practice */}
             <TouchableOpacity
               style={[styles.primaryActionBtn, { backgroundColor: accentColor, shadowColor: accentColor }]}
-              onPress={() => onStartReviewSession && onStartReviewSession(quizResult?.subjectId, quizResult?.topicId)}
+              onPress={() => onStartReviewSession && onStartReviewSession(quizResult?.subjectId, quizResult?.topicId, 0, incorrectCount > 0)}
               activeOpacity={0.88}
             >
               <BrainIcon size={20} color="#FFFFFF" />
               <Text style={styles.primaryActionBtnText}>
                 {incorrectCount > 0
-                  ? safeT("reviewSrsFlashcards", "Strengthen Weak Spots in Flashcards")
+                  ? safeT("reviewSrsFlashcards", `Strengthen ${incorrectCount} Weak Spot${incorrectCount > 1 ? "s" : ""} in Flashcards`)
                   : safeT("practiceTopicFlashcards", "Practice Flashcards on Topic")}
               </Text>
             </TouchableOpacity>

@@ -622,7 +622,7 @@ export default function OnboardingSevenDayRoadmapScreen({ onContinue, onBack }) 
           {/* Primary Main Headlines */}
           <View style={styles.headerTextSection}>
             <Text style={[styles.mainHeadline, { color: theme.textPrimary }]}>it's not about more willpower</Text>
-            <Text style={styles.subHeadline}>
+            <Text style={[styles.subHeadline, { color: isDark ? '#60A5FA' : '#1200C6' }]}>
               it's about building an unbreakable study system
             </Text>
             <Text style={[styles.bodyParagraph, { color: theme.textSecondary }]}>
@@ -643,7 +643,11 @@ export default function OnboardingSevenDayRoadmapScreen({ onContinue, onBack }) 
                     key={`quote-${idx}`}
                     style={[
                       styles.quoteBubble,
-                      { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' },
+                      {
+                        backgroundColor: isDark ? '#141C2E' : '#F1F5F9',
+                        borderColor: theme.border,
+                        borderWidth: isDark ? 1 : 0,
+                      },
                       step.width ? { width: step.width } : null,
                       step.align === 'left' && styles.alignLeft,
                       step.align === 'right' && styles.alignRight,
@@ -661,6 +665,10 @@ export default function OnboardingSevenDayRoadmapScreen({ onContinue, onBack }) 
                     key={`highlight-${idx}`}
                     style={[
                       styles.highlightCard,
+                      {
+                        backgroundColor: isDark ? '#2563EB' : '#1200C6',
+                        shadowColor: isDark ? '#2563EB' : '#1200C6',
+                      },
                       step.width ? { width: step.width } : null,
                       step.align === 'left' && styles.alignLeft,
                       step.align === 'right' && styles.alignRight,
@@ -683,7 +691,11 @@ export default function OnboardingSevenDayRoadmapScreen({ onContinue, onBack }) 
                   key={`card-${idx}`}
                   style={[
                     styles.timelineCard,
-                    { backgroundColor: theme.card, borderColor: isDark ? '#3B82F6' : '#2563EB' },
+                    {
+                      backgroundColor: theme.card,
+                      borderColor: theme.border,
+                      borderWidth: 1,
+                    },
                     step.width ? { width: step.width } : null,
                     step.align === 'left' && styles.alignLeft,
                     step.align === 'right' && styles.alignRight,
@@ -707,7 +719,7 @@ export default function OnboardingSevenDayRoadmapScreen({ onContinue, onBack }) 
         </Animated.ScrollView>
 
         {/* Sticky Fixed Bottom Bar with Paywall Action */}
-        <View style={[styles.stickyBottomBar, { backgroundColor: isDark ? 'rgba(11, 15, 25, 0.96)' : 'rgba(255, 255, 255, 0.96)', borderTopColor: theme.border }]}>
+        <View style={[styles.stickyBottomBar, { backgroundColor: isDark ? 'rgba(8, 12, 20, 0.96)' : 'rgba(255, 255, 255, 0.96)', borderTopColor: theme.border }]}>
           {/* Guarantee Pill */}
           <View style={styles.guaranteeRow}>
             <Svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={styles.checkIcon}>
@@ -724,7 +736,13 @@ export default function OnboardingSevenDayRoadmapScreen({ onContinue, onBack }) 
 
           {/* Primary CTA Button */}
           <TouchableOpacity
-            style={styles.primaryTrialButton}
+            style={[
+              styles.primaryTrialButton,
+              {
+                backgroundColor: isDark ? '#2563EB' : '#1200C6',
+                shadowColor: isDark ? '#2563EB' : '#1200C6',
+              },
+            ]}
             onPress={handleClaimTrial}
             activeOpacity={0.88}
           >

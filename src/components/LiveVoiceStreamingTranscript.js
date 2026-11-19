@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, memo } from 'react';
+﻿import React, { useState, useEffect, useRef, memo } from 'react';
 import {
   StyleSheet,
   View,
@@ -272,7 +272,7 @@ const LiveVoiceStreamingTranscript = ({
 
           <Text style={[styles.statusPillText, { color: badgeColor }]}>
             {currentMode === 'ai'
-              ? 'BRANCO'
+              ? 'NIA'
               : currentMode === 'thinking'
               ? 'THINKING'
               : currentMode === 'user'
@@ -319,7 +319,7 @@ const LiveVoiceStreamingTranscript = ({
                 { color: isDark ? '#E2E8F0' : '#334155', fontStyle: 'italic' },
               ]}
             >
-              Branco is thinking...
+              Nia is thinking...
             </Text>
           </View>
         ) : currentMode === 'user' ? (

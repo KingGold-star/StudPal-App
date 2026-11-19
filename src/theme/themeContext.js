@@ -1,6 +1,6 @@
 // src/theme/themeContext.js
 
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useColorScheme, Appearance } from 'react-native';
 import { settingsService } from '../services/settings/settingsService';
 import { themeService, hexToRgba } from './themeService';
@@ -28,11 +28,14 @@ export function ThemeProvider({ children }) {
     };
   }, []);
 
+  const accentColorRef = useRef(accentColor);
+  accentColorRef.current = accentColor;
+
   // Subscribe to settingsService updates
   useEffect(() => {
     const unsubSettings = settingsService.subscribe((newSettings) => {
       setAppSettings(newSettings);
-      if (newSettings?.accentColor && newSettings.accentColor !== accentColor) {
+      if (newSettings?.accentColor && newSettings.accentColor !== accentColorRef.current) {
         setAccentColor(newSettings.accentColor);
       }
     });
@@ -45,7 +48,7 @@ export function ThemeProvider({ children }) {
       unsubSettings();
       unsubTheme();
     };
-  }, [accentColor]);
+  }, []);
 
   // Determine effective theme mode and isDark
   const themePreference = appSettings?.theme || 'system'; // 'light' | 'dark' | 'system'

@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { useTheme } from '../theme/themeContext';
+import { getOnboardingTheme } from '../theme/onboardingTheme';
 
 const nameIllustrationDark = require('../../assets/images/name_screen_illustration.png');
 const nameIllustrationLight = require('../../assets/images/name_screen_illustration_light.png');
@@ -121,7 +122,7 @@ export default function OnboardingNameScreen({ onContinue, initialName = '' }) {
                   style={[
                     styles.inputBox,
                     { backgroundColor: inputBg, borderColor: inputBorder },
-                    isFocused && { borderColor: '#1200C6', borderWidth: 1.8 },
+                    isFocused && { borderColor: isDark ? '#3B82F6' : '#1200C6', borderWidth: 1.8 },
                   ]}
                 >
                   <TextInput
@@ -141,8 +142,8 @@ export default function OnboardingNameScreen({ onContinue, initialName = '' }) {
                     autoCorrect={false}
                     returnKeyType="done"
                     onSubmitEditing={handleNext}
-                    selectionColor="#1200C6"
-                    cursorColor="#1200C6"
+                    selectionColor={isDark ? '#3B82F6' : '#1200C6'}
+                    cursorColor={isDark ? '#3B82F6' : '#1200C6'}
                   />
                 </View>
               </View>

@@ -400,7 +400,7 @@ export default function OnboardingHearAboutUsScreen({
           {/* Bottom CTA Action Button */}
           <View style={styles.actionsContainer}>
             <TouchableOpacity
-              style={[styles.primaryButton, { backgroundColor: theme.accentDark || '#1200C6' }]}
+              style={[styles.primaryButton, { backgroundColor: isDark ? '#2563EB' : (theme.accentDark || '#1200C6') }]}
               onPress={handleContinue}
               activeOpacity={0.88}
             >
@@ -515,7 +515,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   sourceTitleSelected: {
-    color: '#0F172A',
     fontWeight: '800',
   },
   radioCircle: {

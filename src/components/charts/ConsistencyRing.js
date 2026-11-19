@@ -14,6 +14,7 @@ export default function ConsistencyRing({
   size = 150,
   strokeWidth = 14,
   delay = 0,
+  isVisible = true,
 }) {
   const { isDark, accentColor } = useTheme();
   const animatedValue = useRef(new Animated.Value(0)).current;
@@ -22,14 +23,21 @@ export default function ConsistencyRing({
   const circumference = 2 * Math.PI * radius;
 
   useEffect(() => {
+    if (!isVisible) {
+      animatedValue.stopAnimation();
+      animatedValue.setValue(0);
+      return;
+    }
+
     animatedValue.setValue(0);
     Animated.timing(animatedValue, {
       toValue: scorePercentage,
-      duration: 1400,
+      duration: 1200,
+      delay: delay + 80,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: USE_NATIVE,
     }).start();
-  }, [scorePercentage]);
+  }, [scorePercentage, isVisible]);
 
   const strokeDashoffset = animatedValue.interpolate({
     inputRange: [0, 100],
@@ -37,7 +45,7 @@ export default function ConsistencyRing({
   });
 
   return (
-    <ScrollDownAnimatedCard delay={delay} duration={1400}>
+    <ScrollDownAnimatedCard delay={delay} duration={1200} isVisible={isVisible}>
       <View style={styles.container}>
         <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
           <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>

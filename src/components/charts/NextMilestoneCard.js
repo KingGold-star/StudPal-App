@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { View, Text, StyleSheet, Animated, Easing, Platform } from "react-native";
+import ScrollDownAnimatedCard from "./ScrollDownAnimatedCard";
 import { useTheme } from "../../theme/themeContext";
 
 const USE_NATIVE = Platform.OS !== "web";
@@ -8,6 +9,8 @@ export default function NextMilestoneCard({
   title = "100 Goals Completed",
   currentCount = 86,
   targetCount = 100,
+  delay = 0,
+  isVisible = true,
 }) {
   const { isDark, accentColor } = useTheme();
   const animatedWidth = useRef(new Animated.Value(0)).current;
@@ -16,14 +19,21 @@ export default function NextMilestoneCard({
   const remaining = Math.max(0, targetCount - currentCount);
 
   useEffect(() => {
+    if (!isVisible) {
+      animatedWidth.stopAnimation();
+      animatedWidth.setValue(0);
+      return;
+    }
+
     animatedWidth.setValue(0);
     Animated.timing(animatedWidth, {
       toValue: pct,
       duration: 1000,
+      delay: delay + 80,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
-  }, [pct]);
+  }, [pct, isVisible]);
 
   const widthInterpolate = animatedWidth.interpolate({
     inputRange: [0, 100],
@@ -31,29 +41,31 @@ export default function NextMilestoneCard({
   });
 
   return (
-    <View style={styles.container}>
-      <View style={styles.headerRow}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          <View style={[styles.iconBox, isDark && { backgroundColor: "#1E293B" }]}>
-            <Text style={{ fontSize: 18 }}>💯</Text>
+    <ScrollDownAnimatedCard delay={delay} duration={1000} isVisible={isVisible}>
+      <View style={styles.container}>
+        <View style={styles.headerRow}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <View style={[styles.iconBox, isDark && { backgroundColor: "#1E293B" }]}>
+              <Text style={{ fontSize: 18 }}>💯</Text>
+            </View>
+            <View>
+              <Text style={[styles.milestonePre, { color: accentColor || "#2D62FF" }]}>NEXT MILESTONE</Text>
+              <Text style={[styles.milestoneTitle, isDark && { color: "#F8FAFC" }]}>{title}</Text>
+            </View>
           </View>
-          <View>
-            <Text style={[styles.milestonePre, { color: accentColor || "#2D62FF" }]}>NEXT MILESTONE</Text>
-            <Text style={[styles.milestoneTitle, isDark && { color: "#F8FAFC" }]}>{title}</Text>
-          </View>
+          <Text style={[styles.countText, { color: accentColor || "#2D62FF" }]}>{currentCount} / {targetCount}</Text>
         </View>
-        <Text style={[styles.countText, { color: accentColor || "#2D62FF" }]}>{currentCount} / {targetCount}</Text>
-      </View>
 
-      <View style={[styles.trackBg, isDark && { backgroundColor: "#1E293B" }]}>
-        <Animated.View style={[styles.trackFill, { width: widthInterpolate, backgroundColor: accentColor || "#2D62FF" }]} />
-      </View>
+        <View style={[styles.trackBg, isDark && { backgroundColor: "#1E293B" }]}>
+          <Animated.View style={[styles.trackFill, { width: widthInterpolate, backgroundColor: accentColor || "#2D62FF" }]} />
+        </View>
 
-      <View style={styles.footerRow}>
-        <Text style={[styles.remainingText, isDark && { color: "#94A3B8" }]}>{remaining} goals to go</Text>
-        <Text style={[styles.pctText, { color: accentColor || "#2D62FF" }]}>{pct}%</Text>
+        <View style={styles.footerRow}>
+          <Text style={[styles.remainingText, isDark && { color: "#94A3B8" }]}>{remaining} goals to go</Text>
+          <Text style={[styles.pctText, { color: accentColor || "#2D62FF" }]}>{pct}%</Text>
+        </View>
       </View>
-    </View>
+    </ScrollDownAnimatedCard>
   );
 }
 

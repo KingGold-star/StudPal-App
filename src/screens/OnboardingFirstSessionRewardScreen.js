@@ -157,7 +157,7 @@ export default function OnboardingFirstSessionRewardScreen({
             <Text style={[styles.footerNoteText, { color: theme.textSecondary }]}>one session down.</Text>
 
             <TouchableOpacity
-              style={styles.keepGoingButton}
+              style={[styles.keepGoingButton, isDark && { backgroundColor: '#2563EB', shadowColor: '#2563EB' }]}
               onPress={handleContinue}
               activeOpacity={0.88}
             >

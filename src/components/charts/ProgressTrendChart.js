@@ -9,6 +9,7 @@ export default function ProgressTrendChart({
   dataPoints,
   height = 190,
   delay = 0,
+  isVisible = true,
 }) {
   const { isDark, accentColor } = useTheme();
   const [containerWidth, setContainerWidth] = useState(0);
@@ -42,16 +43,23 @@ export default function ProgressTrendChart({
   const [selectedPoint, setSelectedPoint] = useState(null);
 
   useEffect(() => {
+    if (!isVisible) {
+      clipAnim.stopAnimation();
+      clipAnim.setValue(0);
+      return;
+    }
+
     if (containerWidth > 0) {
       clipAnim.setValue(0);
       Animated.timing(clipAnim, {
         toValue: 100,
-        duration: 1500,
+        duration: 1300,
+        delay: delay + 100,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: false,
       }).start();
     }
-  }, [containerWidth, period]);
+  }, [containerWidth, period, isVisible]);
 
   // Keep selected point in sync if period/data changes
   const activePoint = (selectedPoint && chartData.find((p) => p.label === selectedPoint.label)) || chartData[chartData.length - 1];
@@ -98,7 +106,7 @@ export default function ProgressTrendChart({
   });
 
   return (
-    <ScrollDownAnimatedCard delay={delay} duration={1400}>
+    <ScrollDownAnimatedCard delay={delay} duration={1200} isVisible={isVisible}>
       <View
         style={styles.container}
         onLayout={(e) => {

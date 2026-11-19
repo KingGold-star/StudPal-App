@@ -1,7 +1,11 @@
-import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import React, { useEffect, useRef } from "react";
+import { View, Text, StyleSheet, Animated, Easing, Platform } from "react-native";
 import Svg, { Circle, G, Defs, LinearGradient, Stop } from "react-native-svg";
+import ScrollDownAnimatedCard from "./ScrollDownAnimatedCard";
 import { useTheme } from "../../theme/themeContext";
+
+const USE_NATIVE = Platform.OS !== "web";
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 export default function ExamReadinessCard({
   overallScore = 72,
@@ -10,84 +14,162 @@ export default function ExamReadinessCard({
   revisionPct = 65,
   size = 130,
   strokeWidth = 12,
+  delay = 0,
+  isVisible = true,
 }) {
   const { isDark, accentColor } = useTheme();
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
-  const offset = circumference * (1 - overallScore / 100);
+
+  const ringAnim = useRef(new Animated.Value(0)).current;
+  const masteryAnim = useRef(new Animated.Value(0)).current;
+  const goalAnim = useRef(new Animated.Value(0)).current;
+  const revisionAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!isVisible) {
+      ringAnim.stopAnimation();
+      ringAnim.setValue(0);
+      masteryAnim.stopAnimation();
+      masteryAnim.setValue(0);
+      goalAnim.stopAnimation();
+      goalAnim.setValue(0);
+      revisionAnim.stopAnimation();
+      revisionAnim.setValue(0);
+      return;
+    }
+
+    ringAnim.setValue(0);
+    masteryAnim.setValue(0);
+    goalAnim.setValue(0);
+    revisionAnim.setValue(0);
+
+    Animated.parallel([
+      Animated.timing(ringAnim, {
+        toValue: overallScore,
+        duration: 1100,
+        delay: delay + 80,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: USE_NATIVE,
+      }),
+      Animated.timing(masteryAnim, {
+        toValue: masteryPct,
+        duration: 900,
+        delay: delay + 120,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+      Animated.timing(goalAnim, {
+        toValue: goalPct,
+        duration: 900,
+        delay: delay + 200,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+      Animated.timing(revisionAnim, {
+        toValue: revisionPct,
+        duration: 900,
+        delay: delay + 280,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+    ]).start();
+  }, [overallScore, masteryPct, goalPct, revisionPct, isVisible]);
+
+  const strokeDashoffset = ringAnim.interpolate({
+    inputRange: [0, 100],
+    outputRange: [circumference, 0],
+  });
+
+  const masteryWidth = masteryAnim.interpolate({
+    inputRange: [0, 100],
+    outputRange: ["0%", "100%"],
+  });
+
+  const goalWidth = goalAnim.interpolate({
+    inputRange: [0, 100],
+    outputRange: ["0%", "100%"],
+  });
+
+  const revisionWidth = revisionAnim.interpolate({
+    inputRange: [0, 100],
+    outputRange: ["0%", "100%"],
+  });
 
   return (
-    <View style={styles.container}>
-      <View style={styles.topRow}>
-        <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
-          <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-            <Defs>
-              <LinearGradient id="readinessGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <Stop offset="0%" stopColor="#2D62FF" />
-                <Stop offset="100%" stopColor="#60A5FA" />
-              </LinearGradient>
-            </Defs>
-            <G rotation="-90" origin={`${size / 2}, ${size / 2}`}>
-              <Circle
-                cx={size / 2}
-                cy={size / 2}
-                r={radius}
-                stroke={isDark ? "#1E293B" : "#F1F5F9"}
-                strokeWidth={strokeWidth}
-                fill="none"
-              />
-              <Circle
-                cx={size / 2}
-                cy={size / 2}
-                r={radius}
-                stroke="url(#readinessGrad)"
-                strokeWidth={strokeWidth}
-                fill="none"
-                strokeDasharray={circumference}
-                strokeDashoffset={offset}
-                strokeLinecap="round"
-              />
-            </G>
-          </Svg>
-          <View style={styles.centerOverlay}>
-            <Text style={[styles.scoreText, isDark && { color: "#F8FAFC" }]}>{overallScore}%</Text>
-            <Text style={[styles.subText, { color: accentColor || "#2D62FF" }]}>READINESS</Text>
-          </View>
-        </View>
-
-        <View style={styles.factorsList}>
-          <View style={styles.factorItem}>
-            <View style={styles.factorHeader}>
-              <Text style={[styles.factorName, isDark && { color: "#CBD5E1" }]}>Topic Mastery</Text>
-              <Text style={[styles.factorPct, isDark && { color: "#F8FAFC" }]}>{masteryPct}%</Text>
-            </View>
-            <View style={[styles.factorTrackBg, isDark && { backgroundColor: "#1E293B" }]}>
-              <View style={[styles.factorTrackFill, { width: `${masteryPct}%`, backgroundColor: accentColor || "#6236FF" }]} />
+    <ScrollDownAnimatedCard delay={delay} duration={1100} isVisible={isVisible}>
+      <View style={styles.container}>
+        <View style={styles.topRow}>
+          <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+            <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+              <Defs>
+                <LinearGradient id="readinessGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <Stop offset="0%" stopColor="#2D62FF" />
+                  <Stop offset="100%" stopColor="#60A5FA" />
+                </LinearGradient>
+              </Defs>
+              <G rotation="-90" origin={`${size / 2}, ${size / 2}`}>
+                <Circle
+                  cx={size / 2}
+                  cy={size / 2}
+                  r={radius}
+                  stroke={isDark ? "#1E293B" : "#F1F5F9"}
+                  strokeWidth={strokeWidth}
+                  fill="none"
+                />
+                <AnimatedCircle
+                  cx={size / 2}
+                  cy={size / 2}
+                  r={radius}
+                  stroke="url(#readinessGrad)"
+                  strokeWidth={strokeWidth}
+                  fill="none"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={strokeDashoffset}
+                  strokeLinecap="round"
+                />
+              </G>
+            </Svg>
+            <View style={styles.centerOverlay}>
+              <Text style={[styles.scoreText, isDark && { color: "#F8FAFC" }]}>{overallScore}%</Text>
+              <Text style={[styles.subText, { color: accentColor || "#2D62FF" }]}>READINESS</Text>
             </View>
           </View>
 
-          <View style={styles.factorItem}>
-            <View style={styles.factorHeader}>
-              <Text style={[styles.factorName, isDark && { color: "#CBD5E1" }]}>Goal Completion</Text>
-              <Text style={[styles.factorPct, isDark && { color: "#F8FAFC" }]}>{goalPct}%</Text>
+          <View style={styles.factorsList}>
+            <View style={styles.factorItem}>
+              <View style={styles.factorHeader}>
+                <Text style={[styles.factorName, isDark && { color: "#CBD5E1" }]}>Topic Mastery</Text>
+                <Text style={[styles.factorPct, isDark && { color: "#F8FAFC" }]}>{masteryPct}%</Text>
+              </View>
+              <View style={[styles.factorTrackBg, isDark && { backgroundColor: "#1E293B" }]}>
+                <Animated.View style={[styles.factorTrackFill, { width: masteryWidth, backgroundColor: accentColor || "#6236FF" }]} />
+              </View>
             </View>
-            <View style={[styles.factorTrackBg, isDark && { backgroundColor: "#1E293B" }]}>
-              <View style={[styles.factorTrackFill, { width: `${goalPct}%`, backgroundColor: "#2D62FF" }]} />
-            </View>
-          </View>
 
-          <View style={styles.factorItem}>
-            <View style={styles.factorHeader}>
-              <Text style={[styles.factorName, isDark && { color: "#CBD5E1" }]}>Revision Coverage</Text>
-              <Text style={[styles.factorPct, isDark && { color: "#F8FAFC" }]}>{revisionPct}%</Text>
+            <View style={styles.factorItem}>
+              <View style={styles.factorHeader}>
+                <Text style={[styles.factorName, isDark && { color: "#CBD5E1" }]}>Goal Completion</Text>
+                <Text style={[styles.factorPct, isDark && { color: "#F8FAFC" }]}>{goalPct}%</Text>
+              </View>
+              <View style={[styles.factorTrackBg, isDark && { backgroundColor: "#1E293B" }]}>
+                <Animated.View style={[styles.factorTrackFill, { width: goalWidth, backgroundColor: "#2D62FF" }]} />
+              </View>
             </View>
-            <View style={[styles.factorTrackBg, isDark && { backgroundColor: "#1E293B" }]}>
-              <View style={[styles.factorTrackFill, { width: `${revisionPct}%`, backgroundColor: "#10B981" }]} />
+
+            <View style={styles.factorItem}>
+              <View style={styles.factorHeader}>
+                <Text style={[styles.factorName, isDark && { color: "#CBD5E1" }]}>Revision Coverage</Text>
+                <Text style={[styles.factorPct, isDark && { color: "#F8FAFC" }]}>{revisionPct}%</Text>
+              </View>
+              <View style={[styles.factorTrackBg, isDark && { backgroundColor: "#1E293B" }]}>
+                <Animated.View style={[styles.factorTrackFill, { width: revisionWidth, backgroundColor: "#10B981" }]} />
+              </View>
             </View>
           </View>
         </View>
       </View>
-    </View>
+    </ScrollDownAnimatedCard>
   );
 }
 

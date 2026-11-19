@@ -16,14 +16,18 @@ import { getOnboardingTheme } from '../theme/onboardingTheme';
 export default function OnboardingValueScreen({ onContinue }) {
   const { isDark } = useTheme();
   const theme = getOnboardingTheme(isDark);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(Platform.OS === 'web' ? 1 : 0)).current;
 
   useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 600,
-      useNativeDriver: Platform.OS !== 'web',
-    }).start();
+    if (Platform.OS === 'web') {
+      fadeAnim.setValue(1);
+    } else {
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }).start();
+    }
   }, [fadeAnim]);
 
   return (

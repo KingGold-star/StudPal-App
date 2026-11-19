@@ -229,7 +229,7 @@ export default function OnboardingGoalScreen({ onContinue }) {
             <TouchableOpacity
               style={[
                 styles.nextButton,
-                isReady ? styles.nextButtonActive : styles.nextButtonInactive,
+                isReady ? (isDark ? { backgroundColor: '#2563EB', shadowColor: '#2563EB' } : styles.nextButtonActive) : styles.nextButtonInactive,
               ]}
               onPress={isReady ? handleNext : null}
               disabled={!isReady}

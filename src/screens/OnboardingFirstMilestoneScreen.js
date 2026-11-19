@@ -47,7 +47,7 @@ function MilestonePieChart({ percentage = 10, size = 210, isDark = false }) {
       <Circle cx={center} cy={center} r={radius} fill={isDark ? '#1E293B' : '#F1F5F9'} />
 
       {/* Active Brand Blue Wedge */}
-      <Path d={pathData} fill="#1200C6" />
+      <Path d={pathData} fill={isDark ? "#2563EB" : "#1200C6"} />
 
       {/* Percentage Label */}
       <SvgText
@@ -68,7 +68,7 @@ export default function OnboardingFirstMilestoneScreen({
   onContinue,
   onBack,
   targetData = { label: 'In 3 months', days: 90 },
-  studyDays = ['mon', 'wed', 'fri', 'sat'],
+  studyDays = ['mon', 'tue', 'wed', 'thu', 'fri'],
   dailyStudyTime = '45 min',
   goal = null,
   completedSessions = 1,

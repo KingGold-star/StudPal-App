@@ -323,7 +323,7 @@ export default function OnboardingTrialReminderScreen({ onContinue, onBack }) {
 
           {/* Primary CTA Button (StudPal Electric Blue Brand Color) */}
           <TouchableOpacity
-            style={styles.primaryTrialButton}
+            style={[styles.primaryTrialButton, isDark && { backgroundColor: '#2563EB', shadowColor: '#2563EB' }]}
             onPress={handleClaimTrial}
             activeOpacity={0.88}
           >

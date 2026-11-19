@@ -1,6 +1,7 @@
 // src/services/i18n/aiCoachTranslations.js
 // Multilingual Suggestion Chips, Quick Prompts, and Localized AI Responses
 import { normalizeLanguageCode } from './i18nService.js';
+import { generatePersonaResponse, PERSONA_IDS } from '../aiPersonaService.js';
 
 export const SUGGESTION_CHIPS_BY_LANG = {
   "en": [
@@ -667,53 +668,49 @@ export function getLocalizedPromptChips(lang = 'en') {
   return PROMPT_CHIPS_BY_LANG[norm] || PROMPT_CHIPS_BY_LANG.en;
 }
 
-export function getLocalizedAiResponse({ text = '', activeMode = 'explainer', lang = 'en', persona = 'encouraging', depth = 'balanced' }) {
-  const normLang = normalizeLanguageCode(lang);
-  const intros = AI_RESPONSE_INTROS[normLang] || AI_RESPONSE_INTROS.en;
-  const query = text.toLowerCase();
+export function getLocalizedAiResponse({
+  text = '',
+  query = '',
+  activeMode = 'explainer',
+  mode = 'explainer',
+  lang = 'en',
+  persona = 'all_round',
+  depth = 'balanced',
+  academicLevel = 'undergraduate',
+  customInstructions = '',
+  conversationHistory = [],
+  brainContext = '',
+}) {
+  const queryText = text || query || '';
 
-  let introText = intros.general.replace('{text}', text || 'Topic');
-  let latexFormula = "f'(x) = \\lim_{h \\to 0} \\frac{f(x+h) - f(x)}{h}";
-  let steps = [
-    { number: '01', title: normLang === 'es' ? 'Resumen Conceptual' : normLang === 'fr' ? 'Aperçu Conceptuel' : normLang === 'zh' ? '概念核心概述' : 'Conceptual Overview', content: normLang === 'es' ? 'Desglosa los principios básicos en pasos intuitivos.' : normLang === 'zh' ? '将核心原理分解为清晰的逻辑推导步骤。' : 'Break down core principles into intuitive steps.' },
-    { number: '02', title: normLang === 'es' ? 'Solución Analítica' : normLang === 'fr' ? 'Résolution Analytique' : normLang === 'zh' ? '规范演算推导' : 'Analytical Solution', content: normLang === 'es' ? 'Aplica la fórmula para evaluar el resultado exacto.' : normLang === 'zh' ? '代入已知变量求解准确结果。' : 'Apply formula to evaluate the exact outcome.' }
-  ];
-  let example = normLang === 'es' ? 'Consejo: Ponte a prueba con el recuerdo activo tras leer.' : normLang === 'zh' ? '高效技巧：阅读后立即闭目自述进行主动回忆。' : 'Practice Tip: Test yourself with active recall after reading.';
-
-  if (query.includes('calculus') || query.includes('cálculo') || query.includes('calcul') || query.includes('微积分') || query.includes('微分') || query.includes('integral')) {
-    introText = intros.calculus;
-    latexFormula = "\\int u \\, dv = u v - \\int v \\, du";
-    steps = [
-      { number: '01', title: normLang === 'es' ? 'Teorema Fundamental del Cálculo' : normLang === 'zh' ? '微积分基本定理' : 'Fundamental Theorem of Calculus', content: normLang === 'es' ? 'La derivación y la integración son operaciones inversas.' : normLang === 'zh' ? '微分与积分互为逆运算。' : 'Differentiation and integration are inverse operations.' },
-      { number: '02', title: normLang === 'es' ? 'Técnicas de Integración (LIATE)' : normLang === 'zh' ? '分部积分法 (LIATE)' : 'Integration Techniques (LIATE)', content: normLang === 'es' ? 'Usa la regla LIATE para elegir u y dv de manera óptima.' : normLang === 'zh' ? '根据 LIATE 顺序优化选取 u 和 dv。' : 'Use LIATE order to choose u and dv optimally.' }
-    ];
-    example = normLang === 'es' ? 'Verificación: Deriva tu resultado para comprobar tu antiderivada.' : normLang === 'zh' ? '验算技巧：对求出的原函数再次求导以检验答案。' : 'Pro-tip: Differentiate your result to verify your anti-derivative.';
-  } else if (query.includes('physics') || query.includes('física') || query.includes('physique') || query.includes('physik') || query.includes('物理')) {
-    introText = intros.physics;
-    latexFormula = "\\mathcal{E} = -N \\frac{d\\Phi_B}{dt}";
-    steps = [
-      { number: '01', title: normLang === 'es' ? 'Ley de Faraday y FEM' : normLang === 'zh' ? '法拉第定律与感应电动势' : 'Faraday Induction & EMF', content: normLang === 'es' ? 'La FEM inducida es proporcional a la tasa de cambio de flujo magnético.' : normLang === 'zh' ? '感应电动势与磁通量变化率成正比。' : 'Induced EMF equals negative rate of change of magnetic flux.' },
-      { number: '02', title: normLang === 'es' ? 'Conservación de Energía (Lenz)' : normLang === 'zh' ? '楞次定律与能量守恒' : 'Conservation of Energy (Lenz)', content: normLang === 'es' ? 'El sentido de la corriente inducida se opone a la causa que la produce.' : normLang === 'zh' ? '感应电流的方向总是阻碍磁通量的改变。' : 'Induced current opposes change in magnetic flux.' }
-    ];
-    example = normLang === 'es' ? 'Fórmula clave: Flujo = B · A · cos(θ).' : normLang === 'zh' ? '关键公式：磁通量 Φ = B · A · cos(θ)。' : 'Key formula: Magnetic Flux = B · A · cos(θ).';
-  } else if (query.includes('chemistry') || query.includes('química') || query.includes('chimie') || query.includes('化学')) {
-    introText = intros.chemistry;
-    latexFormula = "\\text{R-X} + \\text{Nu}^- \\rightarrow \\text{R-Nu} + \\text{X}^-";
-    steps = [
-      { number: '01', title: normLang === 'es' ? 'Rutas SN1 vs SN2' : normLang === 'zh' ? 'SN1 与 SN2 反应路径对比' : 'SN1 vs SN2 Pathways', content: normLang === 'es' ? 'SN2 ocurre en 1 paso con inversión; SN1 tiene 2 pasos con carbocatión intermediario.' : normLang === 'zh' ? 'SN2 协同一步完成且构型翻转；SN1 两步进行且经由碳正离子。' : 'SN2 is 1-step with inversion; SN1 is 2-step via carbocation.' },
-      { number: '02', title: normLang === 'es' ? 'Efecto del Disolvente' : normLang === 'zh' ? '溶剂效应' : 'Solvent Effects', content: normLang === 'es' ? 'Disolventes apróticos polares favorecen SN2 al no solvatar fuertemente el nucleófilo.' : normLang === 'zh' ? '极性非质子溶剂不溶剂化亲核试剂，从而显著加速 SN2。' : 'Polar aprotic solvents accelerate SN2.' }
-    ];
-  } else if (activeMode === 'quiz' || query.includes('quiz') || query.includes('test') || query.includes('cuestionario')) {
-    introText = intros.quiz.replace('{text}', text || 'Topic');
-  } else if (activeMode === 'summarizer' || query.includes('summar') || query.includes('resum')) {
-    introText = intros.summary;
+  // If a valid persona is specified, delegate to the dedicated 6-Character Persona Engine
+  if (persona && persona !== 'encouraging') {
+    return generatePersonaResponse({
+      text: queryText,
+      query: queryText,
+      persona,
+      depth,
+      lang,
+      academicLevel,
+      customInstructions,
+      activeMode: activeMode || mode,
+      conversationHistory,
+      brainContext,
+    });
   }
 
-  return {
-    text: introText,
-    latexFormula,
-    steps,
-    example,
-    suggestedActions: intros.actions || ['Save to SRS Flashcards', 'Create Study Note']
-  };
+  // Fallback default response generator
+  return generatePersonaResponse({
+    text: queryText,
+    query: queryText,
+    persona: PERSONA_IDS.ALL_ROUND,
+    depth,
+    lang,
+    academicLevel,
+    customInstructions,
+    activeMode: activeMode || mode,
+    conversationHistory,
+    brainContext,
+  });
 }
+

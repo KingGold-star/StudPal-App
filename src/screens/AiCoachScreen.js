@@ -1,10 +1,11 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   StyleSheet,
   View,
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   ScrollView,
   FlatList,
   Dimensions,
@@ -19,37 +20,61 @@ import {
   Image,
   InteractionManager,
   PanResponder,
+  Share,
 } from 'react-native';
 import Svg, { Path, Circle, Line, Rect, Defs, RadialGradient, LinearGradient, Stop, G, Polyline } from 'react-native-svg';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 import TooltipTouchable from '../components/TooltipTouchable';
 import { Colors } from '../theme/colors';
 import { useTheme } from '../theme/themeContext';
 import { gamificationService } from '../services/gamification/gamificationService';
 import { settingsService } from '../services/settings/settingsService';
+import { authService } from '../services/supabase/authService';
+import { aiCoachSupabaseService } from '../services/supabase/aiCoachService';
 import { useTranslation, normalizeLanguageCode } from '../services/i18n/i18nService';
 import {
   getLocalizedSuggestionChips,
   getLocalizedPromptChips,
   getLocalizedAiResponse,
 } from '../services/i18n/aiCoachTranslations';
+import { getInstantLocalMatch, classifyUserIntent, USER_INTENTS } from '../services/aiPersonaService';
 import { useSwipeFocusGesture } from '../hooks/useSwipeFocusGesture';
 import { voiceRecordingService } from '../services/voiceRecordingService';
 import { liveVoiceChatService } from '../services/liveVoiceChatService';
 import { studyService } from '../services/studyService';
 import LiveVoiceStreamingTranscript from '../components/LiveVoiceStreamingTranscript';
-import AiMessageCard from '../components/AiMessageCard';
+import AiMessageCard, { renderFormattedInline } from '../components/AiMessageCard';
+import BrancoTypingBubble from '../components/BrancoTypingBubble';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { networkService, useNetworkStatus } from '../services/networkService';
+import AiOfflineModal from '../components/AiOfflineModal';
+import { aiService } from '../services/ai/aiService';
+import { fishAudioPlaybackService } from '../services/ai/fishAudioPlaybackService';
+import { brancoBrainService } from '../services/ai/brancoBrainService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const USE_NATIVE = Platform.OS !== 'web';
 
-// ─── SVG Icons ──────────────────────────────────────────────────────────────
+// --- SVG Icons --------------------------------------------------------------
 
 const SparklesIcon = ({ color = '#2D62FF', size = 18 }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <Path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+  </Svg>
+);
+
+const WifiOffIcon = ({ size = 16, color = '#64748B' }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Line x1="1" y1="1" x2="23" y2="23" />
+    <Path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
+    <Path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
+    <Path d="M10.71 5.05A16 16 0 0 1 22.58 9" />
+    <Path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88" />
+    <Path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+    <Circle cx="12" cy="20" r="1" fill={color} />
   </Svg>
 );
 
@@ -68,6 +93,82 @@ const PlusIcon = ({ color = '#64748B', size = 20 }) => (
   </Svg>
 );
 
+const PaperclipActionIcon = ({ color = '#94A3B8', size = 18 }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+  </Svg>
+);
+
+const CameraActionIcon = ({ color = '#94A3B8', size = 18 }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+    <Circle cx="12" cy="13" r="4" />
+  </Svg>
+);
+
+const GalleryActionIcon = ({ color = '#94A3B8', size = 18 }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+    <Circle cx="8.5" cy="8.5" r="1.5" />
+    <Polyline points="21 15 16 10 5 21" />
+  </Svg>
+);
+
+const VideoActionIcon = ({ color = '#94A3B8', size = 18 }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M23 7l-7 5 7 5V7z" />
+    <Rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+  </Svg>
+);
+
+const CardsActionIcon = ({ color = '#94A3B8', size = 18 }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Rect x="2" y="7" width="15" height="13" rx="2" />
+    <Path d="M7 3h12a2 2 0 0 1 2 2v12" />
+  </Svg>
+);
+
+const StopSquareIcon = ({ color = '#FFFFFF', size = 14 }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+    <Rect x="5" y="5" width="14" height="14" rx="2" ry="2" fill={color} />
+  </Svg>
+);
+
+const QuizActionIcon = ({ color = '#94A3B8', size = 18 }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Circle cx="12" cy="12" r="10" />
+    <Path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+    <Line x1="12" y1="17" x2="12.01" y2="17" />
+  </Svg>
+);
+
+const SolveActionIcon = ({ color = '#94A3B8', size = 18 }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M4 19h16" />
+    <Path d="M4 5h16" />
+    <Line x1="9" y1="9" x2="15" y2="15" />
+    <Line x1="15" y1="9" x2="9" y2="15" />
+  </Svg>
+);
+
+const LightbulbActionIcon = ({ color = '#94A3B8', size = 18 }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M9 18h6" />
+    <Path d="M10 22h4" />
+    <Path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.76.76 1.23 1.52 1.41 2.5" />
+  </Svg>
+);
+
+const SummarizeActionIcon = ({ color = '#94A3B8', size = 18 }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Line x1="8" y1="6" x2="21" y2="6" />
+    <Line x1="8" y1="12" x2="21" y2="12" />
+    <Line x1="8" y1="18" x2="21" y2="18" />
+    <Line x1="3" y1="6" x2="3.01" y2="6" />
+    <Line x1="3" y1="12" x2="3.01" y2="12" />
+    <Line x1="3" y1="18" x2="3.01" y2="18" />
+  </Svg>
+);
 const PaperclipIcon = ({ color = '#64748B', size = 18 }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <Path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
@@ -97,6 +198,13 @@ const ArrowUpIcon = ({ color = '#FFFFFF', size = 20 }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <Line x1="12" y1="19" x2="12" y2="5" />
     <Path d="M5 12l7-7 7 7" />
+  </Svg>
+);
+
+const ArrowDownIcon = ({ color = '#FFFFFF', size = 20 }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <Line x1="12" y1="5" x2="12" y2="19" />
+    <Path d="M19 12l-7 7-7-7" />
   </Svg>
 );
 
@@ -183,7 +291,7 @@ const EtherealMorphingOrb = ({ pulseAnim, disperseAnim, state = 'listening', isD
     return () => loop.stop();
   }, []);
 
-  // ── Rotational swirl interpolations: continuous fluid orbital swirling when voice is active ──
+  // -- Rotational swirl interpolations: continuous fluid orbital swirling when voice is active --
   const rot1 = continuousOrbit.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
   const rot2 = continuousOrbit.interpolate({ inputRange: [0, 1], outputRange: ['360deg', '0deg'] });
   const rot3 = continuousOrbit.interpolate({ inputRange: [0, 1], outputRange: ['45deg', '405deg'] });
@@ -192,7 +300,7 @@ const EtherealMorphingOrb = ({ pulseAnim, disperseAnim, state = 'listening', isD
   const mistRot1 = continuousOrbit.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
   const mistRot2 = continuousOrbit.interpolate({ inputRange: [0, 1], outputRange: ['360deg', '0deg'] });
 
-  // ── Outward Dispersion & Movement Interpolations (Driven strictly by voice activity) ──
+  // -- Outward Dispersion & Movement Interpolations (Driven strictly by voice activity) --
   // Blob 1: Electric Neon Cyan (swirls on mid-left)
   const blob1X = activeDisperse.interpolate({ inputRange: [0, 1], outputRange: [0, -22] });
   const blob1Y = activeDisperse.interpolate({ inputRange: [0, 1], outputRange: [0, 6] });
@@ -697,6 +805,32 @@ const PinIcon = ({ color = '#6236FF', size = 18 }) => (
   </Svg>
 );
 
+const UnpinIcon = ({ color = '#6236FF', size = 18 }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Line x1="2" y1="2" x2="22" y2="22" />
+    <Line x1="12" y1="17" x2="12" y2="22" />
+    <Path d="M5 17h14v-2l-2-2V5a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v8l-2 2v2z" />
+  </Svg>
+);
+
+const ShareActionOutlineIcon = ({ color = '#64748B', size = 18 }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Circle cx="18" cy="5" r="3" />
+    <Circle cx="6" cy="12" r="3" />
+    <Circle cx="18" cy="19" r="3" />
+    <Line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+    <Line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+  </Svg>
+);
+
+const ArchiveOutlineIcon = ({ color = '#64748B', size = 18 }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Polyline points="21 8 21 21 3 21 3 8" />
+    <Rect x="1" y="3" width="22" height="5" />
+    <Line x1="10" y1="12" x2="14" y2="12" />
+  </Svg>
+);
+
 const TrashOutlineIcon = ({ color = '#EF4444', size = 18 }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <Polyline points="3 6 5 6 21 6" />
@@ -846,7 +980,7 @@ const LogOutMenuIcon = ({ color = '#64748B', size = 18 }) => (
   </Svg>
 );
 
-// ── Custom Animated Toggle for AI Settings ──
+// -- Custom Animated Toggle for AI Settings --
 const CustomToggle = ({ value, onValueChange, activeColor = '#6236FF' }) => {
   const animValue = useRef(new Animated.Value(value ? 1 : 0)).current;
 
@@ -903,7 +1037,7 @@ const CustomToggle = ({ value, onValueChange, activeColor = '#6236FF' }) => {
   );
 };
 
-// ── Dropdown Trigger Component with Reference for Window Measurements ──
+// -- Dropdown Trigger Component with Reference for Window Measurements --
 const ChatGptDropdownTrigger = ({ type, isOpen, label, accentColor, isDark, styles, onPress }) => {
   const btnRef = useRef(null);
 
@@ -926,7 +1060,7 @@ const ChatGptDropdownTrigger = ({ type, isOpen, label, accentColor, isDark, styl
   );
 };
 
-// ─── Destination Routes Configuration ───────────────────────────────────────
+// --- Destination Routes Configuration ---------------------------------------
 
 const NAV_DESTINATIONS = [
   {
@@ -967,7 +1101,7 @@ const NAV_DESTINATIONS = [
   },
 ];
 
-// ─── SVG Mascot Component ───────────────────────────────────────────────────
+// --- SVG Mascot Component ---------------------------------------------------
 
 const AiMascot = ({ isDark: propIsDark, accentColor: propAccentColor }) => {
   const themeContext = useTheme();
@@ -976,7 +1110,7 @@ const AiMascot = ({ isDark: propIsDark, accentColor: propAccentColor }) => {
 
   const rotateAnim      = useRef(new Animated.Value(0)).current;
   const starsScaleAnim  = useRef(new Animated.Value(1)).current;
-  // ── Mascot body animations ──
+  // -- Mascot body animations --
   const floatAnim       = useRef(new Animated.Value(0)).current;  // vertical bob
   const breatheAnim     = useRef(new Animated.Value(1)).current;  // scale breathe
   const glowAnim        = useRef(new Animated.Value(0.85)).current; // opacity shimmer
@@ -1006,7 +1140,7 @@ const AiMascot = ({ isDark: propIsDark, accentColor: propAccentColor }) => {
         ])
       );
 
-      // 3. Mascot float: smooth 0 → -14 → 0 bob, ~1.4 s per cycle
+      // 3. Mascot float: smooth 0 ? -14 ? 0 bob, ~1.4 s per cycle
       mascotFloat = Animated.loop(
         Animated.sequence([
           Animated.timing(floatAnim, {
@@ -1024,7 +1158,7 @@ const AiMascot = ({ isDark: propIsDark, accentColor: propAccentColor }) => {
         ])
       );
 
-      // 4. Mascot breathe: subtle scale 1 → 1.06 → 1, ~1.8 s per cycle
+      // 4. Mascot breathe: subtle scale 1 ? 1.06 ? 1, ~1.8 s per cycle
       mascotBreathe = Animated.loop(
         Animated.sequence([
           Animated.timing(breatheAnim, {
@@ -1042,7 +1176,7 @@ const AiMascot = ({ isDark: propIsDark, accentColor: propAccentColor }) => {
         ])
       );
 
-      // 5. Mascot glow shimmer: opacity 0.85 → 1 → 0.85, ~2 s per cycle
+      // 5. Mascot glow shimmer: opacity 0.85 ? 1 ? 0.85, ~2 s per cycle
       mascotGlow = Animated.loop(
         Animated.sequence([
           Animated.timing(glowAnim, {
@@ -1165,11 +1299,11 @@ const AiMascot = ({ isDark: propIsDark, accentColor: propAccentColor }) => {
       />
 
       {/* Decorative sparkles */}
-      <Animated.View style={[mascotStyles.sparkle, { top: 20,     right: 20, transform: [{ scale: starsScaleAnim }] }]}><Text style={{ fontSize: 14, color: isDark ? '#A78BFA' : '#8B5CF6' }}>✦</Text></Animated.View>
-      <Animated.View style={[mascotStyles.sparkle, { top: 55,     left: 15,  transform: [{ scale: starsScaleAnim }] }]}><Text style={{ fontSize: 10, color: isDark ? '#C084FC' : '#A78BFA' }}>✦</Text></Animated.View>
-      <Animated.View style={[mascotStyles.sparkle, { bottom: 45,  right: 25, transform: [{ scale: starsScaleAnim }] }]}><Text style={{ fontSize: 12, color: isDark ? (accentColor || '#818CF8') : '#6236FF' }}>✦</Text></Animated.View>
-      <Animated.View style={[mascotStyles.sparkle, { bottom: 40,  left: 30,  transform: [{ scale: starsScaleAnim }] }]}><Text style={{ fontSize: 8,  color: isDark ? '#E9D5FF' : '#C084FC' }}>✧</Text></Animated.View>
-      <Animated.View style={[mascotStyles.sparkle, { top: 40,     right: 45, transform: [{ scale: starsScaleAnim }] }]}><Text style={{ fontSize: 9,  color: isDark ? '#DDD6FE' : '#A78BFA' }}>✦</Text></Animated.View>
+      <Animated.View style={[mascotStyles.sparkle, { top: 20,     right: 20, transform: [{ scale: starsScaleAnim }] }]}><Text style={{ fontSize: 14, color: isDark ? '#A78BFA' : '#8B5CF6' }}>?</Text></Animated.View>
+      <Animated.View style={[mascotStyles.sparkle, { top: 55,     left: 15,  transform: [{ scale: starsScaleAnim }] }]}><Text style={{ fontSize: 10, color: isDark ? '#C084FC' : '#A78BFA' }}>?</Text></Animated.View>
+      <Animated.View style={[mascotStyles.sparkle, { bottom: 45,  right: 25, transform: [{ scale: starsScaleAnim }] }]}><Text style={{ fontSize: 12, color: isDark ? (accentColor || '#818CF8') : '#6236FF' }}>?</Text></Animated.View>
+      <Animated.View style={[mascotStyles.sparkle, { bottom: 40,  left: 30,  transform: [{ scale: starsScaleAnim }] }]}><Text style={{ fontSize: 8,  color: isDark ? '#E9D5FF' : '#C084FC' }}>?</Text></Animated.View>
+      <Animated.View style={[mascotStyles.sparkle, { top: 40,     right: 45, transform: [{ scale: starsScaleAnim }] }]}><Text style={{ fontSize: 9,  color: isDark ? '#DDD6FE' : '#A78BFA' }}>?</Text></Animated.View>
     </View>
   );
 };
@@ -1198,7 +1332,7 @@ const mascotStyles = StyleSheet.create({
   },
 });
 
-// ─── Suggestion Chips Data ──────────────────────────────────────────────────
+// --- Suggestion Chips Data --------------------------------------------------
 
 const SUGGESTION_CHIPS = [
   { label: 'Explain', sub: 'a topic', icon: BookOpenIcon, mode: 'explainer', query: 'Help me understand a concept step by step.' },
@@ -1206,7 +1340,7 @@ const SUGGESTION_CHIPS = [
   { label: 'Create', sub: 'a quiz', icon: BrainIcon, mode: 'quiz', query: 'Generate a practice quiz to test my knowledge.' },
 ];
 
-// ─── Quick Prompt Chips (chat mode) ─────────────────────────────────────────
+// --- Quick Prompt Chips (chat mode) -----------------------------------------
 
 const PROMPT_CHIPS = [
   { label: 'Integration by Parts', mode: 'explainer', query: 'Explain Integration by Parts step-by-step with an example.' },
@@ -1215,7 +1349,112 @@ const PROMPT_CHIPS = [
   { label: 'Data Structures Big-O', mode: 'explainer', query: 'Explain Big-O time complexity for Binary Search Trees.' },
 ];
 
-// ─── Storage Keys & Persistence for Real User Chats ──────────────────────────
+// --- Dynamic Contextual Prompt Chips Generator ------------------------------
+export function getDynamicPromptChips({ activeConversation, currentLang, localizedPromptChips = [], userSubjects = [] }) {
+  if (!activeConversation || !Array.isArray(activeConversation.messages) || activeConversation.messages.length === 0) {
+    // 1. Initial State: Personalize based on student's actual enrolled subjects
+    if (Array.isArray(userSubjects) && userSubjects.length > 0) {
+      const subjectStarters = userSubjects.slice(0, 4).map((subj) => {
+        const name = subj.name || subj.title || subj.id;
+        return {
+          label: name,
+          query: `Explain key high-yield exam concepts in ${name} step-by-step.`,
+          mode: 'explainer',
+        };
+      });
+      subjectStarters.push({
+        label: '?? Practice Quiz',
+        query: 'Generate a diagnostic 3-question quiz across my study subjects.',
+        mode: 'quiz',
+      });
+      return subjectStarters;
+    }
+    return localizedPromptChips;
+  }
+
+  const msgs = activeConversation.messages;
+
+  // 2. Direct AI Suggestions: Check if the most recent AI response provided tailored suggestedActions
+  const latestAiMsg = [...msgs].reverse().find((m) => m.sender === 'ai');
+  if (latestAiMsg && Array.isArray(latestAiMsg.suggestedActions) && latestAiMsg.suggestedActions.length > 0) {
+    return latestAiMsg.suggestedActions.map((action, idx) => ({
+      label: typeof action === 'string' ? action : action.label || action.query || `Explore ${idx + 1}`,
+      query: typeof action === 'string' ? action : action.query || action.label || '',
+      mode: typeof action === 'object' && action.mode ? action.mode : 'explainer',
+    }));
+  }
+
+  // 3. Conversation Context Synthesis: Analyze recent turn and subject/topic
+  const latestUserMsg = [...msgs].reverse().find((m) => m.sender === 'user');
+  const userText = (latestUserMsg?.text || '').trim();
+  const aiText = (latestAiMsg?.text || '').trim();
+  const combinedContext = `${userText} ${aiText}`.toLowerCase();
+
+  // Extract a readable topic label from conversation title or recent user prompt
+  let rawTopic = (activeConversation.title || '').replace(/^(New Chat|Study Inquiry|Analyze:?\s*|Discussion:\s*)/i, '').trim();
+  if (!rawTopic || rawTopic.length < 3 || rawTopic.toLowerCase().includes('chat')) {
+    const cleanUserText = userText
+      .replace(/^(\[Attached [^\]]+\]|\/quiz|\/explain|explain|what is|how does|help me with|calculate|solve|tell me about)\s+/i, '')
+      .trim();
+    rawTopic = cleanUserText.split('\n')[0].substring(0, 32).trim();
+  }
+  const topic = rawTopic && rawTopic.length >= 2 ? rawTopic : 'this concept';
+
+  // Case A: Quiz mode in progress
+  const isQuizMode =
+    latestAiMsg?.mode === 'quiz' ||
+    combinedContext.includes('### question') ||
+    combinedContext.includes('quiz on') ||
+    combinedContext.includes('reply with your answer');
+
+  if (isQuizMode) {
+    return [
+      { label: '?? Explain Solutions', query: 'Can you break down the correct answers and reasoning for each question step-by-step?', mode: 'explainer' },
+      { label: '?? More Questions', query: `Give me another 3 practice questions on ${topic} with a bit more challenge.`, mode: 'quiz' },
+      { label: '?? Common Traps', query: `What common traps and misleading options do examiners use for ${topic}?`, mode: 'explainer' },
+      { label: '?? High-Yield Summary', query: `Summarize the essential rules and cheat-sheet takeaways for ${topic}.`, mode: 'summarizer' },
+    ];
+  }
+
+  // Case B: Mathematics & Quantitative Calculations
+  const isMath =
+    latestAiMsg?.latexFormula ||
+    /\b(integral|derivative|calculus|equation|formula|matrix|algebra|geometry|theorem|probability|logarithm|trigonometry|quadratic|differential|liate)\b/i.test(combinedContext);
+
+  if (isMath) {
+    return [
+      { label: '?? Practice Problem', query: `Give me a practice problem on ${topic} for me to try solving step by step.`, mode: 'explainer' },
+      { label: '?? Step-by-Step Proof', query: `Show the detailed mathematical derivation and proof for ${topic}.`, mode: 'explainer' },
+      { label: '?? 3-Question Quiz', query: `Quiz me on ${topic} with 3 multiple-choice questions to test my mastery.`, mode: 'quiz' },
+      { label: '?? Real-World Use', query: `How is ${topic} applied in real-world science or engineering?`, mode: 'explainer' },
+      { label: '?? Pitfalls & Signs', query: `What are the most common sign errors and mistakes students make with ${topic}?`, mode: 'explainer' },
+    ];
+  }
+
+  // Case C: Natural Sciences (Physics, Chemistry, Biology)
+  const isScience = /\b(newton|force|velocity|acceleration|momentum|gravity|energy|circuit|resistor|voltage|reaction|molecule|acid|base|atom|electron|cell|dna|rna|protein|respiration|photosynthesis|mitochondria|ecosystem|organism|enzyme)\b/i.test(combinedContext);
+
+  if (isScience) {
+    return [
+      { label: '?? Everyday Analogy', query: `Can you explain ${topic} using an intuitive everyday analogy?`, mode: 'explainer' },
+      { label: '?? Practice Quiz', query: `Generate a 3-question conceptual quiz on ${topic} to check my understanding.`, mode: 'quiz' },
+      { label: '? Explain Simpler', query: `Can you explain ${topic} in simpler terms for a beginner?`, mode: 'explainer' },
+      { label: '?? Key Takeaways', query: `Summarize the essential takeaways, formulas, and terminology for ${topic}.`, mode: 'summarizer' },
+      { label: '?? Exam Traps', query: `What are the most common tricky exam questions professors ask about ${topic}?`, mode: 'explainer' },
+    ];
+  }
+
+  // Case D: General Topic / Humanities / Coding / Business / Concepts
+  return [
+    { label: `?? Example of ${topic}`, query: `Can you give me a concrete, real-world example illustrating ${topic}?`, mode: 'explainer' },
+    { label: `?? Quiz on ${topic}`, query: `Test my understanding of ${topic} with a 3-question practice quiz.`, mode: 'quiz' },
+    { label: '? Explain Simpler', query: `Can you explain ${topic} in simpler terms using an everyday analogy?`, mode: 'explainer' },
+    { label: '?? Summary Notes', query: `Summarize the key takeaways and main concepts of ${topic} into structured study notes.`, mode: 'summarizer' },
+    { label: '?? Advanced Deep Dive', query: `What are the advanced, in-depth nuances of ${topic} that top students should know?`, mode: 'explainer' },
+  ];
+}
+
+// --- Storage Keys & Persistence for Real User Chats --------------------------
 
 const AI_CHATS_STORAGE_KEY = '@studpal_user_conversations_v3';
 
@@ -1249,24 +1488,259 @@ const savePersistedConversations = (conversationsList) => {
     if (typeof window !== 'undefined' && window.localStorage) {
       window.localStorage.setItem(AI_CHATS_STORAGE_KEY, JSON.stringify(conversationsList));
     }
+    AsyncStorage.setItem(AI_CHATS_STORAGE_KEY, JSON.stringify(conversationsList)).catch(() => {});
+
+    // Async Cloud Sync to Supabase only when online
+    if (networkService.isOnline()) {
+      authService.getCurrentUser().then((user) => {
+        if (user?.id && Array.isArray(conversationsList)) {
+          conversationsList.forEach((conv) => {
+            if (conv && conv.id) {
+              aiCoachSupabaseService.saveConversation(user.id, conv);
+            }
+          });
+        }
+      }).catch((e) => console.warn('[AiCoachScreen] Supabase sync notice:', e));
+    }
   } catch (e) {
     console.warn('Error saving persisted AI conversations:', e);
   }
 };
 
-// ─── Helper: generate unique ID ─────────────────────────────────────────────
+// --- Helper: generate unique ID ---------------------------------------------
 
 let _idCounter = 0;
 const uid = () => `conv-${Date.now()}-${++_idCounter}`;
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// ─── Main Component ─────────────────────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════════
+// --- Attachment Preview Styles & Card Component (ChatGPT-style) ----------------
+const attachmentCardStyles = StyleSheet.create({
+  attachmentCarouselContainer: {
+    width: '100%',
+    paddingBottom: 8,
+    paddingTop: 2,
+    paddingHorizontal: 2,
+  },
+  attachmentCarouselContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  attachmentCard: {
+    width: 82,
+    height: 82,
+    borderRadius: 14,
+    overflow: 'hidden',
+    position: 'relative',
+    marginRight: 10,
+    borderWidth: 1,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+  },
+  attachmentCardVideo: {
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  attachmentCardCloseBtn: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  attachmentImageVignette: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 32,
+    height: 32,
+    backgroundColor: 'rgba(0, 0, 0, 0.15)',
+    borderBottomLeftRadius: 16,
+  },
+  attachmentVideoCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: 22,
+  },
+  attachmentDocHeader: {
+    height: 14,
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  attachmentDocBody: {
+    flex: 1,
+    paddingHorizontal: 8,
+    paddingTop: 6,
+    paddingBottom: 24,
+  },
+  attachmentDocLine: {
+    height: 3,
+    borderRadius: 1.5,
+    marginBottom: 3.5,
+  },
+  attachmentBottomPill: {
+    position: 'absolute',
+    bottom: 5,
+    left: 5,
+    right: 5,
+    backgroundColor: 'rgba(15, 23, 42, 0.90)',
+    borderRadius: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 5,
+    paddingVertical: 3.5,
+  },
+  attachmentPillBadge: {
+    width: 15,
+    height: 15,
+    borderRadius: 3.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 4,
+  },
+  attachmentPdfBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 7,
+    fontWeight: '800',
+    letterSpacing: -0.2,
+  },
+  attachmentPillText: {
+    color: '#FFFFFF',
+    fontSize: 9.5,
+    fontWeight: '600',
+    flex: 1,
+  },
+});
+
+const AttachmentPreviewCard = ({ file, onRemove, isDark }) => {
+  const name = (file?.name || '').toLowerCase();
+  const type = (file?.type || file?.mimeType || '').toLowerCase();
+
+  const isImage = type.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif|heic|bmp)$/i.test(name);
+  const isVideo = type.startsWith('video/') || /\.(mp4|mov|avi|mkv|webm|3gp|m4v)$/i.test(name);
+
+  // Badge configs for documents
+  let docBadgeText = 'PDF';
+  let docBadgeBg = '#EF4444';
+  if (/\.(doc|docx)$/i.test(name)) {
+    docBadgeText = 'DOC';
+    docBadgeBg = '#2563EB';
+  } else if (/\.(xls|xlsx|csv)$/i.test(name)) {
+    docBadgeText = 'XLS';
+    docBadgeBg = '#16A34A';
+  } else if (/\.(ppt|pptx)$/i.test(name)) {
+    docBadgeText = 'PPT';
+    docBadgeBg = '#EA580C';
+  } else if (/\.(txt|rtf|md)$/i.test(name)) {
+    docBadgeText = 'TXT';
+    docBadgeBg = '#64748B';
+  }
+
+  return (
+    <View
+      style={[
+        attachmentCardStyles.attachmentCard,
+        isVideo && attachmentCardStyles.attachmentCardVideo,
+        {
+          backgroundColor: isImage
+            ? (isDark ? '#1E293B' : '#E2E8F0')
+            : isVideo
+            ? '#18181B'
+            : (isDark ? '#1E293B' : '#FFFFFF'),
+          borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+        },
+      ]}
+    >
+      {/* 1. Image Preview */}
+      {isImage && (
+        <>
+          <Image
+            source={{ uri: file.uri }}
+            style={StyleSheet.absoluteFillObject}
+            resizeMode="cover"
+          />
+          <View style={attachmentCardStyles.attachmentImageVignette} />
+        </>
+      )}
+
+      {/* 2. Video Preview */}
+      {isVideo && (
+        <>
+          <View style={attachmentCardStyles.attachmentVideoCenter}>
+            <Svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="#71717A" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <Rect x="2" y="4" width="20" height="16" rx="2" />
+              <Path d="M7 15h0M2 9.5h20M2 14.5h20M7 4.5v5M17 4.5v5M7 14.5v5M17 14.5v5" />
+            </Svg>
+          </View>
+          <View style={attachmentCardStyles.attachmentBottomPill}>
+            <View style={[attachmentCardStyles.attachmentPillBadge, { backgroundColor: '#8B5CF6' }]}>
+              <Svg width={8} height={8} viewBox="0 0 24 24" fill="#FFFFFF">
+                <Path d="M8 5v14l11-7z" />
+              </Svg>
+            </View>
+            <Text style={attachmentCardStyles.attachmentPillText} numberOfLines={1} ellipsizeMode="tail">
+              {file.name || 'Video'}
+            </Text>
+          </View>
+        </>
+      )}
+
+      {/* 3. Document Preview */}
+      {!isImage && !isVideo && (
+        <>
+          <View style={[attachmentCardStyles.attachmentDocHeader, { backgroundColor: '#059669' }]}>
+            <View style={{ width: 4.5, height: 4.5, borderRadius: 2.25, backgroundColor: 'rgba(255,255,255,0.7)' }} />
+          </View>
+          <View style={attachmentCardStyles.attachmentDocBody}>
+            <View style={[attachmentCardStyles.attachmentDocLine, { width: '65%', height: 3.5, backgroundColor: isDark ? '#475569' : '#CBD5E1' }]} />
+            <View style={[attachmentCardStyles.attachmentDocLine, { width: '85%', backgroundColor: isDark ? '#334155' : '#E2E8F0' }]} />
+            <View style={[attachmentCardStyles.attachmentDocLine, { width: '75%', backgroundColor: isDark ? '#334155' : '#E2E8F0' }]} />
+            <View style={[attachmentCardStyles.attachmentDocLine, { width: '45%', backgroundColor: isDark ? '#334155' : '#E2E8F0' }]} />
+          </View>
+          <View style={attachmentCardStyles.attachmentBottomPill}>
+            <View style={[attachmentCardStyles.attachmentPillBadge, { backgroundColor: docBadgeBg }]}>
+              <Text style={attachmentCardStyles.attachmentPdfBadgeText}>{docBadgeText}</Text>
+            </View>
+            <Text style={attachmentCardStyles.attachmentPillText} numberOfLines={1} ellipsizeMode="tail">
+              {file.name || 'Document'}
+            </Text>
+          </View>
+        </>
+      )}
+
+      {/* Top-Right Remove Button */}
+      <TouchableOpacity
+        style={attachmentCardStyles.attachmentCardCloseBtn}
+        onPress={onRemove}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        activeOpacity={0.7}
+      >
+        <Svg width={9} height={9} viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <Line x1="18" y1="6" x2="6" y2="18" />
+          <Line x1="6" y1="6" x2="18" y2="18" />
+        </Svg>
+      </TouchableOpacity>
+    </View>
+  );
+};
+
+// -------------------------------------------------------------------------------
+// --- Main Component ---------------------------------------------------------
+// -------------------------------------------------------------------------------
 
 export default function AiCoachScreen({
   user = { name: 'Alex' },
   onSelectTab,
   onNavigate,
+  onBack,
   settings,
   initialPrompt,
   onClearInitialPrompt,
@@ -1275,11 +1749,35 @@ export default function AiCoachScreen({
 }) {
   const { t, currentLanguageCode } = useTranslation();
   const insets = useSafeAreaInsets();
+  const { isOnline, isOffline } = useNetworkStatus();
+  const [offlineModalVisible, setOfflineModalVisible] = useState(false);
   const [currentSettings, setCurrentSettings] = useState(settings || settingsService.getSettingsSync());
 
   useEffect(() => {
     const unsub = settingsService.subscribe((s) => setCurrentSettings(s));
     return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    const unsub = fishAudioPlaybackService.subscribe(({ state, msgId, error }) => {
+      if (state === 'loading') {
+        setLoadingAudioMsgId(msgId);
+        setPlayingAudioMsgId(null);
+      } else if (state === 'playing') {
+        setLoadingAudioMsgId(null);
+        setPlayingAudioMsgId(msgId);
+      } else if (state === 'idle') {
+        setLoadingAudioMsgId(null);
+        setPlayingAudioMsgId(null);
+        if (error) {
+          Alert.alert('Audio Playback', error);
+        }
+      }
+    });
+    return () => {
+      unsub();
+      fishAudioPlaybackService.stop();
+    };
   }, []);
 
   const { isDark, accentColor: themeAccentColor } = useTheme();
@@ -1290,7 +1788,7 @@ export default function AiCoachScreen({
   const localizedSuggestionChips = useMemo(() => getLocalizedSuggestionChips(currentLang), [currentLang]);
   const localizedPromptChips = useMemo(() => getLocalizedPromptChips(currentLang), [currentLang]);
 
-  // ── Helper to process initial prompt synchronously on mount ──
+  // -- Helper to process initial prompt synchronously on mount --
   const initialData = useMemo(() => {
     const saved = loadPersistedConversations();
     if (initialPrompt) {
@@ -1337,51 +1835,315 @@ export default function AiCoachScreen({
     };
   }, []);
 
-  // ── User's Chat History (Loaded from permanent storage) ──
+  // -- User's Chat History (Loaded from permanent storage) --
   const [conversations, setConversations] = useState(() => initialData.conversations);
   const [activeConversationId, setActiveConversationId] = useState(() => initialData.activeId);
   const [activeSrsReturnState, setActiveSrsReturnState] = useState(() => initialData.returnState);
 
-  // Permanently sync conversations to storage whenever updated
+  // Permanently sync conversations to storage and index in Branco's Brain whenever updated
+  const conversationsRef = useRef(conversations);
   useEffect(() => {
+    conversationsRef.current = conversations;
     savePersistedConversations(conversations);
+    brancoBrainService.indexAllConversations(conversations);
   }, [conversations]);
 
-  // AI Response generator helper
-  const triggerAiResponseForPrompt = (text, targetId) => {
-    setTimeout(() => {
-      const persona = currentSettings?.aiPersonality || 'encouraging';
-      const depth = currentSettings?.aiModelDepth || 'balanced';
+  // -- Fluid Typewriter Response Streamer ------------------------------
+  const streamingTimerRef = useRef(null);
+  useEffect(() => {
+    return () => {
+      if (streamingTimerRef.current) {
+        clearInterval(streamingTimerRef.current);
+        streamingTimerRef.current = null;
+      }
+    };
+  }, []);
 
-      const aiResponse = getLocalizedAiResponse({
-        text,
-        activeMode,
-        lang: currentLang,
-        persona,
-        depth,
-      });
+  const streamAiResponse = ({
+    targetId,
+    aiMsgId,
+    fullText,
+    effectiveMode,
+    latexFormula,
+    steps,
+    example,
+    suggestedActions,
+    persona,
+    personaBadge,
+    isExplicitCode = false,
+    thoughtProcess = null,
+    citations = [],
+    onFinish,
+  }) => {
+    if (streamingTimerRef.current) {
+      clearInterval(streamingTimerRef.current);
+      streamingTimerRef.current = null;
+    }
 
-      const aiMsgId = `ai-${Date.now()}`;
-      const aiMsg = {
+    // Stop thinking indicator so typing bubble yields smoothly to message bubble
+    setIsAiThinking(false);
+
+    const safeText = fullText || '';
+    if (!safeText) {
+      const emptyMsg = {
         id: aiMsgId,
         sender: 'ai',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        text: aiResponse.text,
-        mode: activeMode,
+        text: '',
+        mode: effectiveMode,
+        latexFormula,
+        steps,
+        example,
+        suggestedActions,
+        persona,
+        personaBadge: personaBadge || 'AI Tutor',
+        isExplicitCode: Boolean(isExplicitCode),
+        citations: Array.isArray(citations) ? citations : [],
+        isStreaming: false,
+      };
+      setConversations(prev => prev.map(c =>
+        c.id === targetId ? { ...c, messages: [...(c.messages || []), emptyMsg] } : c
+      ));
+      if (onFinish) onFinish(emptyMsg);
+      return;
+    }
+
+    // Dynamic progressive token streaming (like ChatGPT & Gemini)
+    if (safeText) {
+      fishAudioPlaybackService.prefetch(safeText);
+    }
+
+    if (streamingTimerRef.current) {
+      clearInterval(streamingTimerRef.current);
+      streamingTimerRef.current = null;
+    }
+
+    const targetConv = conversationsRef.current.find(c => c.id === targetId);
+    const existingMsg = targetConv?.messages?.find(m => m.id === aiMsgId);
+
+    // If message was already streamed in real-time by streamTutor, finalize immediately without interval delay
+    if (existingMsg && existingMsg.text && existingMsg.text.length >= safeText.length - 15) {
+      const finalMsg = {
+        ...existingMsg,
+        text: safeText,
+        mode: effectiveMode,
+        latexFormula,
+        steps,
+        example,
+        suggestedActions,
+        persona,
+        personaBadge: personaBadge || 'AI Tutor',
+        isExplicitCode: Boolean(isExplicitCode),
+        thoughtProcess: thoughtProcess || existingMsg.thoughtProcess || null,
+        citations: Array.isArray(citations) && citations.length > 0 ? citations : (existingMsg.citations || []),
+        isStreaming: false,
+      };
+      setConversations(prev => prev.map(c =>
+        c.id === targetId
+          ? {
+              ...c,
+              messages: (c.messages || []).map(m => m.id === aiMsgId ? finalMsg : m),
+            }
+          : c
+      ));
+      if (!isScrolledUpRef.current) {
+        setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 40);
+      }
+      if (onFinish) onFinish(finalMsg);
+      return;
+    }
+
+    const totalLength = safeText.length;
+    const step = Math.max(3, Math.min(16, Math.ceil(totalLength / 48)));
+
+    const streamingMsg = {
+      id: aiMsgId,
+      sender: 'ai',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      text: safeText.slice(0, step),
+      mode: effectiveMode,
+      latexFormula,
+      steps,
+      example,
+      suggestedActions,
+      persona,
+      personaBadge: personaBadge || 'AI Tutor',
+      isExplicitCode: Boolean(isExplicitCode),
+      thoughtProcess,
+      citations: Array.isArray(citations) ? citations : [],
+      isStreaming: true,
+    };
+
+    setConversations(prev => prev.map(c => {
+      if (c.id !== targetId) return c;
+      const msgs = c.messages || [];
+      const hasMsg = msgs.some(m => m.id === aiMsgId);
+      return {
+        ...c,
+        messages: hasMsg
+          ? msgs.map(m => m.id === aiMsgId ? streamingMsg : m)
+          : [...msgs, streamingMsg],
+      };
+    }));
+    if (!isScrolledUpRef.current) {
+      setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 40);
+    }
+
+    let currentIndex = step;
+    streamingTimerRef.current = setInterval(() => {
+      currentIndex += step;
+      if (currentIndex >= totalLength) {
+        clearInterval(streamingTimerRef.current);
+        streamingTimerRef.current = null;
+        const finalMsg = {
+          ...streamingMsg,
+          text: safeText,
+          isStreaming: false,
+        };
+        setConversations(prev => prev.map(c =>
+          c.id === targetId
+            ? {
+                ...c,
+                messages: (c.messages || []).map(m => m.id === aiMsgId ? finalMsg : m),
+              }
+            : c
+        ));
+        setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 40);
+        if (onFinish) onFinish(finalMsg);
+      } else {
+        const partialText = safeText.slice(0, currentIndex);
+        setConversations(prev => prev.map(c =>
+          c.id === targetId
+            ? {
+                ...c,
+                messages: (c.messages || []).map(m => m.id === aiMsgId ? { ...m, text: partialText } : m),
+              }
+            : c
+        ));
+      }
+    }, 14);
+    return;
+  };
+
+  // Load from AsyncStorage if on native or fallback
+  useEffect(() => {
+    AsyncStorage.getItem(AI_CHATS_STORAGE_KEY).then((raw) => {
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setConversations((prev) => {
+              if (prev.length <= 1 && prev[0]?.id === 'default-empty') {
+                return parsed;
+              }
+              return prev;
+            });
+            brancoBrainService.indexAllConversations(parsed);
+          }
+        } catch (e) {}
+      }
+    }).catch(() => {});
+  }, []);
+
+  // AI Response generator helper using genuine Gemini API
+  const triggerAiResponseForPrompt = async (text, targetId) => {
+    if (isOffline) {
+      setOfflineModalVisible(true);
+      return;
+    }
+    const persona = currentSettings?.aiPersonality || 'all_round';
+    const depth = currentSettings?.aiModelDepth || 'balanced';
+    const academicLevel = currentSettings?.aiAcademicLevel || 'undergraduate';
+    const customInstructions = currentSettings?.aiCustomInstructions || '';
+    const effectiveMode = (text && text.toLowerCase().includes('quiz')) ? 'quiz' : activeMode;
+
+    const currentConv = conversationsRef.current.find(c => c.id === targetId);
+
+    const isResearchQuery = Boolean(text && /(?:richest|billionaire|net worth|latest news|current news|in 2025|in 2026|search online|search the web|with citations|compare.*(?:pros and cons|vs|versus))/i.test(text));
+    setAiThinkingStatus(isResearchQuery ? "Searching public sources..." : null);
+    setIsAiThinking(true);
+
+    const history = (currentConv?.messages || []).map(m => ({
+      sender: m.sender,
+      text: m.text,
+    }));
+
+    try {
+      // Retrieve relevant long-term memories from Branco's Brain synchronously (zero delay)
+      const brainContext = brancoBrainService.queryBrainSync(text, { currentConversationId: targetId })?.brainContext || '';
+
+      const aiResponse = await aiService.askTutor({
+        prompt: text,
+        conversationHistory: history,
+        mode: effectiveMode,
+        persona,
+        teachingStyle: currentSettings?.aiTeachingStyle || 'socratic',
+        depth: currentSettings?.aiModelDepth || 'balanced',
+        academicLevel,
+        customInstructions,
+        language: currentLang,
+        brainContext,
+      });
+
+      const aiMsgId = `ai-${Date.now()}`;
+
+      // Record interaction into Branco's Brain
+      brancoBrainService.recordTurn({
+        conversationId: targetId,
+        conversationTitle: currentConv?.title || 'Study Discussion',
+        userText: text,
+        aiText: aiResponse.text,
+        mode: effectiveMode,
+        persona,
+      });
+
+      streamAiResponse({
+        targetId,
+        aiMsgId,
+        fullText: aiResponse.text,
+        effectiveMode,
         latexFormula: aiResponse.latexFormula,
         steps: aiResponse.steps,
         example: aiResponse.example,
         suggestedActions: aiResponse.suggestedActions,
-      };
+        persona,
+        personaBadge: 'AI Tutor',
+        isExplicitCode: Boolean(aiResponse?.isExplicitCode),
+        thoughtProcess: aiResponse?.thoughtProcess || null,
+      });
+    } catch (err) {
+      console.warn('[triggerAiResponseForPrompt] Fallback to localized response:', err);
+      const fallbackResp = getLocalizedAiResponse({
+        text,
+        activeMode: effectiveMode,
+        mode: effectiveMode,
+        lang: currentLang,
+        persona,
+        depth,
+        academicLevel,
+        customInstructions,
+        conversationHistory: history,
+      });
 
-      setConversations(prev => prev.map(c =>
-        c.id === targetId
-          ? { ...c, messages: [...(c.messages || []), aiMsg] }
-          : c
-      ));
-
-      setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 100);
-    }, 350);
+      const aiMsgId = `ai-${Date.now()}`;
+      streamAiResponse({
+        targetId,
+        aiMsgId,
+        fullText: fallbackResp.text,
+        effectiveMode: activeMode,
+        latexFormula: fallbackResp.latexFormula,
+        steps: fallbackResp.steps,
+        example: fallbackResp.example,
+        suggestedActions: fallbackResp.suggestedActions,
+        persona,
+        personaBadge: 'AI Tutor',
+        isExplicitCode: Boolean(fallbackResp?.isExplicitCode),
+      });
+    } finally {
+      if (!streamingTimerRef.current) {
+        setIsAiThinking(false);
+      }
+    }
   };
 
   // Process initial prompt on mount or prop updates
@@ -1437,7 +2199,7 @@ export default function AiCoachScreen({
   const [isDrawerSearching, setIsDrawerSearching] = useState(false);
   const [drawerSearchQuery, setDrawerSearchQuery] = useState('');
 
-  // ── ChatGPT Profile Popup Menu & AI Settings Modal State ──
+  // -- ChatGPT Profile Popup Menu & AI Settings Modal State --
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const profileMenuAnim = useRef(new Animated.Value(0)).current;
 
@@ -1552,28 +2314,28 @@ export default function AiCoachScreen({
         if (languageState === 'ig') return 'Igbo';
         return 'Auto-detect';
       case 'teachingStyle':
-        if (aiTeachingStyleState === 'step_by_step') return 'Step-by-Step 🪜';
-        if (aiTeachingStyleState === 'concise') return 'Direct & High-Yield ⚡';
-        if (aiTeachingStyleState === 'visual') return 'Visual & Intuitive 💡';
-        if (aiTeachingStyleState === 'rigorous') return 'Rigorous Scholar 🔬';
-        return 'Socratic Tutor 🏛️';
+        if (aiTeachingStyleState === 'step_by_step') return 'Step-by-Step ??';
+        if (aiTeachingStyleState === 'concise') return 'Direct & High-Yield ?';
+        if (aiTeachingStyleState === 'visual') return 'Visual & Intuitive ??';
+        if (aiTeachingStyleState === 'rigorous') return 'Rigorous Scholar ??';
+        return 'Socratic Tutor ???';
       case 'personality':
       case 'persona':
-        if (aiPersonalityState === 'all_round') return 'All Round 🌐';
-        if (aiPersonalityState === 'advisor') return 'Advisor 🧭';
-        if (aiPersonalityState === 'librarian') return 'Librarian 📚';
-        if (aiPersonalityState === 'editor') return 'Editor ✍️';
-        if (aiPersonalityState === 'roommate') return 'Roommate 🛋️';
-        if (aiPersonalityState === 'tutor') return 'Tutor 🎓';
-        return 'All Round 🌐';
+        if (aiPersonalityState === 'all_round') return 'All Round ???';
+        if (aiPersonalityState === 'advisor') return 'Advisor ??';
+        if (aiPersonalityState === 'librarian') return 'Librarian ??';
+        if (aiPersonalityState === 'editor') return 'Editor ??';
+        if (aiPersonalityState === 'roommate') return 'Roommate ???';
+        if (aiPersonalityState === 'tutor') return 'Tutor ??';
+        return 'All Round ???';
       case 'depth':
-        if (aiDepthState === 'fast') return 'Fast & Crisp ⚡';
-        if (aiDepthState === 'detailed') return 'Deep & Detailed 🧠';
-        return 'Balanced ⚖️';
+        if (aiDepthState === 'fast') return 'Fast & Crisp ?';
+        if (aiDepthState === 'detailed') return 'Deep & Detailed ??';
+        return 'Balanced ??';
       case 'academic':
-        if (aiAcademicState === 'highschool') return 'High School 🏫';
-        if (aiAcademicState === 'graduate') return 'Graduate 🔬';
-        return 'Undergraduate 🏛️';
+        if (aiAcademicState === 'highschool') return 'High School ??';
+        if (aiAcademicState === 'graduate') return 'Graduate ??';
+        return 'Undergraduate ???';
       case 'format':
         if (aiFormattingState === 'bullet_points') return 'Bullet Points Only';
         if (aiFormattingState === 'step_by_step') return 'Step-by-Step Proof';
@@ -1655,11 +2417,11 @@ export default function AiCoachScreen({
       title: 'Teaching Style',
       current: aiTeachingStyleState,
       options: [
-        { id: 'socratic', label: 'Socratic Tutor 🏛️' },
-        { id: 'step_by_step', label: 'Step-by-Step Guide 🪜' },
-        { id: 'concise', label: 'Direct & High-Yield ⚡' },
-        { id: 'visual', label: 'Visual & Intuitive 💡' },
-        { id: 'rigorous', label: 'Rigorous Scholar 🔬' },
+        { id: 'socratic', label: 'Socratic Tutor ???' },
+        { id: 'step_by_step', label: 'Step-by-Step Guide ??' },
+        { id: 'concise', label: 'Direct & High-Yield ?' },
+        { id: 'visual', label: 'Visual & Intuitive ??' },
+        { id: 'rigorous', label: 'Rigorous Scholar ??' },
       ],
       onSelect: (val) => {
         setAiTeachingStyleState(val);
@@ -1672,12 +2434,12 @@ export default function AiCoachScreen({
       title: 'Personality',
       current: aiPersonalityState,
       options: [
-        { id: 'all_round', label: 'All Round 🌐' },
-        { id: 'advisor', label: 'Advisor 🧭' },
-        { id: 'librarian', label: 'Librarian 📚' },
-        { id: 'tutor', label: 'Tutor 🎓' },
-        { id: 'editor', label: 'Editor ✍️' },
-        { id: 'roommate', label: 'Roommate 🛋️' },
+        { id: 'all_round', label: 'All Round ???' },
+        { id: 'advisor', label: 'Advisor ??' },
+        { id: 'librarian', label: 'Librarian ??' },
+        { id: 'tutor', label: 'Tutor ??' },
+        { id: 'editor', label: 'Editor ??' },
+        { id: 'roommate', label: 'Roommate ???' },
       ],
       onSelect: (val) => {
         setAiPersonalityState(val);
@@ -1690,12 +2452,12 @@ export default function AiCoachScreen({
       title: 'Personality',
       current: aiPersonalityState,
       options: [
-        { id: 'all_round', label: 'All Round 🌐' },
-        { id: 'advisor', label: 'Advisor 🧭' },
-        { id: 'librarian', label: 'Librarian 📚' },
-        { id: 'tutor', label: 'Tutor 🎓' },
-        { id: 'editor', label: 'Editor ✍️' },
-        { id: 'roommate', label: 'Roommate 🛋️' },
+        { id: 'all_round', label: 'All Round ???' },
+        { id: 'advisor', label: 'Advisor ??' },
+        { id: 'librarian', label: 'Librarian ??' },
+        { id: 'tutor', label: 'Tutor ??' },
+        { id: 'editor', label: 'Editor ??' },
+        { id: 'roommate', label: 'Roommate ???' },
       ],
       onSelect: (val) => {
         setAiPersonalityState(val);
@@ -1828,7 +2590,7 @@ export default function AiCoachScreen({
     };
     await settingsService.updateSettings(updated);
     setIsAiSettingsModalOpen(false);
-    showToast('Branco AI coach settings saved! ✨', '🤖');
+    showToast('Nia AI coach settings saved! ?', '??');
   };
 
   const handleResetAiSettings = async () => {
@@ -1864,7 +2626,7 @@ export default function AiCoachScreen({
             setSpacedRepetitionSmartIntervalsState(true);
             setAiAutoPlayVoiceState(false);
             setAiProactiveSuggestionsState(true);
-            showToast('AI coach settings reset to default ↺', '↺');
+            showToast('AI coach settings reset to default ?', '?');
           },
         },
       ]
@@ -1875,11 +2637,53 @@ export default function AiCoachScreen({
   const [historyActionConv, setHistoryActionConv] = useState(null);
   const [isRenamingConv, setIsRenamingConv] = useState(false);
   const [renameText, setRenameText] = useState('');
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 160, left: 95 });
 
-  const handleLongPressHistory = (conv) => {
+  const handleLongPressHistory = (conv, event = null) => {
     setHistoryActionConv(conv);
-    setRenameText(conv.title);
+    setRenameText(conv?.title || '');
     setIsRenamingConv(false);
+    if (event && event.nativeEvent && event.nativeEvent.pageY) {
+      const screenH = Dimensions.get('window').height;
+      const cardHeight = 220;
+      const calculatedTop = Math.min(event.nativeEvent.pageY - 10, screenH - cardHeight - 20);
+      setDropdownPosition({ top: Math.max(60, calculatedTop), left: 95 });
+    } else {
+      setDropdownPosition({ top: 160, left: 95 });
+    }
+  };
+
+  const handleShareConversation = async (conv) => {
+    if (!conv) return;
+    setHistoryActionConv(null);
+    try {
+      const messagesText = (conv.messages || [])
+        .map((m) => `${m.sender === 'user' ? 'Me' : 'Branco'}: ${m.text || ''}`)
+        .join('\n\n');
+      const shareContent = `${conv.title || 'StudPal AI Chat'}\n\n${messagesText}`;
+      if (Platform.OS === 'web') {
+        if (typeof navigator !== 'undefined' && navigator.share) {
+          await navigator.share({ title: conv.title, text: shareContent });
+        } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
+          await navigator.clipboard.writeText(shareContent);
+          Alert.alert('Copied', 'Chat transcript copied to clipboard!');
+        }
+      } else {
+        await Share.share({
+          title: conv.title || 'StudPal AI Chat',
+          message: shareContent,
+        });
+      }
+    } catch (err) {
+      console.warn('Share conversation notice:', err);
+    }
+  };
+
+  const handleArchiveConversation = (convId) => {
+    setConversations((prev) =>
+      prev.map((c) => (c.id === convId ? { ...c, isArchived: !c.isArchived } : c))
+    );
+    setHistoryActionConv(null);
   };
 
   const handleTogglePinConversation = (convId) => {
@@ -1930,6 +2734,16 @@ export default function AiCoachScreen({
       onNavigate(dest.id);
     } else if (onSelectTab && dest.tab) {
       onSelectTab(dest.tab);
+    }
+  };
+
+  const handleGoToDashboard = () => {
+    if (onBack) {
+      onBack();
+    } else if (onNavigate) {
+      onNavigate('dashboard');
+    } else if (onSelectTab) {
+      onSelectTab('home');
     }
   };
 
@@ -2021,7 +2835,7 @@ export default function AiCoachScreen({
     }
   }, [showHistory]);
 
-  // ── Input & UI state ──
+  // -- Input & UI state --
   const [inputText, setInputText] = useState('');
   const [activeMode, setActiveMode] = useState('explainer');
   const [expandedSteps, setExpandedSteps] = useState({});
@@ -2029,7 +2843,7 @@ export default function AiCoachScreen({
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [playingVoiceMsgId, setPlayingVoiceMsgId] = useState(null);
   const [voicePlaybackProgress, setVoicePlaybackProgress] = useState({});
-  // ── In-Screen Live Voice Chat with Branco states ──
+  // -- In-Screen Live Voice Chat with Branco states --
   const [isLiveVoiceActive, setIsLiveVoiceActive] = useState(false);
   const [liveVoiceState, setLiveVoiceState] = useState('listening'); // 'listening' | 'thinking' | 'speaking' | 'muted'
   const [liveVoiceUserTranscript, setLiveVoiceUserTranscript] = useState('');
@@ -2041,10 +2855,52 @@ export default function AiCoachScreen({
   const liveOrbRotateAnim1 = useRef(new Animated.Value(0)).current;
   const liveOrbRotateAnim2 = useRef(new Animated.Value(0)).current;
   const liveOrbWaveAnims = useRef([0, 1, 2, 3, 4, 5, 6].map(() => new Animated.Value(0.2))).current;
-  const [attachedFile, setAttachedFile] = useState(null);
+  const [attachedFiles, setAttachedFiles] = useState([]);
+  const attachedFile = attachedFiles[0] || null;
+  const setAttachedFile = useCallback((val) => {
+    if (!val) {
+      setAttachedFiles([]);
+    } else if (typeof val === 'function') {
+      setAttachedFiles(prev => {
+        const res = val(prev[0] || null);
+        return res ? (Array.isArray(res) ? res : [res]) : [];
+      });
+    } else {
+      setAttachedFiles(Array.isArray(val) ? val : [val]);
+    }
+  }, []);
+  const handleRemoveAttachment = useCallback((indexToRemove) => {
+    setAttachedFiles(prev => prev.filter((_, idx) => idx !== indexToRemove));
+  }, []);
   const [playingAudioMsgId, setPlayingAudioMsgId] = useState(null);
+  const [loadingAudioMsgId, setLoadingAudioMsgId] = useState(null);
+  const [isAiThinking, setIsAiThinking] = useState(false);
+  const [aiThinkingStatus, setAiThinkingStatus] = useState(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const currentStreamReqKeyRef = useRef(null);
+
+  const handleStopGeneration = useCallback(() => {
+    if (currentStreamReqKeyRef.current) {
+      aiService.cancelActiveStream(currentStreamReqKeyRef.current);
+      currentStreamReqKeyRef.current = null;
+    } else {
+      aiService.cancelActiveStream();
+    }
+    setIsGenerating(false);
+    setIsAiThinking(false);
+    setAiThinkingStatus(null);
+    if (streamingTimerRef.current) {
+      clearInterval(streamingTimerRef.current);
+      streamingTimerRef.current = null;
+    }
+    setConversations(prev => prev.map(c => ({
+      ...c,
+      messages: (c.messages || []).map(m => m.isStreaming ? { ...m, isStreaming: false } : m),
+    })));
+  }, []);
   const [savedSrsMsgs, setSavedSrsMsgs] = useState({});
   const [savedNotesMsgs, setSavedNotesMsgs] = useState({});
+  const [feedbackMsgs, setFeedbackMsgs] = useState({});
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [dockBarWidth, setDockBarWidth] = useState(() => {
@@ -2066,6 +2922,31 @@ export default function AiCoachScreen({
   const previewWaveContainerRef = useRef(null);
 
   const inputRef = useRef(null);
+
+  // Auto-resize multiline text input dock on web up to 8 lines (176px = 22px * 8 lines)
+  const adjustTextInputHeight = useCallback(() => {
+    if (Platform.OS === 'web' && inputRef.current) {
+      try {
+        const el = inputRef.current;
+        const target = (el && el.nodeType === 1)
+          ? (el.tagName === 'TEXTAREA' ? el : (el.querySelector?.('textarea') || el))
+          : (el?._node || el?.getNativeRef?.() || null);
+        if (target && target.style) {
+          target.style.height = 'auto';
+          const scrollH = target.scrollHeight;
+          const clampedH = Math.min(Math.max(scrollH, 24), 176);
+          target.style.height = `${clampedH}px`;
+          target.style.overflowY = scrollH > 176 ? 'auto' : 'hidden';
+        }
+      } catch (e) {
+        // Fallback gracefully
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    adjustTextInputHeight();
+  }, [inputText, adjustTextInputHeight]);
   const focusGlowAnim = useRef(new Animated.Value(0)).current;
   const keyboardAnim = useRef(new Animated.Value(0)).current;
   const recordingTimerRef = useRef(null);
@@ -2080,7 +2961,7 @@ export default function AiCoachScreen({
   const toastAnim = useRef(new Animated.Value(0)).current;
   const toastTimeoutRef = useRef(null);
 
-  const showToast = (message, icon = '🎙️') => {
+  const showToast = (message, icon = '???') => {
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     setToastNotification({ message, icon });
     toastAnim.setValue(0);
@@ -2215,6 +3096,61 @@ export default function AiCoachScreen({
   const reversedMessages = useMemo(() => (messages ? [...messages].reverse() : []), [messages]);
   const prevMsgCountRef = useRef(messages.length);
 
+  // Dynamic Suggestion Chips derived from the live conversation flow
+  const promptChipsScrollRef = useRef(null);
+  const dynamicPromptChips = useMemo(() => {
+    const userSubjects = studyService.getSubjects?.() || [];
+    return getDynamicPromptChips({
+      activeConversation,
+      currentLang,
+      localizedPromptChips,
+      userSubjects,
+    });
+  }, [activeConversation, currentLang, localizedPromptChips]);
+
+  useEffect(() => {
+    promptChipsScrollRef.current?.scrollTo?.({ x: 0, animated: true });
+  }, [dynamicPromptChips]);
+
+  // -- Scroll to Bottom floating button state --
+  const [showScrollBottomBtn, setShowScrollBottomBtn] = useState(false);
+  const scrollBottomAnim = useRef(new Animated.Value(0)).current;
+  const isScrolledUpRef = useRef(false);
+
+  const handleChatScroll = useCallback((event) => {
+    const offsetY = event?.nativeEvent?.contentOffset?.y || 0;
+    // For inverted FlatList, offset > 90 means user scrolled up into past history
+    const shouldShow = offsetY > 90;
+    if (shouldShow !== isScrolledUpRef.current) {
+      isScrolledUpRef.current = shouldShow;
+      setShowScrollBottomBtn(shouldShow);
+      Animated.spring(scrollBottomAnim, {
+        toValue: shouldShow ? 1 : 0,
+        friction: 8,
+        tension: 70,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [scrollBottomAnim]);
+
+  const handleScrollToBottom = useCallback(() => {
+    isScrolledUpRef.current = false;
+    Animated.timing(scrollBottomAnim, {
+      toValue: 0,
+      duration: 150,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowScrollBottomBtn(false);
+    });
+    flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+  }, [scrollBottomAnim]);
+
+  useEffect(() => {
+    isScrolledUpRef.current = false;
+    setShowScrollBottomBtn(false);
+    scrollBottomAnim.setValue(0);
+  }, [activeConversationId]);
+
   // Position at latest message when a new message arrives
   useEffect(() => {
     if (!isLiveVoiceActive && hasMessages) {
@@ -2231,7 +3167,7 @@ export default function AiCoachScreen({
   // Get first name for greeting
   const firstName = user?.name?.split(' ')[0] || 'there';
 
-  // ── Keyboard handling ──
+  // -- Keyboard handling --
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
@@ -2246,7 +3182,6 @@ export default function AiCoachScreen({
         easing: Easing.out(Easing.ease),
         useNativeDriver: false,
       }).start();
-      flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
     });
 
     const hideSub = Keyboard.addListener(hideEvent, (e) => {
@@ -2266,7 +3201,7 @@ export default function AiCoachScreen({
     };
   }, []);
 
-  // ── Update messages in active conversation ──
+  // -- Update messages in active conversation --
   const updateActiveMessages = (updater) => {
     setConversations(prev => prev.map(c =>
       c.id === activeConversationId
@@ -2275,7 +3210,7 @@ export default function AiCoachScreen({
     ));
   };
 
-  // ── Auto-title conversation from first message ──
+  // -- Auto-title conversation from first message --
   const autoTitleConversation = (text, convId = activeConversationId) => {
     setConversations(prev => prev.map(c =>
       c.id === convId && (c.title === 'New Chat' || !c.title)
@@ -2284,11 +3219,11 @@ export default function AiCoachScreen({
     ));
   };
 
-  // ── New Chat ──
+  // -- New Chat --
   const handleNewChat = () => {
     if (activeConversation && (!activeConversation.messages || activeConversation.messages.length === 0)) {
       setInputText('');
-      setAttachedFile(null);
+      setAttachedFiles([]);
       setExpandedSteps({});
       return;
     }
@@ -2297,81 +3232,74 @@ export default function AiCoachScreen({
     setConversations(prev => [newConv, ...prev]);
     setActiveConversationId(newId);
     setInputText('');
-    setAttachedFile(null);
+    setAttachedFiles([]);
     setExpandedSteps({});
   };
 
-  // ── Select conversation from history ──
+  // -- Select conversation from history --
   const handleSelectConversation = (convId) => {
     setActiveConversationId(convId);
     setShowHistory(false);
     setInputText('');
-    setAttachedFile(null);
+    setAttachedFiles([]);
   };
 
-  // ── Mode Switcher ──
+  // -- Mode Switcher --
   const handleSelectMode = (modeId) => {
     setActiveMode(modeId);
   };
 
-  // ── Step expansion ──
+  // -- Step expansion --
   const toggleSteps = (msgId) => {
     setExpandedSteps(prev => ({ ...prev, [msgId]: !prev[msgId] }));
   };
 
-  // ── Audio Listen (Text-to-Speech) ──
-  const handleToggleListen = (msgId, messageItem) => {
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      if (playingAudioMsgId === msgId) {
-        window.speechSynthesis.cancel();
-        setPlayingAudioMsgId(null);
-        showToast('Audio playback stopped', '⏹️');
-        return;
-      }
-      window.speechSynthesis.cancel();
-      const rawText = messageItem?.text || '';
-      const cleanText = rawText
-        .replace(/^🎙️[^\n]+\n\n?/, '')
-        .replace(/[*#_`]/g, '')
-        .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '$1 over $2')
-        .replace(/\\lim_\{([^}]+)\}/g, 'limit $1')
-        .replace(/\\to|\\rightarrow/g, ' approaches ')
-        .trim();
+  // -- Audio Listen (StudPal AI Voice Readout) --
+  const handleToggleListen = async (msgId, messageItem) => {
+    let textToSpeak = messageItem?.text || '';
+    if (!textToSpeak) return;
 
-      if (cleanText) {
-        const utterance = new SpeechSynthesisUtterance(cleanText);
-        utterance.rate = 1.0;
-        utterance.pitch = 1.0;
-        utterance.onend = () => setPlayingAudioMsgId(null);
-        utterance.onerror = () => setPlayingAudioMsgId(null);
-        setPlayingAudioMsgId(msgId);
-        window.speechSynthesis.speak(utterance);
-        showToast('Reading AI explanation aloud...', '🔊');
-        return;
-      }
+    if (messageItem?.latexFormula && !textToSpeak.includes(messageItem.latexFormula)) {
+      textToSpeak += `\n\nKey formula: ${messageItem.latexFormula}`;
     }
 
-    if (playingAudioMsgId === msgId) {
+    if (
+      playingAudioMsgId === msgId ||
+      loadingAudioMsgId === msgId ||
+      fishAudioPlaybackService.isPlaying(msgId) ||
+      fishAudioPlaybackService.isLoading(msgId)
+    ) {
+      await fishAudioPlaybackService.stop();
       setPlayingAudioMsgId(null);
-      showToast('Audio playback stopped', '⏹️');
-    } else {
-      setPlayingAudioMsgId(msgId);
-      showToast('Reading AI explanation aloud...', '🔊');
+      setLoadingAudioMsgId(null);
+      return;
+    }
+
+    try {
+      setLoadingAudioMsgId(msgId);
+      await fishAudioPlaybackService.playOrToggle(msgId, textToSpeak);
+    } catch (err) {
+      setLoadingAudioMsgId(null);
+      setPlayingAudioMsgId(null);
+      Alert.alert(
+        'StudPal Voice',
+        err.message || 'Unable to play voice audio.'
+      );
     }
   };
 
-  // ── SRS Save ──
+  // -- SRS Save --
   const handleSaveToSrs = (msgId) => {
     const isCurrentlySaved = !!savedSrsMsgs[msgId];
     setSavedSrsMsgs(prev => ({ ...prev, [msgId]: !isCurrentlySaved }));
     if (!isCurrentlySaved) {
-      showToast('Key concepts saved to SRS Flashcards!', '⚡');
+      showToast('Key concepts saved to SRS Flashcards!', '?');
     } else {
-      showToast('Removed from SRS Flashcards', '🗑️');
+      showToast('Removed from SRS Flashcards', '???');
     }
   };
 
-  // ── Note Save ──
+  // -- Note Save --
   const handleSaveNote = (msgId, messageItem) => {
     const existingNoteId = savedNotesMsgs[msgId];
 
@@ -2385,7 +3313,7 @@ export default function AiCoachScreen({
         delete next[msgId];
         return next;
       });
-      showToast('Removed from Study Notes', '🗑️');
+      showToast('Removed from Study Notes', '???');
       return;
     }
 
@@ -2398,7 +3326,7 @@ export default function AiCoachScreen({
       for (let i = aiMsgIndex - 1; i >= 0; i--) {
         if (currentMessages[i].sender === 'user') {
           userQuestion = (currentMessages[i].text || '')
-            .replace(/^🎤 Voice Message \([^)]+\)\n?/, '')
+            .replace(/^(?:\u{1F399}\u{FE0F}|\u{1F3A4}|[^\w\s]*)\s*Voice Message \([^)]+\)\n?/u, '')
             .trim();
           break;
         }
@@ -2410,24 +3338,24 @@ export default function AiCoachScreen({
     }
 
     const cleanAiText = (messageItem?.text || '')
-      .replace(/^🎙️[^\n]+\n\n?/, '')
+      .replace(/^(?:\u{1F399}\u{FE0F}|\u{1F3A4}|[^\w\s]*)[^\n]+\n\n?/u, '')
       .trim();
 
-    let noteContent = `### ❓ Question\n${userQuestion}\n\n### 💡 Solution & Explanation\n${cleanAiText}`;
+    let noteContent = `### ? Question\n${userQuestion}\n\n### ?? Solution & Explanation\n${cleanAiText}`;
 
     if (messageItem?.latexFormula) {
-      noteContent += `\n\n### 📐 Key Formula\n${messageItem.latexFormula}`;
+      noteContent += `\n\n### ?? Key Formula\n${messageItem.latexFormula}`;
     }
 
     if (messageItem?.steps && messageItem.steps.length > 0) {
-      noteContent += `\n\n### 📋 Step-by-Step Breakdown\n` +
+      noteContent += `\n\n### ?? Step-by-Step Breakdown\n` +
         messageItem.steps
           .map((s, i) => `${i + 1}. **${s.title}**: ${s.content}`)
           .join('\n');
     }
 
     if (messageItem?.example) {
-      noteContent += `\n\n### 💡 Pro Tip\n${messageItem.example}`;
+      noteContent += `\n\n### ?? Pro Tip\n${messageItem.example}`;
     }
 
     const noteTitle = userQuestion.length > 55
@@ -2446,24 +3374,54 @@ export default function AiCoachScreen({
       [msgId]: newNote?.id || true,
     }));
 
-    showToast('Question & AI solution saved directly to Study Notes!', '📝');
+    showToast('Question & AI solution saved directly to Study Notes!', '??');
   };
 
-  // ── Send message ──
-  const handleSendMessage = (textToSend = inputText, fileToSend = attachedFile, convId = activeConversationId) => {
-    const text = (typeof textToSend === 'string' ? textToSend : '').trim();
-    const file = fileToSend !== undefined ? fileToSend : attachedFile;
-    if (!text && !file) return;
+  // -- Send message (Connected to Gemini API & Math Analysis) --
+  // AI Message Feedback
+  const handleFeedback = useCallback((msgId, type) => {
+    setFeedbackMsgs(prev => {
+      const current = prev[msgId];
+      const next = current === type ? null : type;
+      if (!next) {
+        const copy = { ...prev };
+        delete copy[msgId];
+        return copy;
+      }
+      return { ...prev, [msgId]: next };
+    });
+  }, []);
 
+  const handleSendMessage = async (textToSend = inputText, fileToSend = undefined, convId = activeConversationId, modeOverride = null) => {
+    if (isOffline) {
+      setOfflineModalVisible(true);
+      return;
+    }
+    const text = (typeof textToSend === 'string' ? textToSend : '').trim();
+    let files = [];
+    if (fileToSend !== undefined && fileToSend !== null) {
+      files = Array.isArray(fileToSend) ? fileToSend : [fileToSend];
+    } else {
+      files = attachedFiles;
+    }
+    const primaryFile = files[0] || null;
+    if (!text && files.length === 0) return;
+
+    const effectiveMode = modeOverride || (text.toLowerCase().includes('quiz') ? 'quiz' : activeMode);
     const targetId = convId || activeConversationId;
-    autoTitleConversation(text || (file ? `Analyze ${file.name}` : 'New Study Inquiry'), targetId);
+    autoTitleConversation(text || (primaryFile ? `Analyze ${primaryFile.name}` : 'New Study Inquiry'), targetId);
+
+    const attachmentHeaders = files.length > 0
+      ? files.map(f => `[Attached ${f.name}]`).join('\n')
+      : '';
+    const fullUserText = attachmentHeaders ? (text ? `${attachmentHeaders}\n${text}` : attachmentHeaders) : text;
 
     const userMsgId = `user-${Date.now()}`;
     const userMsg = {
       id: userMsgId,
       sender: 'user',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      text: file ? `[Attached ${file.name}]\n${text}` : text,
+      text: fullUserText,
     };
 
     setConversations(prev => prev.map(c =>
@@ -2472,82 +3430,549 @@ export default function AiCoachScreen({
         : c
     ));
     setInputText('');
-    setAttachedFile(null);
+    setAttachedFiles([]);
 
     flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
 
-    // Simulate AI Response
-    setTimeout(() => {
-      let aiResponseText = '';
-      let latexFormula = null;
-      let steps = null;
-      let example = null;
+    const persona = currentSettings?.aiPersonality || 'all_round';
+    const depth = currentSettings?.aiModelDepth || 'balanced';
+    const academicLevel = currentSettings?.aiAcademicLevel || 'undergraduate';
+    const customInstructions = currentSettings?.aiCustomInstructions || '';
 
-      const persona = currentSettings?.aiPersonality || 'encouraging';
-      const depth = currentSettings?.aiModelDepth || 'balanced';
+    // Check if attached file is an image for math analysis
+    const isImageFile = (f) => f && (
+      f.type === 'image' ||
+      f.type?.includes('image') ||
+      f.mimeType?.includes('image') ||
+      (f.name && f.name.match(/\.(jpg|jpeg|png|webp|heic)$/i))
+    );
+    const targetImageFile = files.find(isImageFile);
 
-      const aiResponse = getLocalizedAiResponse({
-        text,
-        activeMode,
-        lang: currentLang,
-        persona,
-        depth,
-      });
+    const activeConv = conversationsRef.current.find(c => c.id === targetId);
+    const history = (activeConv?.messages || [])
+      .filter(m => m.id !== userMsgId)
+      .map(m => ({
+        sender: m.sender,
+        text: m.text,
+      }));
 
-      if (activeMode === 'quiz' || text.toLowerCase().includes('quiz')) {
+    const promptIntent = classifyUserIntent(text, history);
+    const isResearchQuery = (
+      promptIntent === USER_INTENTS.CURRENT_INFORMATION ||
+      promptIntent === USER_INTENTS.DEEP_RESEARCH ||
+      promptIntent === USER_INTENTS.WEB_RESEARCH
+    );
+    setAiThinkingStatus(isResearchQuery ? "Searching public sources..." : null);
+    setIsAiThinking(true);
+
+    try {
+      let aiResponse = null;
+
+      if (targetImageFile) {
+        let base64 = targetImageFile.base64;
+        if (!base64 && targetImageFile.uri) {
+          try {
+            const resp = await fetch(targetImageFile.uri);
+            const blob = await resp.blob();
+            base64 = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result);
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            });
+          } catch (e) {
+            console.warn('[AiCoachScreen] Could not read image base64:', e);
+          }
+        }
+
+        if (base64) {
+          aiResponse = await aiService.analyzeMathImage({
+            imageBase64: base64,
+            mimeType: targetImageFile.mimeType || 'image/jpeg',
+            userPrompt: text,
+          });
+        }
+      }
+
+      // If regular text inquiry or fallback
+      if (!aiResponse) {
+        const aiMsgId = `ai-${Date.now()}`;
+        currentStreamReqKeyRef.current = aiMsgId;
+        setIsGenerating(true);
+
+        // Immediate placeholder streaming message rendered without delay
+        const initialStreamMsg = {
+          id: aiMsgId,
+          sender: 'ai',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          text: '',
+          mode: effectiveMode,
+          persona,
+          personaBadge: 'AI Tutor',
+          isStreaming: true,
+          citations: [],
+          thoughtProcess: null,
+        };
+
+        setConversations(prev => prev.map(c =>
+          c.id === targetId
+            ? { ...c, messages: [...(c.messages || []), initialStreamMsg] }
+            : c
+        ));
+
+        // Synchronous non-blocking brain query from memory (zero latency)
+        let brainContext = '';
+        try {
+          brainContext = brancoBrainService.queryBrainSync(text || '', { currentConversationId: targetId })?.brainContext || '';
+        } catch (_) {}
+
+        let hasFirstToken = false;
+        let streamedText = '';
+        let liveCitations = [];
+        let liveThought = null;
+
+        const streamResult = await aiService.streamTutor({
+          prompt: text || 'Please analyze this problem.',
+          conversationHistory: history,
+          mode: effectiveMode,
+          persona,
+          teachingStyle: currentSettings?.aiTeachingStyle || 'socratic',
+          depth,
+          academicLevel,
+          customInstructions,
+          language: currentLang,
+          brainContext,
+          requestId: aiMsgId,
+          onChunk: (chunk, totalText) => {
+            streamedText = totalText;
+            if (!hasFirstToken) {
+              hasFirstToken = true;
+              setIsAiThinking(false);
+              setAiThinkingStatus(null);
+            }
+            setConversations(prev => prev.map(c =>
+              c.id === targetId
+                ? {
+                    ...c,
+                    messages: (c.messages || []).map(m =>
+                      m.id === aiMsgId ? { ...m, text: totalText, isStreaming: true } : m
+                    ),
+                  }
+                : c
+            ));
+            if (!isScrolledUpRef.current) {
+              flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+            }
+          },
+          onMetadata: (meta) => {
+            if (meta.citations) liveCitations = meta.citations;
+            if (meta.thoughtProcess) liveThought = meta.thoughtProcess;
+            setConversations(prev => prev.map(c =>
+              c.id === targetId
+                ? {
+                    ...c,
+                    messages: (c.messages || []).map(m =>
+                      m.id === aiMsgId ? {
+                        ...m,
+                        citations: liveCitations,
+                        thoughtProcess: liveThought,
+                      } : m
+                    ),
+                  }
+                : c
+            ));
+          },
+        });
+
+        aiResponse = {
+          text: streamResult.text || streamedText,
+          latexFormula: null,
+          steps: null,
+          example: null,
+          suggestedActions: [],
+          isExplicitCode: Boolean(streamResult?.isExplicitCode),
+          thoughtProcess: streamResult?.thoughtProcess || liveThought || null,
+          citations: Array.isArray(streamResult?.citations) && streamResult.citations.length > 0 ? streamResult.citations : liveCitations,
+        };
+      }
+
+      if (effectiveMode === 'quiz' || text.toLowerCase().includes('quiz')) {
         gamificationService.recordQuizCompletion(90, 100);
       }
 
-      const aiMsgId = `ai-${Date.now()}`;
-      const aiMsg = {
-        id: aiMsgId,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        text: aiResponse.text,
-        mode: activeMode,
-        latexFormula: aiResponse.latexFormula,
+      const aiMsgId = currentStreamReqKeyRef.current || `ai-${Date.now()}`;
+
+      // Record this interaction into Branco's Brain
+      if (text && aiResponse?.text) {
+        const activeConv = conversationsRef.current.find(c => c.id === targetId);
+        brancoBrainService.recordTurn({
+          conversationId: targetId,
+          conversationTitle: activeConv?.title || 'Study Discussion',
+          userText: text,
+          aiText: aiResponse.text,
+          mode: effectiveMode,
+          persona,
+        });
+      }
+
+      const citations = Array.isArray(aiResponse?.citations) ? aiResponse.citations : [];
+
+      streamAiResponse({
+        targetId,
+        aiMsgId,
+        fullText: aiResponse.text,
+        effectiveMode,
+        latexFormula: aiResponse.latexFormula || aiResponse.transcribedExpression,
         steps: aiResponse.steps,
         example: aiResponse.example,
         suggestedActions: aiResponse.suggestedActions,
-      };
+        persona,
+        personaBadge: 'AI Tutor',
+        isExplicitCode: Boolean(aiResponse?.isExplicitCode),
+        thoughtProcess: aiResponse?.thoughtProcess || null,
+        citations,
+        onFinish: (finalMsg) => {
+          setIsGenerating(false);
+          currentStreamReqKeyRef.current = null;
+          if (currentSettings?.aiAutoPlayVoice) {
+            handleToggleListen(aiMsgId, finalMsg);
+          }
+        },
+      });
+    } catch (err) {
+      setIsGenerating(false);
+      currentStreamReqKeyRef.current = null;
+      if (err?.message === 'GENERATION_CANCELLED') {
+        setIsAiThinking(false);
+        setConversations(prev => prev.map(c =>
+          c.id === targetId
+            ? {
+                ...c,
+                messages: (c.messages || []).map(m => m.isStreaming ? { ...m, isStreaming: false } : m),
+              }
+            : c
+        ));
+        return;
+      }
+      console.warn('[AiCoachScreen.handleSendMessage] API fallback:', err);
+      const persona = currentSettings?.aiPersonality || 'all_round';
+      const depth = currentSettings?.aiModelDepth || 'balanced';
+      const academicLevel = currentSettings?.aiAcademicLevel || 'undergraduate';
+      const customInstructions = currentSettings?.aiCustomInstructions || '';
 
-      setConversations(prev => prev.map(c =>
-        c.id === targetId
-          ? { ...c, messages: [...(c.messages || []), aiMsg] }
-          : c
-      ));
-      flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
-    }, 800);
+      const activeConv = conversationsRef.current.find(c => c.id === targetId);
+      const conversationHistory = (activeConv?.messages || [])
+        .filter(m => m.id !== userMsgId)
+        .map(m => ({
+          sender: m.sender,
+          text: m.text,
+        }));
+
+      let fallbackBrainContext = '';
+      try {
+        const brainRes = await brancoBrainService.queryBrain(text || '', { currentConversationId: targetId });
+        fallbackBrainContext = brainRes?.brainContext || '';
+      } catch (_) {}
+
+      const fallbackResp = getLocalizedAiResponse({
+        text,
+        activeMode: effectiveMode,
+        mode: effectiveMode,
+        lang: currentLang,
+        persona,
+        depth,
+        academicLevel,
+        customInstructions,
+        conversationHistory,
+        brainContext: fallbackBrainContext,
+      });
+
+      // Record fallback turn into Branco's Brain memory
+      if (text && fallbackResp?.text) {
+        brancoBrainService.recordTurn({
+          conversationId: targetId,
+          conversationTitle: activeConv?.title || 'Study Discussion',
+          userText: text,
+          aiText: fallbackResp.text,
+          mode: effectiveMode,
+          persona,
+        });
+      }
+
+      const aiMsgId = currentStreamReqKeyRef.current || `ai-${Date.now()}`;
+      streamAiResponse({
+        targetId,
+        aiMsgId,
+        fullText: fallbackResp.text,
+        effectiveMode,
+        latexFormula: fallbackResp.latexFormula,
+        steps: fallbackResp.steps,
+        example: fallbackResp.example,
+        suggestedActions: fallbackResp.suggestedActions,
+        persona: fallbackResp.persona,
+        personaBadge: fallbackResp.personaBadge,
+        isExplicitCode: Boolean(fallbackResp?.isExplicitCode),
+        thoughtProcess: fallbackResp?.thoughtProcess || null,
+        citations: Array.isArray(fallbackResp?.citations) ? fallbackResp.citations : [],
+      });
+    } finally {
+      setIsAiThinking(false);
+      setAiThinkingStatus(null);
+      setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 100);
+    }
   };
 
-  // ── Chip handlers ──
+  // -- Chip handlers --
   const handleSuggestionChip = (chip) => {
     setActiveMode(chip.mode);
-    handleSendMessage(chip.query);
+    handleSendMessage(chip.query, undefined, undefined, chip.mode);
   };
 
   const handlePromptChip = (chip) => {
     setActiveMode(chip.mode);
-    handleSendMessage(chip.query);
+    handleSendMessage(chip.query, undefined, undefined, chip.mode);
   };
 
-  // ── Attachment ──
+  // ── Quick Action Popover (Personalized Studpal Menu) ──
+  const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
+  const actionMenuAnim = useRef(new Animated.Value(0)).current;
+
+  const openActionMenu = () => {
+    Keyboard.dismiss();
+    setIsActionMenuOpen(true);
+    Animated.spring(actionMenuAnim, {
+      toValue: 1,
+      friction: 6,
+      tension: 100,
+      useNativeDriver: USE_NATIVE,
+    }).start();
+  };
+
+  const closeActionMenu = () => {
+    Animated.timing(actionMenuAnim, {
+      toValue: 0,
+      duration: 150,
+      easing: Easing.in(Easing.cubic),
+      useNativeDriver: USE_NATIVE,
+    }).start(() => {
+      setIsActionMenuOpen(false);
+    });
+  };
+
+  const toggleActionMenu = () => {
+    if (isActionMenuOpen) {
+      closeActionMenu();
+    } else {
+      openActionMenu();
+    }
+  };
+
+  const handlePickPhoto = async () => {
+    closeActionMenu();
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Needed', 'Please allow camera access to take a photo.');
+        return;
+      }
+      const res = await ImagePicker.launchCameraAsync({
+        allowsEditing: false,
+        quality: 0.85,
+      });
+      if (!res.canceled && res.assets && res.assets.length > 0) {
+        const asset = res.assets[0];
+        setAttachedFiles(prev => [...prev, {
+          uri: asset.uri,
+          name: asset.fileName || `camera_photo_${Date.now()}.jpg`,
+          type: 'image/jpeg',
+          size: asset.fileSize || 0,
+        }]);
+        Alert.alert('Photo Captured', 'Photo attached for AI analysis.');
+      }
+    } catch (e) {
+      Alert.alert('Camera', 'Unable to open camera: ' + e.message);
+    }
+  };
+
+  const handleScanNotes = async () => {
+    closeActionMenu();
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Needed', 'Please allow photo library access to upload images.');
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.85,
+        allowsMultipleSelection: true,
+      });
+      if (!res.canceled && res.assets && res.assets.length > 0) {
+        const imageAssets = res.assets.filter(asset => {
+          const fileName = (asset.fileName || asset.uri || '').toLowerCase();
+          const mimeType = (asset.mimeType || asset.type || '').toLowerCase();
+          return (
+            asset.type === 'image' ||
+            mimeType.startsWith('image/') ||
+            /\.(jpg|jpeg|png|webp|gif|heic|bmp)$/i.test(fileName)
+          );
+        });
+
+        if (imageAssets.length === 0) {
+          Alert.alert('Images Only', 'This button only allows image uploads (JPG, PNG, WEBP, HEIC, etc.).');
+          return;
+        }
+
+        const newAttachments = imageAssets.map((asset, idx) => ({
+          uri: asset.uri,
+          name: asset.fileName || `uploaded_image_${Date.now()}_${idx}.jpg`,
+          type: asset.mimeType || 'image/jpeg',
+          size: asset.fileSize || 0,
+        }));
+
+        setAttachedFiles(prev => [...prev, ...newAttachments]);
+        Alert.alert('Images Attached', `Attached ${newAttachments.length} image(s) for AI analysis.`);
+      }
+    } catch (e) {
+      Alert.alert('Image Picker', 'Unable to pick image: ' + e.message);
+    }
+  };
+
+  const handlePickVideo = async () => {
+    closeActionMenu();
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Needed', 'Please allow access to your media library to upload study videos.');
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+        allowsEditing: false,
+        quality: 0.85,
+      });
+      if (!res.canceled && res.assets && res.assets.length > 0) {
+        const asset = res.assets[0];
+        const fileName = (asset.fileName || asset.uri || '').toLowerCase();
+        const mimeType = (asset.mimeType || asset.type || '').toLowerCase();
+
+        // Strictly validate that it is a video file
+        const isVideo =
+          asset.type === 'video' ||
+          mimeType.startsWith('video/') ||
+          /\.(mp4|mov|avi|mkv|webm|3gp|m4v)$/i.test(fileName);
+
+        if (!isVideo) {
+          Alert.alert(
+            'Videos Only',
+            'This button only allows video uploads (MP4, MOV, WEBM, etc.). Please select a valid video file.'
+          );
+          return;
+        }
+
+        setAttachedFiles(prev => [...prev, {
+          uri: asset.uri,
+          name: asset.fileName || `study_video_${Date.now()}.mp4`,
+          type: asset.mimeType || 'video/mp4',
+          size: asset.fileSize || 0,
+          duration: asset.duration,
+        }]);
+        Alert.alert('Video Attached', `Attached "${asset.fileName || 'video'}" for AI analysis.`);
+      }
+    } catch (e) {
+      Alert.alert('Video Picker', 'Unable to pick video: ' + e.message);
+    }
+  };
+
+  const handleSelectLearningTool = (toolType) => {
+    closeActionMenu();
+    let promptPrefix = '';
+    switch (toolType) {
+      case 'flashcards':
+        promptPrefix = 'Create 5 flashcards for: ';
+        break;
+      case 'quiz':
+        promptPrefix = 'Generate a 4-question practice quiz on: ';
+        break;
+      case 'solve':
+        promptPrefix = 'Solve this problem step-by-step: ';
+        break;
+      case 'eli5':
+        promptPrefix = 'Explain this concept simply with intuition and analogies: ';
+        break;
+      case 'summarize':
+        promptPrefix = 'Summarize key concepts and exam formulas for: ';
+        break;
+      default:
+        break;
+    }
+    setInputText(prev => prev ? `${promptPrefix}${prev}` : promptPrefix);
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 120);
+  };
+  // -- Attachment --
   const handleAttachFile = async () => {
     try {
       const res = await DocumentPicker.getDocumentAsync({
-        type: ['application/pdf', 'image/*', 'text/plain'],
+        type: [
+          'application/pdf',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'application/vnd.ms-powerpoint',
+          'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+          'application/vnd.ms-excel',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'text/plain',
+          'text/markdown',
+          'text/csv',
+          'application/rtf',
+        ],
+        copyToCacheDirectory: true,
       });
       if (!res.canceled && res.assets && res.assets.length > 0) {
-        setAttachedFile(res.assets[0]);
-        Alert.alert('Attached 📄', `Attached "${res.assets[0].name}" for AI analysis.`);
+        const file = res.assets[0];
+        const fileName = (file.name || '').toLowerCase();
+        const mimeType = (file.mimeType || '').toLowerCase();
+
+        // Strictly disallow images, audio, and video formats
+        const isMedia =
+          mimeType.startsWith('image/') ||
+          mimeType.startsWith('video/') ||
+          mimeType.startsWith('audio/') ||
+          /\.(jpg|jpeg|png|gif|webp|svg|bmp|heic|mp4|mov|avi|mkv|mp3|wav|m4a|aac)$/i.test(fileName);
+
+        const allowedDocExtensions = /\.(pdf|doc|docx|txt|rtf|odt|ppt|pptx|xls|xlsx|csv|md)$/i;
+
+        if (isMedia || !allowedDocExtensions.test(fileName)) {
+          Alert.alert(
+            'Documents Only',
+            'This button only allows document uploads (PDF, Word, PowerPoint, Excel, or Text files). Please select a valid document.'
+          );
+          return;
+        }
+
+        setAttachedFiles(prev => [...prev, {
+          ...file,
+          name: file.name,
+          uri: file.uri,
+          type: file.mimeType || 'application/pdf',
+          size: file.size || 0,
+        }]);
+        Alert.alert('Document Attached', `Attached "${file.name}" for AI analysis.`);
       }
     } catch (e) {
       Alert.alert('Attachment', 'Unable to pick file: ' + e.message);
     }
   };
 
-  // ── Voice Recording & Messaging Handlers ──
+  // -- Voice Recording & Messaging Handlers --
   const handleStartVoiceRecording = async () => {
+    if (isOffline) {
+      setOfflineModalVisible(true);
+      return;
+    }
     Keyboard.dismiss();
     setIsInputFocused(false);
 
@@ -2799,7 +4224,7 @@ export default function AiCoachScreen({
       duration: recordingData.duration,
       durationText: recordingData.durationText,
       waveform: recordingData.waveform || voiceRecordingService.generateWaveform(22),
-      text: `🎤 Voice Message (${recordingData.durationText})`,
+      text: `\u{1F399}\u{FE0F} Voice Message (${recordingData.durationText})`,
     };
 
     setConversations(prev => prev.map(c =>
@@ -2809,41 +4234,76 @@ export default function AiCoachScreen({
     ));
 
     flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+    const voiceText = recordingData?.transcription || '';
+    const isResearchQuery = Boolean(voiceText && /(?:richest|billionaire|net worth|latest news|current news|in 2025|in 2026|search online|search the web|with citations|compare.*(?:pros and cons|vs|versus))/i.test(voiceText));
+    setAiThinkingStatus(isResearchQuery ? "Searching public sources..." : null);
+    setIsAiThinking(true);
 
     // AI Companion Response to Voice Note
-    setTimeout(() => {
-      const persona = currentSettings?.aiPersonality || 'encouraging';
+    setTimeout(async () => {
+      const persona = currentSettings?.aiPersonality || 'all_round';
       const depth = currentSettings?.aiModelDepth || 'balanced';
+      const academicLevel = currentSettings?.aiAcademicLevel || 'undergraduate';
+      const customInstructions = currentSettings?.aiCustomInstructions || '';
 
-      const promptContext = 'Explain the key concepts and actionable study takeaways for my question.';
-      const aiResponse = getLocalizedAiResponse({
-        text: promptContext,
-        activeMode,
-        lang: currentLang,
-        persona,
-        depth,
-      });
+      const promptContext = 'I sent a voice note with a question. Please break down the key concepts and give me actionable study takeaways.';
+      let aiResponse;
+      try {
+        const activeConv = conversationsRef.current.find(c => c.id === targetId);
+        const history = (activeConv?.messages || []).map(m => ({
+          sender: m.sender,
+          text: m.text,
+        }));
+        const { brainContext } = await brancoBrainService.queryBrain(promptContext, { currentConversationId: targetId });
+        aiResponse = await aiService.askTutor({
+          prompt: promptContext,
+          conversationHistory: history,
+          mode: activeMode || 'general',
+          persona,
+          depth,
+          academicLevel,
+          customInstructions,
+          language: currentLang,
+          brainContext,
+        });
+      } catch (err) {
+        aiResponse = getLocalizedAiResponse({
+          text: promptContext,
+          activeMode,
+          lang: currentLang,
+          persona,
+          depth,
+          academicLevel,
+          customInstructions,
+        });
+      }
 
       const aiMsgId = `ai-${Date.now()}`;
-      const aiMsg = {
-        id: aiMsgId,
-        sender: 'ai',
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        text: aiResponse.text,
-        mode: activeMode,
+
+      brancoBrainService.recordTurn({
+        conversationId: targetId,
+        conversationTitle: 'Voice Note Session',
+        userText: userMsg.text,
+        aiText: aiResponse.text,
+        mode: activeMode || 'general',
+        persona,
+        type: 'voice_note',
+      });
+
+      streamAiResponse({
+        targetId,
+        aiMsgId,
+        fullText: aiResponse.text,
+        effectiveMode: activeMode,
         latexFormula: aiResponse.latexFormula,
         steps: aiResponse.steps,
         example: aiResponse.example,
         suggestedActions: aiResponse.suggestedActions,
-      };
-
-      setConversations(prev => prev.map(c =>
-        c.id === targetId
-          ? { ...c, messages: [...(c.messages || []), aiMsg] }
-          : c
-      ));
-      flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
-    }, 900);
+        persona: aiResponse.persona,
+        personaBadge: aiResponse.personaBadge,
+        thoughtProcess: aiResponse?.thoughtProcess || null,
+      });
+    }, 400);
   };
 
   const handleTogglePlayVoiceNote = async (item) => {
@@ -2879,7 +4339,7 @@ export default function AiCoachScreen({
     liveOrbPulseAnim.setValue(1);
     liveOrbDisperseAnim.setValue(0);
     flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
-    showToast(t("aiCoach.liveVoiceEnded", "Live voice chat ended"), "🎙️");
+    showToast(t("aiCoach.liveVoiceEnded", "Live voice chat ended"), "???");
   };
 
   const handleSendLiveVoicePrompt = () => {
@@ -2898,6 +4358,11 @@ export default function AiCoachScreen({
       return;
     }
 
+    if (isOffline) {
+      setOfflineModalVisible(true);
+      return;
+    }
+
     Keyboard.dismiss();
     setIsLiveVoiceActive(true);
     setLiveVoiceState('listening');
@@ -2908,7 +4373,7 @@ export default function AiCoachScreen({
     liveOrbDisperseAnim.setValue(0);
 
     const liveLang = currentLang || 'en';
-    const persona = currentSettings?.aiPersonality || 'encouraging';
+    const persona = currentSettings?.aiPersonality || 'all_round';
     const depth = currentSettings?.aiModelDepth || 'balanced';
     await liveVoiceChatService.startLiveSession({
       lang: liveLang,
@@ -3018,13 +4483,15 @@ export default function AiCoachScreen({
 
   const handleAskLivePrompt = (promptText) => {
     const liveLang = currentLang || 'en';
-    const persona = currentSettings?.aiPersonality || 'encouraging';
+    const persona = currentSettings?.aiPersonality || 'all_round';
     const depth = currentSettings?.aiModelDepth || 'balanced';
     liveVoiceChatService.askQuestionManually(promptText, liveLang, persona, depth);
   };
 
-  // ── Render Chat Message Item ──
-  const renderMessageItem = ({ item }) => {
+  // -- Render Chat Message Item --
+  const keyExtractor = useCallback((item) => item.id, []);
+
+  const renderMessageItem = useCallback(({ item }) => {
     const isUser = item.sender === 'user';
 
     if (isUser) {
@@ -3089,7 +4556,9 @@ export default function AiCoachScreen({
       return (
         <View style={styles.userBubbleWrapper}>
           <View style={styles.userBubble}>
-            <Text style={styles.userText}>{item.text}</Text>
+            <Text style={styles.userText}>
+              {renderFormattedInline(item.text, isDark, accentColor, { defaultColor: '#FFFFFF' })}
+            </Text>
             <Text style={styles.userTime}>{item.timestamp}</Text>
           </View>
         </View>
@@ -3098,6 +4567,7 @@ export default function AiCoachScreen({
 
     const isExpanded = expandedSteps[item.id];
     const isAudioPlaying = playingAudioMsgId === item.id;
+    const isAudioLoading = loadingAudioMsgId === item.id;
     const isSavedSrs = savedSrsMsgs[item.id];
     const isSavedNote = savedNotesMsgs[item.id];
 
@@ -3109,17 +4579,38 @@ export default function AiCoachScreen({
         isExpanded={isExpanded}
         toggleSteps={toggleSteps}
         isAudioPlaying={isAudioPlaying}
+        isAudioLoading={isAudioLoading}
         handleToggleListen={handleToggleListen}
         isSavedSrs={isSavedSrs}
         handleSaveToSrs={handleSaveToSrs}
         isSavedNote={isSavedNote}
         handleSaveNote={handleSaveNote}
+        userFeedback={feedbackMsgs[item.id] || item.userFeedback || null}
+        handleFeedback={handleFeedback}
         t={t}
       />
     );
-  };
+  }, [
+    isDark,
+    accentColor,
+    playingVoiceMsgId,
+    voicePlaybackProgress,
+    expandedSteps,
+    playingAudioMsgId,
+    loadingAudioMsgId,
+    savedSrsMsgs,
+    savedNotesMsgs,
+    toggleSteps,
+    handleToggleListen,
+    handleSaveToSrs,
+    handleSaveNote,
+    feedbackMsgs,
+    handleFeedback,
+    handleTogglePlayVoiceNote,
+    t,
+  ]);
 
-  // ── Layout calculations ──
+  // -- Layout calculations --
   const isKeyboardVisible = keyboardHeight > 0;
   const dockBottomOffset = isKeyboardVisible
     ? keyboardHeight
@@ -3127,9 +4618,9 @@ export default function AiCoachScreen({
 
   const hasInput = inputText.trim().length > 0;
 
-  // ═════════════════════════════════════════════════════════════════════════════
-  // ─── RENDER ───────────────────────────────────────────────────────────────
-  // ═════════════════════════════════════════════════════════════════════════════
+  // -----------------------------------------------------------------------------
+  // --- RENDER ---------------------------------------------------------------
+  // -----------------------------------------------------------------------------
 
   return (
     <SafeAreaView
@@ -3142,7 +4633,7 @@ export default function AiCoachScreen({
         translucent={true}
       />
 
-      {/* ── NON-INTRUSIVE FLOATING TOAST NOTIFICATION ── */}
+      {/* -- NON-INTRUSIVE FLOATING TOAST NOTIFICATION -- */}
       {toastNotification && (
         <Animated.View
           pointerEvents="none"
@@ -3175,10 +4666,25 @@ export default function AiCoachScreen({
         </Animated.View>
       )}
 
-      {/* ── FLOATING SMOKY HEADER ── */}
+      {/* -- FLOATING SMOKY HEADER -- */}
       {!isLiveVoiceActive && (
         <View style={[styles.floatingHeaderWrapper, { paddingTop: insets.top }]}>
-          <View style={styles.headerTintOverlay} pointerEvents="none" />
+          {/* Atmospheric gradient fade from top of screen going down */}
+          <View style={[StyleSheet.absoluteFillObject, { bottom: -32 }]} pointerEvents="none">
+            <Svg width="100%" height="100%" preserveAspectRatio="none">
+              <Defs>
+                <LinearGradient id={isDark ? "headerTopFade_dark" : "headerTopFade_light"} x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0%" stopColor={isDark ? '#0B0F19' : '#F8FAFC'} stopOpacity="1" />
+                  <Stop offset="55%" stopColor={isDark ? '#0B0F19' : '#F8FAFC'} stopOpacity="1" />
+                  <Stop offset="72%" stopColor={isDark ? '#0B0F19' : '#F8FAFC'} stopOpacity="0.9" />
+                  <Stop offset="86%" stopColor={isDark ? '#0B0F19' : '#F8FAFC'} stopOpacity="0.5" />
+                  <Stop offset="94%" stopColor={isDark ? '#0B0F19' : '#F8FAFC'} stopOpacity="0.18" />
+                  <Stop offset="100%" stopColor={isDark ? '#0B0F19' : '#F8FAFC'} stopOpacity="0" />
+                </LinearGradient>
+              </Defs>
+              <Rect x="0" y="0" width="100%" height="100%" fill={isDark ? "url(#headerTopFade_dark)" : "url(#headerTopFade_light)"} />
+            </Svg>
+          </View>
 
           <View style={styles.topHeader}>
             {/* Left: Chat History Hamburger (UNTOUCHED - ALWAYS OPENS CHAT HISTORY) */}
@@ -3194,38 +4700,69 @@ export default function AiCoachScreen({
 
             {/* Center: Title & Subtitle */}
             <View style={styles.headerCenter}>
-              <Text style={styles.headerTitle}>{t("aiCoach.title", "Branco")}</Text>
-              <Text style={styles.headerSubtitle}>{t("aiCoach.subtitle", "Your personal study companion ✨")}</Text>
+              <Text style={styles.headerTitle}>{t("aiCoach.title", "Nia")}</Text>
+              <Text style={styles.headerSubtitle}>{t("aiCoach.subtitle", "Your personal study companion ?")}</Text>
             </View>
 
             {/* Right: Actions Group (New Chat + Screen Switcher) */}
             <View style={styles.headerRightActions}>
-              <TooltipTouchable
-                tooltip="New Chat"
-                style={styles.headerIconBtn}
-                onPress={handleNewChat}
-                activeOpacity={0.7}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <PlusIcon color={isDark ? "#F8FAFC" : "#0F172A"} size={20} />
-              </TooltipTouchable>
+              {hasMessages && (
+                <TooltipTouchable
+                  tooltip="New Chat"
+                  style={styles.headerIconBtn}
+                  onPress={handleNewChat}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <PlusIcon color={isDark ? "#F8FAFC" : "#0F172A"} size={20} />
+                </TooltipTouchable>
+              )}
 
               <TooltipTouchable
-                tooltip="Screen Switcher"
+                tooltip={t("common.dashboard", "Dashboard")}
                 style={[styles.headerIconBtn, styles.navSwitcherBtn]}
-                onPress={() => setIsNavModalVisible(true)}
+                onPress={handleGoToDashboard}
                 activeOpacity={0.7}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
-                <CompassNavIcon color={isDark ? (accentColor || "#A78BFA") : (accentColor || "#6236FF")} size={20} />
+                <HomeNavIcon color={isDark ? (accentColor || "#A78BFA") : (accentColor || "#6236FF")} size={20} />
               </TooltipTouchable>
             </View>
           </View>
         </View>
       )}
 
-      {/* ── MAIN CONTENT ───────────────────────────────────────────────────── */}
+      {/* -- MAIN CONTENT ----------------------------------------------------- */}
       <View style={{ flex: 1 }}>
+        {/* Offline Warning Banner (Refined Premium Status Card) */}
+        {isOffline && !isLiveVoiceActive && (
+          <View style={[styles.aiOfflineTopBanner, { marginTop: insets.top + (activeSrsReturnState ? 116 : 58) }]}>
+            <View style={styles.aiOfflineHeaderRow}>
+              <View style={styles.aiOfflineIconBox}>
+                <WifiOffIcon size={16} color={isDark ? '#94A3B8' : '#64748B'} />
+              </View>
+              <View style={styles.aiOfflineHeaderTextCol}>
+                <View style={styles.aiOfflineBadgeRow}>
+                  <View style={styles.aiOfflineBadge}>
+                    <Text style={styles.aiOfflineBadgeText}>OFFLINE</Text>
+                  </View>
+                  <Text style={styles.aiOfflineBadgeSub}>AI Coach requires internet</Text>
+                </View>
+              </View>
+            </View>
+            <Text style={styles.aiOfflineBannerDesc}>
+              Connect to the internet to chat with Nia. Your flashcards, quizzes, timer, and notes work 100% offline.
+            </Text>
+            <TouchableOpacity
+              style={styles.aiOfflineCtaBtn}
+              onPress={() => onSelectTab ? onSelectTab('study') : onNavigate && onNavigate('study')}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.aiOfflineCtaText}>Go to Offline Flashcards & Quizzes ?</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* SRS Return Banner */}
         {activeSrsReturnState && (
           <View style={[styles.srsReturnBanner, { marginTop: insets.top + 58 }]}>
@@ -3255,12 +4792,12 @@ export default function AiCoachScreen({
               }}
               activeOpacity={0.85}
             >
-              <Text style={styles.srsReturnBtnText}>{t("aiCoach.backToSrs", "Back to SRS Card ➔")}</Text>
+              <Text style={styles.srsReturnBtnText}>{t("aiCoach.backToSrs", "Back to SRS Card ?")}</Text>
             </TouchableOpacity>
           </View>
         )}
         {isLiveVoiceActive ? (
-          /* ── IN-SCREEN LIVE VOICE CHAT VIEW (Matching Inspiration Design) ── */
+          /* -- IN-SCREEN LIVE VOICE CHAT VIEW (Matching Inspiration Design) -- */
           <KeyboardAvoidingView
             style={{ flex: 1 }}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -3294,7 +4831,7 @@ export default function AiCoachScreen({
                   <PlusIcon color={isDark ? "#94A3B8" : "#64748B"} size={18} />
                   <TextInput
                     style={styles.liveVoiceInputField}
-                    placeholder="Ask Branco..."
+                    placeholder="Ask Nia..."
                     placeholderTextColor={isDark ? "#94A3B8" : "#64748B"}
                     value={liveVoiceInputText}
                     onChangeText={setLiveVoiceInputText}
@@ -3343,7 +4880,7 @@ export default function AiCoachScreen({
         ) : (
           <>
             {!hasMessages ? (
-              /* ── EMPTY STATE ─────────────────────────────────────────────── */
+              /* -- EMPTY STATE ----------------------------------------------- */
               <ScrollView
                 style={{ flex: 1 }}
                 contentContainerStyle={[styles.emptyStateContainer, { paddingTop: insets.top + 70 }]}
@@ -3352,7 +4889,7 @@ export default function AiCoachScreen({
                 <AiMascot isDark={isDark} accentColor={accentColor} />
 
                 <Text style={styles.greetingTitle}>{t("aiCoach.greeting", { name: firstName })}</Text>
-                <Text style={styles.greetingAccent}>{t("aiCoach.companion", "I'm Branco, your AI study companion.")}</Text>
+                <Text style={styles.greetingAccent}>{t("aiCoach.companion", "I'm Nia, your AI study companion.")}</Text>
                 <Text style={styles.greetingBody}>
                   {t("aiCoach.readyToHelp", "Ready to help you understand, plan, study and achieve your goals.")}
                 </Text>
@@ -3385,27 +4922,79 @@ export default function AiCoachScreen({
                 </ScrollView>
               </ScrollView>
             ) : (
-              /* ── CHAT VIEW ───────────────────────────────────────────────── */
+              /* -- CHAT VIEW ------------------------------------------------- */
               <>
-                <FlatList
-                  ref={flatListRef}
-                  data={reversedMessages}
-                  keyExtractor={(item) => item.id}
-                  renderItem={renderMessageItem}
-                  contentContainerStyle={[styles.chatListContent, { paddingBottom: insets.top + 72, paddingTop: 16 }]}
-                  showsVerticalScrollIndicator={false}
-                  keyboardShouldPersistTaps="handled"
-                  inverted
-                  initialNumToRender={15}
-                  maxToRenderPerBatch={10}
-                  windowSize={11}
-                />
+                <View style={{ flex: 1 }}>
+                  <FlatList
+                    ref={flatListRef}
+                    data={reversedMessages}
+                    keyExtractor={keyExtractor}
+                    renderItem={renderMessageItem}
+                    ListHeaderComponent={isAiThinking ? <BrancoTypingBubble isDark={isDark} statusText={aiThinkingStatus} /> : null}
+                    contentContainerStyle={[styles.chatListContent, { paddingBottom: insets.top + 72, paddingTop: 16 }]}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                    inverted
+                    initialNumToRender={8}
+                    maxToRenderPerBatch={6}
+                    windowSize={5}
+                    updateCellsBatchingPeriod={30}
+                    removeClippedSubviews={Platform.OS === 'android'}
+                    onScroll={handleChatScroll}
+                    scrollEventThrottle={64}
+                  />
 
-                {!isKeyboardVisible && (
+                  {/* -- Scroll to Bottom Floating Button -- */}
+                  {showScrollBottomBtn && (
+                    <Animated.View
+                      style={[
+                        styles.scrollToBottomBtnContainer,
+                        {
+                          opacity: scrollBottomAnim,
+                          transform: [
+                            {
+                              scale: scrollBottomAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [0.75, 1],
+                              }),
+                            },
+                            {
+                              translateY: scrollBottomAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [8, 0],
+                              }),
+                            },
+                          ],
+                        },
+                      ]}
+                      pointerEvents={showScrollBottomBtn ? 'auto' : 'none'}
+                    >
+                      <TouchableOpacity
+                        style={styles.scrollToBottomBtn}
+                        onPress={handleScrollToBottom}
+                        activeOpacity={0.8}
+                      >
+                        <ArrowDownIcon color={isDark ? '#F8FAFC' : '#1E293B'} size={18} />
+                      </TouchableOpacity>
+                    </Animated.View>
+                  )}
+                </View>
+
+                {!isKeyboardVisible && Array.isArray(dynamicPromptChips) && dynamicPromptChips.length > 0 && (
                   <View style={styles.promptChipsWrapper}>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsCarousel}>
-                      {localizedPromptChips.map((chip, idx) => (
-                        <TouchableOpacity key={idx} style={styles.chipPill} onPress={() => handlePromptChip(chip)} activeOpacity={0.75}>
+                    <ScrollView
+                      ref={promptChipsScrollRef}
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.chipsCarousel}
+                    >
+                      {dynamicPromptChips.map((chip, idx) => (
+                        <TouchableOpacity
+                          key={`${chip.label}-${idx}`}
+                          style={styles.chipPill}
+                          onPress={() => handlePromptChip(chip)}
+                          activeOpacity={0.75}
+                        >
                           <Text style={styles.chipPillText}>{chip.label}</Text>
                         </TouchableOpacity>
                       ))}
@@ -3415,19 +5004,9 @@ export default function AiCoachScreen({
               </>
             )}
 
-            {/* ── ATTACHMENT BAR ────────────────────────────────────────────── */}
-            {attachedFile && (
-              <View style={styles.attachmentBar}>
-                <Text style={styles.attachmentText} numberOfLines={1}>
-                  📄 Attached: {attachedFile.name}
-                </Text>
-                <TouchableOpacity onPress={() => setAttachedFile(null)}>
-                  <Text style={styles.attachmentCloseText}>✕</Text>
-                </TouchableOpacity>
-              </View>
-            )}
 
-            {/* ── INPUT DOCK ───────────────────────────────────────────────── */}
+
+            {/* -- INPUT DOCK ------------------------------------------------- */}
             <Animated.View
               style={[
                 styles.inputDockContainer,
@@ -3441,6 +5020,148 @@ export default function AiCoachScreen({
               ]}
               {...swipeGesture.panHandlers}
             >
+            {/* Full-screen tap-to-dismiss backdrop */}
+            {isActionMenuOpen && (
+              <TouchableWithoutFeedback onPress={closeActionMenu}>
+                <View style={styles.actionMenuBackdrop} pointerEvents="auto" />
+              </TouchableWithoutFeedback>
+            )}
+
+            {/* Studpal Quick Action Popover (Personalized Gemini-style Menu) */}
+            {isActionMenuOpen && (
+              <Animated.View
+                style={[
+                  styles.quickActionsPopover,
+                  {
+                    backgroundColor: isDark ? '#181C26' : '#FFFFFF',
+                    borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(226, 232, 240, 0.95)',
+                    opacity: actionMenuAnim,
+                    transform: [
+                      {
+                        scale: actionMenuAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.88, 1],
+                        }),
+                      },
+                      {
+                        translateY: actionMenuAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [14, 0],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
+                {/* Header Title */}
+                <View style={styles.quickActionsHeader}>
+                  <Text style={[styles.quickActionsTitle, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                    STUDY ATTACHMENTS
+                  </Text>
+                </View>
+                <View>
+                  {/* Section 1: Upload Study Materials */}
+                  <TouchableOpacity
+                    style={styles.popoverItem}
+                    onPress={() => {
+                      closeActionMenu();
+                      handleAttachFile();
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.popoverIconBox, { backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : '#EEF2FF' }]}>
+                      <PaperclipActionIcon color={accentColor || '#6366F1'} size={17} />
+                    </View>
+                    <View style={styles.popoverItemTextCol}>
+                      <Text style={[styles.popoverItemLabel, { color: isDark ? '#F1F5F9' : '#0F172A' }]}>
+                        Upload Document
+                      </Text>
+                      <Text style={[styles.popoverItemSub, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                        PDF, Word, or lecture notes
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.popoverItem}
+                    onPress={handleScanNotes}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.popoverIconBox, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.15)' : '#ECFDF5' }]}>
+                      <GalleryActionIcon color="#10B981" size={17} />
+                    </View>
+                    <View style={styles.popoverItemTextCol}>
+                      <Text style={[styles.popoverItemLabel, { color: isDark ? '#F1F5F9' : '#0F172A' }]}>
+                        Upload Images
+                      </Text>
+                      <Text style={[styles.popoverItemSub, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                        Photos, diagrams, or screenshots
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.popoverItem}
+                    onPress={handlePickPhoto}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.popoverIconBox, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF' }]}>
+                      <CameraActionIcon color="#3B82F6" size={17} />
+                    </View>
+                    <View style={styles.popoverItemTextCol}>
+                      <Text style={[styles.popoverItemLabel, { color: isDark ? '#F1F5F9' : '#0F172A' }]}>
+                        Camera
+                      </Text>
+                      <Text style={[styles.popoverItemSub, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                        Take a photo with camera
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.popoverItem}
+                    onPress={handlePickVideo}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.popoverIconBox, { backgroundColor: isDark ? 'rgba(244, 63, 94, 0.15)' : '#FFF1F2' }]}>
+                      <VideoActionIcon color="#F43F5E" size={17} />
+                    </View>
+                    <View style={styles.popoverItemTextCol}>
+                      <Text style={[styles.popoverItemLabel, { color: isDark ? '#F1F5F9' : '#0F172A' }]}>
+                        Upload Video
+                      </Text>
+                      <Text style={[styles.popoverItemSub, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                        Lecture clip, tutorial, or demo
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+
+                </View>
+
+              </Animated.View>
+            )}
+
+            {/* Horizontal Attachment Carousel (ChatGPT-style preview cards) */}
+            {attachedFiles && attachedFiles.length > 0 && (
+              <View style={attachmentCardStyles.attachmentCarouselContainer}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={attachmentCardStyles.attachmentCarouselContent}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  {attachedFiles.map((file, idx) => (
+                    <AttachmentPreviewCard
+                      key={`${file.uri || file.name}-${idx}`}
+                      file={file}
+                      onRemove={() => handleRemoveAttachment(idx)}
+                      isDark={isDark}
+                    />
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
               <Animated.View
                 onLayout={(e) => {
                   const w = Math.round(e.nativeEvent.layout.width);
@@ -3482,36 +5203,57 @@ export default function AiCoachScreen({
               >
                 {/* Plus attachment / action button */}
                 <TooltipTouchable
-                  tooltip="Attach File"
+                  tooltip={isActionMenuOpen ? "Close Menu" : "Add or Study Tool"}
                   style={styles.inputActionIcon}
-                  onPress={handleAttachFile}
+                  onPress={toggleActionMenu}
                   activeOpacity={0.7}
                 >
-                  <PlusIcon color="#64748B" size={19} />
+                  <Animated.View
+                    style={{
+                      transform: [
+                        {
+                          rotate: actionMenuAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: ['0deg', '45deg'],
+                          }),
+                        },
+                      ],
+                    }}
+                  >
+                    <PlusIcon color={isActionMenuOpen ? '#6236FF' : '#64748B'} size={19} />
+                  </Animated.View>
                 </TooltipTouchable>
 
                 {/* Text input */}
                 <TextInput
                   ref={inputRef}
                   style={styles.dockTextInput}
-                  placeholder={t("aiCoach.askPlaceholder", "Ask Branco anything...")}
+                  placeholder={t("aiCoach.askPlaceholder", "Ask Nia anything...")}
                   placeholderTextColor="#94A3B8"
                   value={inputText}
                   onChangeText={setInputText}
                   onFocus={() => {
                     setIsInputFocused(true);
-                    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
                   }}
                   onBlur={() => setIsInputFocused(false)}
                   multiline
-                  numberOfLines={1}
                   textAlignVertical="center"
                   scrollEnabled
+                  onContentSizeChange={adjustTextInputHeight}
                 />
-
                 {/* Action Group: Send OR Mic + Voice Waveform Button */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  {hasInput ? (
+                  {isGenerating ? (
+                    <TooltipTouchable
+                      tooltip="Stop Generating"
+                      style={[styles.sendBtnActive, { backgroundColor: '#EF4444' }]}
+                      onPress={handleStopGeneration}
+                      activeOpacity={0.85}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <StopSquareIcon color="#FFFFFF" size={14} />
+                    </TooltipTouchable>
+                  ) : hasInput ? (
                     <TooltipTouchable
                       tooltip="Send Message"
                       style={styles.sendBtnActive}
@@ -3522,27 +5264,15 @@ export default function AiCoachScreen({
                       <ArrowUpIcon color="#FFFFFF" size={18} />
                     </TooltipTouchable>
                   ) : (
-                    <>
-                      <TooltipTouchable
-                        tooltip="Live Voice Mode"
-                        style={[styles.voiceWaveBtn, isLiveVoiceActive && styles.voiceWaveBtnActive]}
-                        onPress={handleToggleLiveVoice}
-                        activeOpacity={0.85}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <WaveformIcon color="#FFFFFF" size={18} />
-                      </TooltipTouchable>
-
-                      <TooltipTouchable
-                        tooltip="Voice Input"
-                        style={styles.micBtn}
-                        onPress={handleToggleMic}
-                        activeOpacity={0.85}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <MicIcon color="#FFFFFF" size={18} />
-                      </TooltipTouchable>
-                    </>
+                    <TooltipTouchable
+                      tooltip="Voice Input"
+                      style={styles.micBtn}
+                      onPress={handleToggleMic}
+                      activeOpacity={0.85}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <MicIcon color="#FFFFFF" size={18} />
+                    </TooltipTouchable>
                   )}
                 </View>
 
@@ -3881,134 +5611,154 @@ export default function AiCoachScreen({
         </View>
       </Modal>
 
-      {/* ── CONVERSATION ACTIONS (PIN / DELETE / RENAME) MODAL ──────────── */}
+      {/* -- CHATGPT-STYLE DROPDOWN CONTEXT MENU / RENAME MODAL -- */}
       <Modal
         visible={!!historyActionConv}
         animationType="fade"
         transparent
-        onRequestClose={() => setHistoryActionConv(null)}
+        onRequestClose={() => {
+          setIsRenamingConv(false);
+          setHistoryActionConv(null);
+        }}
       >
-        <View style={styles.historyActionOverlay}>
+        <View style={styles.chatDropdownModalOverlay}>
           <TouchableOpacity
             style={StyleSheet.absoluteFill}
             activeOpacity={1}
-            onPress={() => setHistoryActionConv(null)}
+            onPress={() => {
+              setIsRenamingConv(false);
+              setHistoryActionConv(null);
+            }}
           />
 
           {historyActionConv && (
-            <View style={[styles.historyActionSheet, { paddingBottom: Math.max(insets.bottom, 16) + 16 }]}>
-              <View style={styles.sheetHandleBar} />
-
-              {/* Header with Title */}
-              <View style={styles.historyActionHeader}>
-                <View style={[styles.historyActionIconBox, { backgroundColor: `${accentColor}14` }]}>
-                  <ChatBubbleOutlineIcon color={accentColor} size={20} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.historyActionTitle} numberOfLines={1}>
-                    {historyActionConv.title}
-                  </Text>
-                  <Text style={styles.historyActionSubtitle}>
-                    {historyActionConv.messages.length} messages • {historyActionConv.isPinned ? 'Pinned' : 'Recent'}
-                  </Text>
+            isRenamingConv ? (
+              /* Rename Dialog */
+              <View style={[styles.chatRenameModalCard, { backgroundColor: isDark ? '#1E232B' : '#FFFFFF', borderColor: isDark ? 'rgba(255,255,255,0.12)' : '#E2E8F0' }]}>
+                <Text style={[styles.chatRenameModalTitle, { color: isDark ? '#F1F5F9' : '#0F172A' }]}>
+                  Rename Conversation
+                </Text>
+                <TextInput
+                  style={[
+                    styles.chatRenameModalInput,
+                    {
+                      backgroundColor: isDark ? '#141820' : '#F8FAFC',
+                      color: isDark ? '#F1F5F9' : '#0F172A',
+                      borderColor: isDark ? 'rgba(255,255,255,0.15)' : '#CBD5E1',
+                    },
+                  ]}
+                  value={renameText}
+                  onChangeText={setRenameText}
+                  placeholder={t("aiCoach.enterChatTitle", "Enter chat title...")}
+                  placeholderTextColor="#94A3B8"
+                  autoFocus
+                  selectTextOnFocus
+                  onSubmitEditing={handleSaveRename}
+                />
+                <View style={styles.chatRenameModalActions}>
+                  <TouchableOpacity
+                    style={styles.chatRenameCancelBtn}
+                    onPress={() => {
+                      setIsRenamingConv(false);
+                      setHistoryActionConv(null);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ color: isDark ? '#94A3B8' : '#64748B', fontSize: 14, fontWeight: '600' }}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.chatRenameSaveBtn, { backgroundColor: accentColor || '#6236FF' }]}
+                    onPress={handleSaveRename}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '700' }}>Save</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
-
-              {/* Rename Inline Form (if active) */}
-              {isRenamingConv ? (
-                <View style={styles.renameContainer}>
-                  <Text style={styles.renameLabel}>RENAME CONVERSATION</Text>
-                  <TextInput
-                    style={styles.renameInput}
-                    value={renameText}
-                    onChangeText={setRenameText}
-                    placeholder={t("aiCoach.enterChatTitle", "Enter chat title...")}
-                    placeholderTextColor="#94A3B8"
-                    autoFocus
-                  />
-                  <View style={styles.renameBtnRow}>
-                    <TouchableOpacity
-                      style={styles.renameCancelBtn}
-                      onPress={() => setIsRenamingConv(false)}
-                      activeOpacity={0.75}
-                    >
-                      <Text style={styles.renameCancelText}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.renameSaveBtn, { backgroundColor: accentColor }]}
-                      onPress={handleSaveRename}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={styles.renameSaveText}>Save</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ) : (
-                <View style={styles.historyActionButtonsList}>
-                  {/* Action 1: Pin / Unpin */}
-                  <TouchableOpacity
-                    style={styles.historyActionRow}
-                    onPress={() => handleTogglePinConversation(historyActionConv.id)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.historyActionBtnIcon, { backgroundColor: `${accentColor}12` }]}>
-                      <PinIcon color={accentColor} size={18} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.historyActionBtnTitle}>
-                        {historyActionConv.isPinned ? 'Unpin from Pinned' : 'Pin to Top'}
-                      </Text>
-                      <Text style={styles.historyActionBtnSub}>
-                        {historyActionConv.isPinned
-                          ? 'Move this chat to Recents'
-                          : 'Keep this chat pinned at the top'}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-
-                  {/* Action 2: Rename */}
-                  <TouchableOpacity
-                    style={styles.historyActionRow}
-                    onPress={() => setIsRenamingConv(true)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.historyActionBtnIcon, { backgroundColor: '#F1F5F9' }]}>
-                      <EditPencilIcon color="#475569" size={18} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.historyActionBtnTitle}>Rename Conversation</Text>
-                      <Text style={styles.historyActionBtnSub}>Change the title of this chat session</Text>
-                    </View>
-                  </TouchableOpacity>
-
-                  {/* Action 3: Delete */}
-                  <TouchableOpacity
-                    style={[styles.historyActionRow, styles.historyActionRowDelete]}
-                    onPress={() => handleDeleteConversation(historyActionConv.id)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.historyActionBtnIcon, { backgroundColor: '#FEF2F2' }]}>
-                      <TrashOutlineIcon color="#EF4444" size={18} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.historyActionBtnTitle, { color: '#EF4444' }]}>
-                        Delete Chat History
-                      </Text>
-                      <Text style={styles.historyActionBtnSub}>Permanently remove this conversation</Text>
-                    </View>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {/* Close Button */}
-              <TouchableOpacity
-                style={styles.historyActionCancelBtn}
-                onPress={() => setHistoryActionConv(null)}
-                activeOpacity={0.75}
+            ) : (
+              /* ChatGPT-Style Floating Dropdown Menu Card */
+              <View
+                style={[
+                  styles.chatDropdownCard,
+                  {
+                    top: dropdownPosition?.top ?? 160,
+                    left: Math.max(16, Math.min(DRAWER_WIDTH - 200, 95)),
+                    backgroundColor: isDark ? '#202123' : '#FFFFFF',
+                    borderColor: isDark ? 'rgba(255, 255, 255, 0.14)' : 'rgba(0, 0, 0, 0.08)',
+                  },
+                ]}
               >
-                <Text style={styles.historyActionCancelText}>Close</Text>
-              </TouchableOpacity>
-            </View>
+                {/* 1. Rename */}
+                <TouchableOpacity
+                  style={styles.chatDropdownItem}
+                  onPress={() => setIsRenamingConv(true)}
+                  activeOpacity={0.65}
+                >
+                  <EditPencilIcon color={isDark ? '#E5E7EB' : '#374151'} size={15} />
+                  <Text style={[styles.chatDropdownItemText, { color: isDark ? '#F3F4F6' : '#1F2937' }]}>
+                    Rename
+                  </Text>
+                </TouchableOpacity>
+
+                {/* 2. Pin / Unpin */}
+                <TouchableOpacity
+                  style={styles.chatDropdownItem}
+                  onPress={() => handleTogglePinConversation(historyActionConv.id)}
+                  activeOpacity={0.65}
+                >
+                  {historyActionConv.isPinned ? (
+                    <UnpinIcon color={isDark ? '#E5E7EB' : '#374151'} size={15} />
+                  ) : (
+                    <PinIcon color={isDark ? '#E5E7EB' : '#374151'} size={15} />
+                  )}
+                  <Text style={[styles.chatDropdownItemText, { color: isDark ? '#F3F4F6' : '#1F2937' }]}>
+                    {historyActionConv.isPinned ? 'Unpin' : 'Pin'}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Divider */}
+                <View style={[styles.chatDropdownDivider, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)' }]} />
+
+                {/* 3. Share */}
+                <TouchableOpacity
+                  style={styles.chatDropdownItem}
+                  onPress={() => handleShareConversation(historyActionConv)}
+                  activeOpacity={0.65}
+                >
+                  <ShareActionOutlineIcon color={isDark ? '#E5E7EB' : '#374151'} size={15} />
+                  <Text style={[styles.chatDropdownItemText, { color: isDark ? '#F3F4F6' : '#1F2937' }]}>
+                    Share
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Divider */}
+                <View style={[styles.chatDropdownDivider, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)' }]} />
+
+                {/* 4. Archive */}
+                <TouchableOpacity
+                  style={styles.chatDropdownItem}
+                  onPress={() => handleArchiveConversation(historyActionConv.id)}
+                  activeOpacity={0.65}
+                >
+                  <ArchiveOutlineIcon color={isDark ? '#E5E7EB' : '#374151'} size={15} />
+                  <Text style={[styles.chatDropdownItemText, { color: isDark ? '#F3F4F6' : '#1F2937' }]}>
+                    Archive
+                  </Text>
+                </TouchableOpacity>
+
+                {/* 5. Delete */}
+                <TouchableOpacity
+                  style={styles.chatDropdownItem}
+                  onPress={() => handleDeleteConversation(historyActionConv.id)}
+                  activeOpacity={0.65}
+                >
+                  <TrashOutlineIcon color="#EF4444" size={15} />
+                  <Text style={[styles.chatDropdownItemText, { color: '#EF4444' }]}>
+                    Delete
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )
           )}
         </View>
       </Modal>
@@ -4119,19 +5869,20 @@ export default function AiCoachScreen({
                   <Text style={styles.historySectionTitle}>{t("aiCoach.pinned", "PINNED")}</Text>
                   {pinnedChats.map((conv) => {
                     const isActive = conv.id === activeConversationId;
+                    const isMenuOpenForThis = historyActionConv?.id === conv.id;
                     return (
                       <TouchableOpacity
                         key={conv.id}
                         style={[
                           styles.chatHistoryItem,
-                          isActive && [
+                          (isActive || isMenuOpenForThis) && [
                             styles.chatHistoryItemActive,
                             { backgroundColor: `${accentColor}12` },
                           ],
                         ]}
                         onPress={() => handleSelectConversation(conv.id)}
-                        onLongPress={() => handleLongPressHistory(conv)}
-                        delayLongPress={300}
+                        onLongPress={(e) => handleLongPressHistory(conv, e)}
+                        delayLongPress={280}
                         activeOpacity={0.75}
                       >
                         <ChatBubbleOutlineIcon color={isActive ? accentColor : "#64748B"} size={16} />
@@ -4144,7 +5895,16 @@ export default function AiCoachScreen({
                         >
                           {conv.title}
                         </Text>
-                        <PinIcon color="#94A3B8" size={13} />
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <TouchableOpacity
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            onPress={(e) => handleLongPressHistory(conv, e)}
+                            style={{ padding: 2 }}
+                          >
+                            <MoreDotsIcon color={isActive ? accentColor : "#94A3B8"} size={14} />
+                          </TouchableOpacity>
+                          <PinIcon color="#94A3B8" size={13} />
+                        </View>
                       </TouchableOpacity>
                     );
                   })}
@@ -4157,19 +5917,20 @@ export default function AiCoachScreen({
                   <Text style={styles.historySectionTitle}>{t("aiCoach.recents", "RECENTS")}</Text>
                   {recentChats.map((conv) => {
                     const isActive = conv.id === activeConversationId;
+                    const isMenuOpenForThis = historyActionConv?.id === conv.id;
                     return (
                       <TouchableOpacity
                         key={conv.id}
                         style={[
                           styles.chatHistoryItem,
-                          isActive && [
+                          (isActive || isMenuOpenForThis) && [
                             styles.chatHistoryItemActive,
                             { backgroundColor: `${accentColor}12` },
                           ],
                         ]}
                         onPress={() => handleSelectConversation(conv.id)}
-                        onLongPress={() => handleLongPressHistory(conv)}
-                        delayLongPress={300}
+                        onLongPress={(e) => handleLongPressHistory(conv, e)}
+                        delayLongPress={280}
                         activeOpacity={0.75}
                       >
                         {!isActive && (
@@ -4184,6 +5945,13 @@ export default function AiCoachScreen({
                         >
                           {conv.title}
                         </Text>
+                        <TouchableOpacity
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          onPress={(e) => handleLongPressHistory(conv, e)}
+                          style={{ padding: 2 }}
+                        >
+                          <MoreDotsIcon color={isActive ? accentColor : "#94A3B8"} size={14} />
+                        </TouchableOpacity>
                       </TouchableOpacity>
                     );
                   })}
@@ -4197,13 +5965,13 @@ export default function AiCoachScreen({
                   </View>
                   <Text style={styles.historyEmptyTitle}>{t("aiCoach.noHistoryTitle", "No Chat History Yet")}</Text>
                   <Text style={styles.historyEmptySub}>
-                    {t("aiCoach.noHistorySub", "Ask Branco questions to begin building your permanent study history.")}
+                    {t("aiCoach.noHistorySub", "Ask Nia questions to begin building your permanent study history.")}
                   </Text>
                 </View>
               )}
             </ScrollView>
 
-            {/* ── CHATGPT-STYLE FLOATING PROFILE POPUP MENU ── */}
+            {/* -- CHATGPT-STYLE FLOATING PROFILE POPUP MENU -- */}
             {isProfileMenuOpen && (
               <>
                 <Animated.View
@@ -4376,7 +6144,7 @@ export default function AiCoachScreen({
               </>
             )}
 
-            {/* ── USER PROFILE FOOTER ROW (Toggles Profile Popup Menu & Quick Settings) ── */}
+            {/* -- USER PROFILE FOOTER ROW (Toggles Profile Popup Menu & Quick Settings) -- */}
             <View style={styles.profileFooterWrapper}>
               <View
                 style={[
@@ -4434,7 +6202,7 @@ export default function AiCoachScreen({
         </>
       )}
 
-      {/* ── OPENAI CHATGPT STYLE SETTINGS MODAL ───────────────────────── */}
+      {/* -- OPENAI CHATGPT STYLE SETTINGS MODAL ------------------------- */}
       <Modal
         visible={isAiSettingsModalOpen}
         animationType="fade"
@@ -4661,7 +6429,7 @@ export default function AiCoachScreen({
               ) : (
                 /* TAB-BASED VIEW */
                 <>
-                  {/* ── TAB 1: GENERAL ── */}
+                  {/* -- TAB 1: GENERAL -- */}
                   {aiSettingsActiveTab === 'general' && (
                     <View style={{ gap: 2 }}>
                       <Text style={styles.chatGptSectionHeading}>General</Text>
@@ -4709,7 +6477,7 @@ export default function AiCoachScreen({
                     </View>
                   )}
 
-                  {/* ── TAB 2: PERSONALIZATION ── */}
+                  {/* -- TAB 2: PERSONALIZATION -- */}
                   {aiSettingsActiveTab === 'personalization' && (
                     <View style={{ gap: 2 }}>
                       <Text style={styles.chatGptSectionHeading}>Personalization</Text>
@@ -4746,7 +6514,7 @@ export default function AiCoachScreen({
 
                       {/* Custom Instructions Inset Box */}
                       <View style={styles.chatGptCustomInstCard}>
-                        <Text style={styles.chatGptCustomInstTitle}>What should Branco know about you?</Text>
+                        <Text style={styles.chatGptCustomInstTitle}>What should Nia know about you?</Text>
                         <Text style={styles.chatGptCustomInstSub}>
                           Provide your major, learning style, and specific goals.
                         </Text>
@@ -4764,13 +6532,13 @@ export default function AiCoachScreen({
                           textAlignVertical="top"
                         />
                         <Text style={styles.chatGptCustomInstFooter}>
-                          🔒 Saved automatically and applied across all chats.
+                          ?? Saved automatically and applied across all chats.
                         </Text>
                       </View>
                     </View>
                   )}
 
-                  {/* ── TAB 3: NOTIFICATIONS ── */}
+                  {/* -- TAB 3: NOTIFICATIONS -- */}
                   {aiSettingsActiveTab === 'notifications' && (
                     <View style={{ gap: 2 }}>
                       <Text style={styles.chatGptSectionHeading}>Notifications</Text>
@@ -4824,7 +6592,7 @@ export default function AiCoachScreen({
                     </View>
                   )}
 
-                  {/* ── TAB 4: INTELLIGENCE & AUTOMATION ── */}
+                  {/* -- TAB 4: INTELLIGENCE & AUTOMATION -- */}
                   {aiSettingsActiveTab === 'intelligence' && (
                     <View style={{ gap: 2 }}>
                       <Text style={styles.chatGptSectionHeading}>Intelligence & Automation</Text>
@@ -4987,11 +6755,19 @@ export default function AiCoachScreen({
           )}
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* -- AI OFFLINE MODAL -- */}
+      <AiOfflineModal
+        visible={offlineModalVisible}
+        onClose={() => setOfflineModalVisible(false)}
+        onGoToOfflineStudy={() => onSelectTab ? onSelectTab('study') : onNavigate && onNavigate('study')}
+        featureName="Nia AI Coach"
+      />
     </SafeAreaView>
   );
 }
 
-// ─── Helper: relative time ──────────────────────────────────────────────────
+// --- Helper: relative time --------------------------------------------------
 
 function getRelativeTime(timestamp) {
   const diff = Date.now() - timestamp;
@@ -5004,9 +6780,9 @@ function getRelativeTime(timestamp) {
   return `${days}d ago`;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// ─── StyleSheet ─────────────────────────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════════
+// -------------------------------------------------------------------------------
+// --- StyleSheet -------------------------------------------------------------
+// -------------------------------------------------------------------------------
 
 const baseAiCoachStyles = StyleSheet.create({
   container: {
@@ -5014,7 +6790,7 @@ const baseAiCoachStyles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
   },
 
-  // ── Header (Smoky Translucent Floating Navbar) ──
+  // -- Header (Smoky Translucent Floating Navbar) --
   floatingHeaderWrapper: {
     position: 'absolute',
     top: 0,
@@ -5023,7 +6799,7 @@ const baseAiCoachStyles = StyleSheet.create({
     zIndex: 100,
     borderBottomWidth: 0,
     borderBottomColor: 'transparent',
-    backgroundColor: 'rgba(248, 250, 252, 0.60)',
+    backgroundColor: 'transparent',
   },
   headerTintOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -5082,7 +6858,7 @@ const baseAiCoachStyles = StyleSheet.create({
     letterSpacing: -0.1,
   },
 
-  // ── Empty State ──
+  // -- Empty State --
   emptyStateContainer: {
     alignItems: 'center',
     paddingHorizontal: 24,
@@ -5111,7 +6887,7 @@ const baseAiCoachStyles = StyleSheet.create({
     paddingHorizontal: 20,
   },
 
-  // ── Suggestion Chips ──
+  // -- Suggestion Chips --
   suggestionChipsScroll: {
     width: '100%',
     marginTop: 28,
@@ -5162,7 +6938,7 @@ const baseAiCoachStyles = StyleSheet.create({
     marginTop: 1,
   },
 
-  // ── Chat List ──
+  // -- Chat List --
   chatListContent: {
     paddingHorizontal: 16,
     paddingTop: 16,
@@ -5170,7 +6946,7 @@ const baseAiCoachStyles = StyleSheet.create({
     gap: 12,
   },
 
-  // ── User Bubble ──
+  // -- User Bubble --
   userBubbleWrapper: {
     alignItems: 'flex-end',
     marginBottom: 4,
@@ -5264,7 +7040,7 @@ const baseAiCoachStyles = StyleSheet.create({
     marginTop: 4,
   },
 
-  // ── AI Bubble ──
+  // -- AI Bubble --
   aiBubbleWrapper: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -5472,7 +7248,28 @@ const baseAiCoachStyles = StyleSheet.create({
     marginTop: 6,
   },
 
-  // ── Prompt Chips ──
+  // -- Scroll to Bottom Floating Button --
+  scrollToBottomBtnContainer: {
+    position: 'absolute',
+    bottom: 12,
+    alignSelf: 'center',
+    zIndex: 99,
+  },
+  scrollToBottomBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.22,
+    shadowRadius: 5,
+    elevation: 6,
+  },
+
+  // -- Prompt Chips --
   promptChipsWrapper: {
     paddingVertical: 6,
     backgroundColor: '#FFFFFF',
@@ -5495,7 +7292,7 @@ const baseAiCoachStyles = StyleSheet.create({
     color: '#2D62FF',
   },
 
-  // ── Attachment Bar ──
+  // -- Attachment Bar --
   attachmentBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -5519,7 +7316,90 @@ const baseAiCoachStyles = StyleSheet.create({
     marginLeft: 8,
   },
 
-  // ── Input Dock ──
+  // -- Input Dock --
+  actionMenuBackdrop: {
+    position: 'absolute',
+    top: -2500,
+    bottom: -1000,
+    left: -1000,
+    right: -1000,
+    zIndex: 90,
+    backgroundColor: 'transparent',
+  },
+  quickActionsPopover: {
+    position: 'absolute',
+    bottom: '100%',
+    left: 14,
+    marginBottom: 8,
+    width: 280,
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingTop: 10,
+    paddingBottom: 8,
+    paddingHorizontal: 6,
+    zIndex: 9999,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.24,
+        shadowRadius: 18,
+      },
+      android: {
+        elevation: 14,
+      },
+      web: {
+        boxShadow: '0 12px 36px rgba(0, 0, 0, 0.28), 0 2px 8px rgba(0, 0, 0, 0.1)',
+      },
+    }),
+  },
+  quickActionsHeader: {
+    paddingHorizontal: 10,
+    paddingTop: 2,
+    paddingBottom: 6,
+  },
+  quickActionsSubheader: {
+    paddingHorizontal: 10,
+    paddingTop: 6,
+    paddingBottom: 4,
+  },
+  quickActionsTitle: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  popoverItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    gap: 10,
+  },
+  popoverIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  popoverItemTextCol: {
+    flex: 1,
+  },
+  popoverItemLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: -0.1,
+  },
+  popoverItemSub: {
+    fontSize: 10.5,
+    marginTop: 1,
+  },
+  popoverDivider: {
+    height: 1,
+    marginVertical: 4,
+    marginHorizontal: 8,
+  },
   inputDockContainer: {
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -5571,7 +7451,7 @@ const baseAiCoachStyles = StyleSheet.create({
     textAlignVertical: 'center',
     alignSelf: 'center',
     minHeight: 24,
-    maxHeight: 154, // 7 lines cap (22px * 7 = 154px max height before scrolling)
+    maxHeight: 176, // 8 lines cap (22px * 8 = 176px max height before scrolling)
     borderWidth: 0,
     borderColor: 'transparent',
     backgroundColor: 'transparent',
@@ -5585,6 +7465,8 @@ const baseAiCoachStyles = StyleSheet.create({
         outlineWidth: 0,
         outlineColor: 'transparent',
         boxShadow: 'none',
+        fieldSizing: 'content',
+        maxHeight: 176,
       },
     }),
   },
@@ -5627,7 +7509,7 @@ const baseAiCoachStyles = StyleSheet.create({
     shadowColor: '#6236FF',
   },
 
-  // ── Voice Recording Dock ──
+  // -- Voice Recording Dock --
   voiceRecordingContainer: {
     flex: 1,
     flexDirection: 'row',
@@ -5694,7 +7576,7 @@ const baseAiCoachStyles = StyleSheet.create({
     elevation: 3,
   },
 
-  // ── Expanding Voice Recording Pill ──
+  // -- Expanding Voice Recording Pill --
   expandingRecordBar: {
     position: 'absolute',
     right: 0,
@@ -5869,7 +7751,7 @@ const baseAiCoachStyles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  // ── Audio Preview / Review Mode (Clean, Simple & Premium) ──
+  // -- Audio Preview / Review Mode (Clean, Simple & Premium) --
   previewContentRow: {
     flex: 1,
     flexDirection: 'row',
@@ -5960,7 +7842,7 @@ const baseAiCoachStyles = StyleSheet.create({
     elevation: 4,
   },
 
-  // ── History Drawer (ChatGPT-Style Crisp White Theme) ──
+  // -- History Drawer (ChatGPT-Style Crisp White Theme) --
   drawerOverlay: {
     position: 'absolute',
     left: 0,
@@ -6307,7 +8189,7 @@ const baseAiCoachStyles = StyleSheet.create({
     backgroundColor: '#3B82F6',
   },
 
-  // ── Screen Switcher Navigation Modal ──
+  // -- Screen Switcher Navigation Modal --
   navModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.6)',
@@ -6418,7 +8300,85 @@ const baseAiCoachStyles = StyleSheet.create({
     lineHeight: 15,
   },
 
-  // ── Conversation Long Press Action Sheet Modal ──
+  // -- Conversation Long Press Action Sheet Modal --
+  // -- ChatGPT-Style Chat Dropdown Menu --
+  chatDropdownModalOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+  },
+  chatDropdownCard: {
+    position: 'absolute',
+    width: 195,
+    borderRadius: 14,
+    paddingVertical: 5,
+    paddingHorizontal: 4,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 16,
+  },
+  chatDropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  chatDropdownItemText: {
+    fontSize: 13,
+    fontWeight: '500',
+    marginLeft: 10,
+  },
+  chatDropdownDivider: {
+    height: 1,
+    marginVertical: 4,
+    marginHorizontal: 8,
+  },
+  chatRenameModalCard: {
+    width: '84%',
+    maxWidth: 360,
+    alignSelf: 'center',
+    marginVertical: 'auto',
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 18,
+    elevation: 16,
+  },
+  chatRenameModalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 14,
+  },
+  chatRenameModalInput: {
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 14,
+    marginBottom: 16,
+  },
+  chatRenameModalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+  },
+  chatRenameCancelBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 8,
+  },
+  chatRenameSaveBtn: {
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    borderRadius: 8,
+  },
+
   historyActionOverlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.6)',
@@ -6567,7 +8527,7 @@ const baseAiCoachStyles = StyleSheet.create({
     color: '#FFFFFF',
   },
 
-  // ── History Drawer Empty State ──
+  // -- History Drawer Empty State --
   historyEmptyState: {
     padding: 24,
     alignItems: 'center',
@@ -6595,7 +8555,7 @@ const baseAiCoachStyles = StyleSheet.create({
     lineHeight: 16,
   },
 
-  // ── SRS Return Banner Styles ──
+  // -- SRS Return Banner Styles --
   srsReturnBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -6650,7 +8610,7 @@ const baseAiCoachStyles = StyleSheet.create({
     color: '#FFFFFF',
   },
 
-  // ── In-Screen Live Voice Chat with Branco Styles ──
+  // -- In-Screen Live Voice Chat with Branco Styles --
   inScreenLiveVoiceBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -6760,7 +8720,7 @@ const baseAiCoachStyles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  // ── In-Screen Live Voice View (Matching Inspiration Design) ──
+  // -- In-Screen Live Voice View (Matching Inspiration Design) --
   liveVoiceMainContainer: {
     flex: 1,
     backgroundColor: '#F8FAFC',
@@ -6890,7 +8850,7 @@ const baseAiCoachStyles = StyleSheet.create({
     elevation: 6,
   },
 
-  // ── Non-Intrusive Floating Toast ──
+  // -- Non-Intrusive Floating Toast --
   floatingInfoToast: {
     position: 'absolute',
     alignSelf: 'center',
@@ -6928,7 +8888,7 @@ const baseAiCoachStyles = StyleSheet.create({
     letterSpacing: -0.2,
   },
 
-  // ── OpenAI ChatGPT Style Settings Dialog ──
+  // -- OpenAI ChatGPT Style Settings Dialog --
   chatGptSettingsOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.45)',
@@ -7187,7 +9147,7 @@ const baseAiCoachStyles = StyleSheet.create({
     marginTop: 2,
   },
 
-  // ── AI Chatbot Personal Settings Modal Styles ──
+  // -- AI Chatbot Personal Settings Modal Styles --
   aiSettingsModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.68)',
@@ -7733,6 +9693,85 @@ const baseAiCoachStyles = StyleSheet.create({
     color: '#FFFFFF',
     letterSpacing: 0.1,
   },
+  aiOfflineTopBanner: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E2E8F0',
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 14,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  aiOfflineHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  aiOfflineIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  aiOfflineHeaderTextCol: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  aiOfflineBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  aiOfflineBadge: {
+    backgroundColor: '#F1F5F9',
+    borderColor: '#E2E8F0',
+    borderWidth: 1,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  aiOfflineBadgeText: {
+    color: '#64748B',
+    fontSize: 9.5,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  aiOfflineBadgeSub: {
+    color: '#0F172A',
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: -0.1,
+  },
+  aiOfflineBannerDesc: {
+    color: '#64748B',
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  aiOfflineCtaBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#6236FF',
+    paddingHorizontal: 13,
+    paddingVertical: 7.5,
+    borderRadius: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  aiOfflineCtaText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.1,
+  },
 });
 
 const getAiCoachStyles = (isDark, activeAccentColor) => {
@@ -7748,7 +9787,7 @@ const getAiCoachStyles = (isDark, activeAccentColor) => {
       {
         borderBottomWidth: 0,
         borderBottomColor: 'transparent',
-        backgroundColor: isDark ? 'rgba(11, 15, 25, 0.60)' : 'rgba(248, 250, 252, 0.60)',
+        backgroundColor: 'transparent',
       },
     ],
     headerTintOverlay: [
@@ -7847,6 +9886,12 @@ const getAiCoachStyles = (isDark, activeAccentColor) => {
       baseAiCoachStyles.actionPillSecondaryText,
       isDark && { color: '#F8FAFC' },
     ],
+    scrollToBottomBtn: [
+      baseAiCoachStyles.scrollToBottomBtn,
+      isDark
+        ? { backgroundColor: '#1E293B', borderColor: 'rgba(255, 255, 255, 0.16)' }
+        : { backgroundColor: '#FFFFFF', borderColor: '#E2E8F0' },
+    ],
     promptChipsWrapper: [
       baseAiCoachStyles.promptChipsWrapper,
       isDark && { backgroundColor: '#0B0F19' },
@@ -7917,6 +9962,46 @@ const getAiCoachStyles = (isDark, activeAccentColor) => {
     chatGptProfilePlan: [
       baseAiCoachStyles.chatGptProfilePlan,
       isDark && { color: '#94A3B8' },
+    ],
+    aiOfflineTopBanner: [
+      baseAiCoachStyles.aiOfflineTopBanner,
+      isDark && {
+        backgroundColor: '#111827',
+        borderColor: 'rgba(255, 255, 255, 0.08)',
+        shadowColor: '#000000',
+        shadowOpacity: 0.3,
+      },
+    ],
+    aiOfflineIconBox: [
+      baseAiCoachStyles.aiOfflineIconBox,
+      isDark && { backgroundColor: 'rgba(255, 255, 255, 0.06)' },
+    ],
+    aiOfflineBadge: [
+      baseAiCoachStyles.aiOfflineBadge,
+      isDark && {
+        backgroundColor: 'rgba(255, 255, 255, 0.06)',
+        borderColor: 'rgba(255, 255, 255, 0.08)',
+      },
+    ],
+    aiOfflineBadgeText: [
+      baseAiCoachStyles.aiOfflineBadgeText,
+      isDark && { color: '#94A3B8' },
+    ],
+    aiOfflineBadgeSub: [
+      baseAiCoachStyles.aiOfflineBadgeSub,
+      isDark && { color: '#F1F5F9' },
+    ],
+    aiOfflineBannerDesc: [
+      baseAiCoachStyles.aiOfflineBannerDesc,
+      isDark && { color: '#94A3B8' },
+    ],
+    aiOfflineCtaBtn: [
+      baseAiCoachStyles.aiOfflineCtaBtn,
+      { backgroundColor: activeAccentColor || '#6236FF' },
+    ],
+    aiOfflineCtaText: [
+      baseAiCoachStyles.aiOfflineCtaText,
+      { color: '#FFFFFF' },
     ],
     srsReturnBanner: [
       baseAiCoachStyles.srsReturnBanner,

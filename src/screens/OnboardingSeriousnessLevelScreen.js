@@ -105,7 +105,7 @@ export default function OnboardingSeriousnessLevelScreen({
                         backgroundColor: isSelected ? theme.cardSelected : theme.card,
                         borderColor: isSelected ? theme.cardSelected : theme.border,
                       },
-                      isSelected && styles.optionCardSelected,
+                      isSelected && styles.optionCardSelected, isDark && { backgroundColor: 'rgba(37, 99, 235, 0.18)', borderColor: '#3B82F6' },
                     ]}
                     onPress={() => handleSelect(opt.id)}
                     activeOpacity={0.8}

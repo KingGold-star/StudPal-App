@@ -15,6 +15,7 @@ export default function SubjectPerformanceChart({
   ],
   onSelectSubject,
   delay = 0,
+  isVisible = true,
 }) {
   const { isDark, accentColor } = useTheme();
   const safeSubjects = Array.isArray(subjectsData) ? subjectsData : [];
@@ -26,21 +27,34 @@ export default function SubjectPerformanceChart({
   }
 
   useEffect(() => {
-    sortedSubjects.forEach((s, i) => {
+    if (!isVisible) {
+      animValuesRef.current.forEach((anim) => {
+        if (anim) {
+          anim.stopAnimation();
+          anim.setValue(0);
+        }
+      });
+      return;
+    }
+
+    const animations = sortedSubjects.map((s, i) => {
       const anim = animValuesRef.current[i];
-      if (!anim || !s) return;
+      if (!anim || !s) return null;
       anim.setValue(0);
-      Animated.timing(anim, {
+      return Animated.timing(anim, {
         toValue: s.percentage || 0,
-        duration: 1100 + i * 80,
+        duration: 900 + i * 60,
+        delay: delay + i * 50,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: false,
-      }).start();
-    });
-  }, [subjectsData]);
+      });
+    }).filter(Boolean);
+
+    Animated.parallel(animations).start();
+  }, [subjectsData, isVisible]);
 
   return (
-    <ScrollDownAnimatedCard delay={delay} duration={1400}>
+    <ScrollDownAnimatedCard delay={delay} duration={1200} isVisible={isVisible}>
       <View style={styles.container}>
         {sortedSubjects.map((s, index) => {
           const anim = animValuesRef.current[index] || new Animated.Value(s ? s.percentage : 0);

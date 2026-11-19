@@ -15,7 +15,7 @@ import { useTheme } from '../theme/themeContext';
 import { getOnboardingTheme } from '../theme/onboardingTheme';
 
 // Custom Hand-Drawn Jagged Blue Highlighter Stroke with Generous Spread
-function JaggedBlueHighlighter({ text }) {
+function JaggedBlueHighlighter({ text, isDark }) {
   return (
     <View style={styles.jaggedContainer}>
       <Svg
@@ -45,7 +45,7 @@ function JaggedBlueHighlighter({ text }) {
              L 7 21 
              L 2 12 
              Z"
-          fill="#1200C6"
+          fill={isDark ? "#2563EB" : "#1200C6"}
         />
         <Path
           d="M 14 7 L 176 5 L 180 39 L 10 40 Z"
@@ -66,7 +66,7 @@ export default function OnboardingStudyPlanDetailsScreen({
   focusSubject = 'Mathematics',
   dailyStudyTime = '45 min',
   studyTimeOfDay = 'Evening',
-  studyDays = ['mon', 'wed', 'fri', 'sat'],
+  studyDays = ['mon', 'tue', 'wed', 'thu', 'fri'],
 }) {
   const { isDark } = useTheme();
   const theme = getOnboardingTheme(isDark);

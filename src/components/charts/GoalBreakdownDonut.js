@@ -15,6 +15,7 @@ export default function GoalBreakdownDonut({
   size = 160,
   strokeWidth = 16,
   delay = 0,
+  isVisible = true,
 }) {
   const { isDark, accentColor } = useTheme();
   const animatedValue = useRef(new Animated.Value(0)).current;
@@ -25,14 +26,21 @@ export default function GoalBreakdownDonut({
   const completedPct = total > 0 ? (completed / total) * 100 : 78;
 
   useEffect(() => {
+    if (!isVisible) {
+      animatedValue.stopAnimation();
+      animatedValue.setValue(0);
+      return;
+    }
+
     animatedValue.setValue(0);
     Animated.timing(animatedValue, {
       toValue: completedPct,
-      duration: 1400,
+      duration: 1200,
+      delay: delay + 80,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: USE_NATIVE,
     }).start();
-  }, [completedPct]);
+  }, [completedPct, isVisible]);
 
   const strokeDashoffset = animatedValue.interpolate({
     inputRange: [0, 100],
@@ -40,7 +48,7 @@ export default function GoalBreakdownDonut({
   });
 
   return (
-    <ScrollDownAnimatedCard delay={delay} duration={1400}>
+    <ScrollDownAnimatedCard delay={delay} duration={1200} isVisible={isVisible}>
       <View style={styles.container}>
         <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
           <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>

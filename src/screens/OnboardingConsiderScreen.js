@@ -3,7 +3,6 @@ import {
   StyleSheet,
   View,
   Text,
-  TouchableOpacity,
   Pressable,
   StatusBar,
   Animated,
@@ -17,6 +16,20 @@ export default function OnboardingConsiderScreen({ onContinue, userName = 'frien
   const { isDark } = useTheme();
   const theme = getOnboardingTheme(isDark);
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const hasContinuedRef = useRef(false);
+  const onContinueRef = useRef(onContinue);
+
+  useEffect(() => {
+    onContinueRef.current = onContinue;
+  }, [onContinue]);
+
+  const handleContinue = () => {
+    if (hasContinuedRef.current) return;
+    hasContinuedRef.current = true;
+    if (onContinueRef.current) {
+      onContinueRef.current();
+    }
+  };
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -24,6 +37,13 @@ export default function OnboardingConsiderScreen({ onContinue, userName = 'frien
       duration: 650,
       useNativeDriver: Platform.OS !== 'web',
     }).start();
+
+    // Auto-advance to the next screen after 1.5 seconds (1500ms)
+    const timer = setTimeout(() => {
+      handleContinue();
+    }, 1500);
+
+    return () => clearTimeout(timer);
   }, [fadeAnim]);
 
   const displayName = userName && userName.trim() ? userName.trim() : 'friend';
@@ -31,7 +51,7 @@ export default function OnboardingConsiderScreen({ onContinue, userName = 'frien
   return (
     <Pressable
       style={[styles.container, { backgroundColor: theme.bg }]}
-      onPress={onContinue}
+      onPress={handleContinue}
       activeOpacity={0.98}
     >
       <StatusBar barStyle={theme.barStyle} backgroundColor={theme.bg} translucent />
@@ -58,13 +78,6 @@ export default function OnboardingConsiderScreen({ onContinue, userName = 'frien
           <Text style={[styles.lineOne, { color: theme.textPrimary }]}>alright {displayName},</Text>
           <Text style={[styles.lineTwo, { color: theme.textPrimary }]}>consider this ...</Text>
         </Animated.View>
-
-        {/* Subtle Bottom 'tap to continue ➔' indicator */}
-        <View style={styles.footerContainer} pointerEvents="none">
-          <View style={styles.continueButton}>
-            <Text style={[styles.continueText, { color: theme.textPrimary }]}>tap to continue ➔</Text>
-          </View>
-        </View>
       </SafeAreaView>
     </Pressable>
   );
@@ -77,7 +90,7 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     paddingHorizontal: 28,
     paddingVertical: 24,
   },
@@ -101,21 +114,5 @@ const styles = StyleSheet.create({
     color: '#111827',
     textAlign: 'center',
     letterSpacing: -0.3,
-  },
-  footerContainer: {
-    alignItems: 'flex-end',
-    paddingBottom: 12,
-    paddingRight: 4,
-  },
-  continueButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 6,
-  },
-  continueText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
-    letterSpacing: 0.2,
-    opacity: 0.85,
   },
 });

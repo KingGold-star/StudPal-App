@@ -1,6 +1,8 @@
 // ─── STUDPAL AI QUIZ GENERATOR SERVICE ──────────────────────────────────────────
 // Dynamic background AI research & subject question generation engine.
 // Pre-warms and instantly synthesizes custom academic quiz questions for ANY subject.
+import { aiService } from './ai/aiService';
+import { studyService } from './studyService';
 
 // Comprehensive subject knowledge bases with deep topic pools
 const ACADEMIC_KNOWLEDGE_BASE = {
@@ -594,14 +596,74 @@ export const aiQuizGeneratorService = {
       candidatePool = generateProceduralQuestions(subject);
     }
 
-    // 4. Shuffle pool to provide fresh, non-repetitive experience on each session
-    const shuffledPool = shuffleArray(candidatePool);
-    const selectedQuestions = shuffledPool.slice(0, count);
+    // ── KNOWLEDGE CROSS-TALK: INJECT FLASHCARD STRUGGLES ──
+    const cardStruggles = typeof studyService?.getStrugglingConceptsForSubject === 'function'
+      ? studyService.getStrugglingConceptsForSubject(subject)
+      : [];
+
+    let prioritizedFromCards = [];
+    let remainingPool = [];
+
+    candidatePool.forEach((q) => {
+      const match = cardStruggles.find((s) => {
+        const cat = (s.category || '').toLowerCase();
+        const top = (q.topicName || '').toLowerCase();
+        const qText = (q.question || '').toLowerCase();
+        return (cat && (top.includes(cat) || cat.includes(top))) ||
+               (s.takeaway && qText.includes(s.takeaway.slice(0, 15).toLowerCase()));
+      });
+
+      if (match) {
+        prioritizedFromCards.push({
+          ...q,
+          flashcardBridge: {
+            cardId: match.cardId,
+            cardCategory: match.category,
+            cardQuestion: match.question,
+            takeaway: match.takeaway,
+            reason: "Targeted from recent flashcard struggle",
+          },
+        });
+      } else {
+        remainingPool.push(q);
+      }
+    });
+
+    // 4. Combine prioritized questions first, then shuffle remainder
+    const shuffledRemaining = shuffleArray(remainingPool);
+    const combinedPool = [...prioritizedFromCards, ...shuffledRemaining];
+    const selectedQuestions = combinedPool.slice(0, count);
 
     // 5. Cache result for instant retrieval
     questionCache.set(key, selectedQuestions);
 
     return selectedQuestions;
+  },
+
+  /**
+   * Dynamically generate AI quiz questions using Gemini API
+   */
+  async generateDynamicAiQuiz(subject, topic = '', difficulty = 'medium', count = 3) {
+    try {
+      // If topic not specified, focus on flashcard struggles if available
+      let targetTopic = topic;
+      if (!targetTopic) {
+        const struggles = typeof studyService?.getStrugglingConceptsForSubject === 'function'
+          ? studyService.getStrugglingConceptsForSubject(subject)
+          : [];
+        if (struggles.length > 0) {
+          targetTopic = struggles[0].category || struggles[0].question;
+        }
+      }
+
+      const result = await aiService.generateQuiz({ subject, topic: targetTopic, difficulty, questionCount: count });
+      if (result && (result.text || result.steps)) {
+        return result;
+      }
+    } catch (e) {
+      console.warn('[aiQuizGeneratorService.generateDynamicAiQuiz] Fallback to local:', e?.message);
+    }
+    return this.generateQuizQuestions(subject, count);
   },
 
   /**

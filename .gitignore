@@ -24,4 +24,8 @@ Thumbs.db
 *.exe
 scratch/
 
+# Environment variables
+.env
+.env*.local
+
 

@@ -132,6 +132,59 @@ export default function OnboardingScreen({ onContinue }) {
 
         {/* Central 3D Hey Graphic Element */}
         <View style={styles.centerContainer} pointerEvents="none">
+          {/* Dynamic Ground Contact Shadow (Floor anchored, breathes smoothly with float) */}
+          <Animated.View
+            style={[
+              styles.groundShadowWrapper,
+              {
+                opacity: fadeAnim,
+                transform: [
+                  {
+                    scaleX: floatAnim.interpolate({
+                      inputRange: [-8, 0],
+                      outputRange: [0.93, 1],
+                    }),
+                  },
+                  {
+                    scaleY: floatAnim.interpolate({
+                      inputRange: [-8, 0],
+                      outputRange: [0.86, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <Svg width={graphicSize * 0.72} height={graphicSize * 0.16} viewBox="0 0 240 44">
+              <Defs>
+                <RadialGradient id="heyGroundShadow" cx="50%" cy="50%" r="50%">
+                  <Stop
+                    offset="0%"
+                    stopColor={isDark ? '#000000' : '#0F172A'}
+                    stopOpacity={isDark ? '0.70' : '0.18'}
+                  />
+                  <Stop
+                    offset="45%"
+                    stopColor={isDark ? '#050D1F' : '#334155'}
+                    stopOpacity={isDark ? '0.35' : '0.08'}
+                  />
+                  <Stop
+                    offset="75%"
+                    stopColor={isDark ? '#1E3A8A' : '#64748B'}
+                    stopOpacity={isDark ? '0.12' : '0.02'}
+                  />
+                  <Stop
+                    offset="100%"
+                    stopColor={theme.bg}
+                    stopOpacity="0"
+                  />
+                </RadialGradient>
+              </Defs>
+              <Rect x="0" y="0" width="240" height="44" fill="url(#heyGroundShadow)" />
+            </Svg>
+          </Animated.View>
+
+          {/* Floating 3D Logo */}
           <Animated.View
             style={[
               styles.imageWrapper,
@@ -162,7 +215,7 @@ export default function OnboardingScreen({ onContinue }) {
           ]}
         >
           <View style={styles.swipePromptRow}>
-            <Text style={[styles.swipeText, { color: theme.accent }]}>Tap to continue</Text>
+            <Text style={[styles.swipeText, { color: isDark ? '#60A5FA' : theme.accent }]}>Tap to continue</Text>
           </View>
         </Animated.View>
       </SafeAreaView>
@@ -204,12 +257,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     width: '100%',
+    position: 'relative',
+  },
+  groundShadowWrapper: {
+    position: 'absolute',
+    top: '50%',
+    marginTop: graphicSize * 0.28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 0,
   },
   imageWrapper: {
     width: graphicSize,
     height: graphicSize,
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 1,
   },
   heyImage: {
     width: '100%',

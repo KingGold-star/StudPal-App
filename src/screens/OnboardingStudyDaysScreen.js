@@ -25,14 +25,14 @@ const DAYS_DATA = [
 export default function OnboardingStudyDaysScreen({
   onContinue,
   onBack,
-  initialDays = ['mon', 'wed', 'fri', 'sat'],
+  initialDays = ['mon', 'tue', 'wed', 'thu', 'fri'],
 }) {
   const { isDark } = useTheme();
   const theme = getOnboardingTheme(isDark);
   const [selectedDays, setSelectedDays] = useState(
     Array.isArray(initialDays) && initialDays.length > 0
       ? initialDays
-      : ['mon', 'wed', 'fri', 'sat']
+      : ['mon', 'tue', 'wed', 'thu', 'fri']
   );
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -110,7 +110,7 @@ export default function OnboardingStudyDaysScreen({
                       style={[
                         styles.dayName,
                         { color: isSelected ? theme.textPrimary : theme.textMuted },
-                        isSelected && styles.dayNameSelected,
+                        isSelected && { color: theme.textPrimary, fontWeight: '700' },
                       ]}
                       numberOfLines={1}
                     >
@@ -128,7 +128,7 @@ export default function OnboardingStudyDaysScreen({
           <TouchableOpacity
             style={[
               styles.continueButton,
-              isReady ? styles.continueButtonActive : styles.continueButtonDisabled,
+              isReady ? styles.continueButtonActive : [styles.continueButtonDisabled, isDark && { backgroundColor: 'rgba(255, 255, 255, 0.08)' }],
             ]}
             onPress={handleContinue}
             disabled={!isReady}
@@ -137,7 +137,7 @@ export default function OnboardingStudyDaysScreen({
             <Text
               style={[
                 styles.continueButtonText,
-                !isReady && styles.continueButtonTextDisabled,
+                !isReady && { color: isDark ? '#64748B' : '#94A3B8' },
               ]}
             >
               continue ➔
@@ -233,7 +233,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   dayNameSelected: {
-    color: '#1E293B',
     fontWeight: '600',
   },
   footer: {

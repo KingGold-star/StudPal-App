@@ -15,11 +15,15 @@ export default function WeeklyGoalBarChart({
   ],
   height = 190,
   delay = 0,
+  isVisible = true,
 }) {
   const { isDark, accentColor } = useTheme();
   const safeData = Array.isArray(dailyData) && dailyData.length > 0 ? dailyData : [];
   const [selectedDay, setSelectedDay] = useState(safeData[1] || safeData[0] || null);
+
   const animValuesRef = useRef([]);
+  const tooltipOpacity = useRef(new Animated.Value(isVisible ? 1 : 0)).current;
+  const tooltipTranslateY = useRef(new Animated.Value(isVisible ? 0 : -8)).current;
 
   // Sync selectedDay if data changes
   useEffect(() => {
@@ -36,28 +40,69 @@ export default function WeeklyGoalBarChart({
   }
 
   useEffect(() => {
-    safeData.forEach((item, i) => {
-      const anim = animValuesRef.current[i];
-      if (!anim || !item) return;
-      anim.setValue(0);
-      const targetPct = item.hasGoals ? (item.percentage || 0) : 6;
-      Animated.timing(anim, {
-        toValue: targetPct,
-        duration: 1200 + i * 70,
+    if (!isVisible) {
+      // 1. Immediately reset bars and tooltip when invisible
+      safeData.forEach((_, i) => {
+        const anim = animValuesRef.current[i];
+        if (anim) {
+          anim.stopAnimation();
+          anim.setValue(0);
+        }
+      });
+      tooltipOpacity.stopAnimation();
+      tooltipOpacity.setValue(0);
+      tooltipTranslateY.setValue(-8);
+      return;
+    }
+
+    // 2. Animate tooltip entrance
+    Animated.parallel([
+      Animated.timing(tooltipOpacity, {
+        toValue: 1,
+        duration: 550,
+        delay: delay + 120,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: false,
-      }).start();
-    });
-  }, [dailyData]);
+      }),
+      Animated.timing(tooltipTranslateY, {
+        toValue: 0,
+        duration: 550,
+        delay: delay + 120,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+    ]).start();
+
+    // 3. Animate bars rising smoothly from 0 to target percentage with staggered delay
+    const animations = safeData.map((item, i) => {
+      const anim = animValuesRef.current[i];
+      if (!anim || !item) return null;
+      anim.setValue(0);
+      const targetPct = item.hasGoals ? (item.percentage || 0) : 6;
+      return Animated.timing(anim, {
+        toValue: targetPct,
+        duration: 850 + i * 50,
+        delay: delay + i * 45,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      });
+    }).filter(Boolean);
+
+    Animated.parallel(animations).start();
+  }, [isVisible, dailyData]);
 
   return (
-    <ScrollDownAnimatedCard delay={delay} duration={1400}>
+    <ScrollDownAnimatedCard delay={delay} duration={900} isVisible={isVisible}>
       <View style={styles.container}>
         {/* Floating Dark Glass Interactive Tooltip */}
         {selectedDay && (
-          <View style={[
+          <Animated.View style={[
             styles.tooltipContainer,
-            isDark && { backgroundColor: "#1E293B", borderWidth: 0, borderColor: "transparent" }
+            isDark && { backgroundColor: "#1E293B", borderWidth: 0, borderColor: "transparent" },
+            {
+              opacity: tooltipOpacity,
+              transform: [{ translateY: tooltipTranslateY }],
+            }
           ]}>
             <Text style={[styles.tooltipDay, { color: accentColor || "#60A5FA" }]}>
               {selectedDay.dayName ? selectedDay.dayName.toUpperCase() : ""}
@@ -67,7 +112,7 @@ export default function WeeklyGoalBarChart({
                 ? `${selectedDay.completed} of ${selectedDay.planned} goals • ${selectedDay.percentage}% completion`
                 : "No goals scheduled"}
             </Text>
-          </View>
+          </Animated.View>
         )}
 
         {/* Main Bar Chart Container */}
@@ -86,7 +131,7 @@ export default function WeeklyGoalBarChart({
           <View style={styles.barsRow}>
             {safeData.map((item, index) => {
               const isSelected = selectedDay && item && selectedDay.dayName === item.dayName;
-              const anim = animValuesRef.current[index] || new Animated.Value(item && item.hasGoals ? item.percentage : 6);
+              const anim = animValuesRef.current[index] || new Animated.Value(0);
               const barHeightPct = anim.interpolate({
                 inputRange: [0, 100],
                 outputRange: ["0%", "100%"],

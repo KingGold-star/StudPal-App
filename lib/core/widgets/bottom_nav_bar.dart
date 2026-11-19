@@ -18,7 +18,6 @@ class StudPalBottomNavBar extends StatelessWidget {
     final navItems = [
       _NavItem(icon: Icons.home_rounded, label: 'Home'),
       _NavItem(icon: Icons.auto_stories_rounded, label: 'Subjects'),
-      _NavItem(icon: Icons.psychology_rounded, label: 'Branco', isSpecial: true),
       _NavItem(icon: Icons.insights_rounded, label: 'Progress'),
       _NavItem(icon: Icons.person_rounded, label: 'Profile'),
     ];

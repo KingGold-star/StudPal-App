@@ -593,7 +593,7 @@ export default function OnboardingPowerBuiltScreen({
           {/* Bottom Actions Block */}
           <View style={styles.bottomActions}>
             <TouchableOpacity
-              style={styles.primaryButton}
+              style={[styles.primaryButton, isDark && { backgroundColor: '#2563EB', shadowColor: '#2563EB' }]}
               onPress={handleContinue}
               activeOpacity={0.88}
             >

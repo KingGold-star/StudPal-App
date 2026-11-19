@@ -9,6 +9,8 @@ import {
   Image,
   TextInput,
   Animated,
+  Easing,
+  Dimensions,
 } from "react-native";
 import Svg, { Path, Circle, Rect, Polygon } from "react-native-svg";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -231,6 +233,67 @@ export default function LeaderboardScreen({
   const [leaderboardTimeframe, setLeaderboardTimeframe] = useState("This Week");
   const [currentSettings, setCurrentSettings] = useState(settingsService.getSettingsSync());
   const [scrollY, setScrollY] = useState(0);
+
+  // Viewport & Scroll Tracking for Country Podium Entrance Animation
+  const [isPodiumVisible, setIsPodiumVisible] = useState(true);
+  const podiumLayoutRef = useRef({ y: 70, height: 320 });
+  const viewportHeightRef = useRef(Dimensions.get("window").height);
+  const podiumAnim2 = useRef(new Animated.Value(0)).current; // Silver #2
+  const podiumAnim1 = useRef(new Animated.Value(0)).current; // Gold #1
+  const podiumAnim3 = useRef(new Animated.Value(0)).current; // Bronze #3
+
+  const checkPodiumVisibility = (currentY, vpHeight = viewportHeightRef.current) => {
+    const layout = podiumLayoutRef.current;
+    if (layout.height <= 0) return;
+
+    const itemTop = layout.y;
+    const itemBottom = layout.y + layout.height;
+    const screenTop = currentY;
+    const screenBottom = currentY + vpHeight;
+
+    const inView = (screenBottom >= itemTop + 40) && (screenTop <= itemBottom - 20);
+    setIsPodiumVisible((prev) => (prev !== inView ? inView : prev));
+  };
+
+  useEffect(() => {
+    if (!isPodiumVisible) {
+      podiumAnim2.stopAnimation();
+      podiumAnim1.stopAnimation();
+      podiumAnim3.stopAnimation();
+      podiumAnim2.setValue(0);
+      podiumAnim1.setValue(0);
+      podiumAnim3.setValue(0);
+      return;
+    }
+
+    podiumAnim2.setValue(0);
+    podiumAnim1.setValue(0);
+    podiumAnim3.setValue(0);
+
+    Animated.parallel([
+      Animated.timing(podiumAnim2, {
+        toValue: 1,
+        duration: 800,
+        delay: 60,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+      Animated.timing(podiumAnim1, {
+        toValue: 1,
+        duration: 850,
+        delay: 160,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+      Animated.timing(podiumAnim3, {
+        toValue: 1,
+        duration: 800,
+        delay: 260,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+    ]).start();
+  }, [isPodiumVisible, leaderboardTimeframe]);
   const [refreshing, setRefreshing] = useState(false);
   const spinAnim = useRef(new Animated.Value(0)).current;
 
@@ -384,7 +447,14 @@ export default function LeaderboardScreen({
       </View>
 
       {/* ── Top Hero Card: Country Podium ── */}
-      <View style={styles.heroCard}>
+      <View
+        onLayout={(e) => {
+          const { y, height } = e.nativeEvent.layout;
+          podiumLayoutRef.current = { y, height };
+          checkPodiumVisibility(scrollY, viewportHeightRef.current);
+        }}
+        style={styles.heroCard}
+      >
         {/* Header row */}
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
           <View style={{ flex: 1, paddingRight: 8 }}>
@@ -402,57 +472,164 @@ export default function LeaderboardScreen({
 
           {/* #2 */}
           <View style={[styles.podiumCol, { marginTop: 28 }]}>
-            <View style={styles.podiumAvatarRing2}>
-              <Image
-                source={{ uri: countryBoard.podium.p2.avatarUri }}
-                style={styles.podiumAvatarImg2}
-              />
-            </View>
-            <Text style={styles.podiumUserName} numberOfLines={1}>{countryBoard.podium.p2.name}</Text>
-            <View style={[styles.podiumCityBadge, isDark && { backgroundColor: "#334155" }]}>
-              <Text style={[styles.podiumCityText, isDark && { color: "#CBD5E1" }]} numberOfLines={1}>{countryBoard.podium.p2.city}</Text>
-            </View>
-            <Text style={styles.podiumXpSmall}>{countryBoard.podium.p2.xpFormatted}</Text>
-            <View style={[styles.podiumPlinth, { height: 54, backgroundColor: isDark ? "rgba(148, 163, 184, 0.2)" : "#DDE3EF", borderWidth: isDark ? 1 : 0, borderColor: "rgba(148, 163, 184, 0.35)" }]}>
-              <Text style={[styles.podiumPlinthNum, { color: isDark ? "#CBD5E1" : "#64748B" }]}>2</Text>
-            </View>
+            <Animated.View
+              style={{
+                alignItems: "center",
+                width: "100%",
+                opacity: podiumAnim2.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 0.6, 1] }),
+                transform: [{
+                  translateY: podiumAnim2.interpolate({ inputRange: [0, 1], outputRange: [20, 0] })
+                }],
+              }}
+            >
+              <View style={styles.podiumAvatarRing2}>
+                <Image
+                  source={{ uri: countryBoard.podium.p2.avatarUri }}
+                  style={styles.podiumAvatarImg2}
+                />
+              </View>
+              <Text style={styles.podiumUserName} numberOfLines={1}>{countryBoard.podium.p2.name}</Text>
+              <View style={[styles.podiumCityBadge, isDark && { backgroundColor: "#334155" }]}>
+                <Text style={[styles.podiumCityText, isDark && { color: "#CBD5E1" }]} numberOfLines={1}>{countryBoard.podium.p2.city}</Text>
+              </View>
+              <Text style={styles.podiumXpSmall}>{countryBoard.podium.p2.xpFormatted}</Text>
+            </Animated.View>
+            <Animated.View
+              style={[
+                styles.podiumPlinth,
+                {
+                  height: podiumAnim2.interpolate({ inputRange: [0, 1], outputRange: [0, 54] }),
+                  overflow: "hidden",
+                  backgroundColor: isDark ? "rgba(148, 163, 184, 0.2)" : "#DDE3EF",
+                  borderWidth: isDark ? 1 : 0,
+                  borderColor: "rgba(148, 163, 184, 0.35)",
+                }
+              ]}
+            >
+              <Animated.Text
+                style={[
+                  styles.podiumPlinthNum,
+                  {
+                    color: isDark ? "#CBD5E1" : "#64748B",
+                    opacity: podiumAnim2.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 0.6, 1] }),
+                  }
+                ]}
+              >
+                2
+              </Animated.Text>
+            </Animated.View>
           </View>
 
           {/* #1 — centre, taller */}
           <View style={styles.podiumCol}>
-            <Text style={styles.podiumCrown}>👑</Text>
-            <View style={styles.podiumAvatarRing1}>
-              <Image
-                source={{ uri: countryBoard.podium.p1.avatarUri }}
-                style={styles.podiumAvatarImg1}
-              />
-            </View>
-            <Text style={styles.podiumUserName} numberOfLines={1}>{countryBoard.podium.p1.name}</Text>
-            <View style={[styles.podiumCityBadge, { backgroundColor: isDark ? "rgba(245, 158, 11, 0.2)" : "#FEF3C7" }]}>
-              <Text style={[styles.podiumCityText, { color: isDark ? "#FBBF24" : "#D97706" }]} numberOfLines={1}>{countryBoard.podium.p1.city}</Text>
-            </View>
-            <Text style={[styles.podiumXpSmall, { color: "#D97706", fontWeight: "800" }]}>{countryBoard.podium.p1.xpFormatted}</Text>
-            <View style={[styles.podiumPlinth, { height: 76, backgroundColor: isDark ? `${accentColor}33` : "#D9D0F7", borderWidth: isDark ? 1 : 0, borderColor: `${accentColor}66` }]}>
-              <Text style={[styles.podiumPlinthNum, { color: isDark ? (accentColor || "#818CF8") : "#6236FF" }]}>1</Text>
-            </View>
+            <Animated.View
+              style={{
+                alignItems: "center",
+                width: "100%",
+                opacity: podiumAnim1.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 0.6, 1] }),
+                transform: [{
+                  translateY: podiumAnim1.interpolate({ inputRange: [0, 1], outputRange: [26, 0] })
+                }],
+              }}
+            >
+              <Animated.Text
+                style={[
+                  styles.podiumCrown,
+                  {
+                    transform: [{
+                      scale: podiumAnim1.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0.4, 1.2, 1] })
+                    }]
+                  }
+                ]}
+              >
+                👑
+              </Animated.Text>
+              <View style={styles.podiumAvatarRing1}>
+                <Image
+                  source={{ uri: countryBoard.podium.p1.avatarUri }}
+                  style={styles.podiumAvatarImg1}
+                />
+              </View>
+              <Text style={styles.podiumUserName} numberOfLines={1}>{countryBoard.podium.p1.name}</Text>
+              <View style={[styles.podiumCityBadge, { backgroundColor: isDark ? "rgba(245, 158, 11, 0.2)" : "#FEF3C7" }]}>
+                <Text style={[styles.podiumCityText, { color: isDark ? "#FBBF24" : "#D97706" }]} numberOfLines={1}>{countryBoard.podium.p1.city}</Text>
+              </View>
+              <Text style={[styles.podiumXpSmall, { color: "#D97706", fontWeight: "800" }]}>{countryBoard.podium.p1.xpFormatted}</Text>
+            </Animated.View>
+            <Animated.View
+              style={[
+                styles.podiumPlinth,
+                {
+                  height: podiumAnim1.interpolate({ inputRange: [0, 1], outputRange: [0, 76] }),
+                  overflow: "hidden",
+                  backgroundColor: isDark ? `${accentColor}33` : "#D9D0F7",
+                  borderWidth: isDark ? 1 : 0,
+                  borderColor: `${accentColor}66`,
+                }
+              ]}
+            >
+              <Animated.Text
+                style={[
+                  styles.podiumPlinthNum,
+                  {
+                    color: isDark ? (accentColor || "#818CF8") : "#6236FF",
+                    opacity: podiumAnim1.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 0.6, 1] }),
+                  }
+                ]}
+              >
+                1
+              </Animated.Text>
+            </Animated.View>
           </View>
 
           {/* #3 */}
           <View style={[styles.podiumCol, { marginTop: 44 }]}>
-            <View style={styles.podiumAvatarRing3}>
-              <Image
-                source={{ uri: countryBoard.podium.p3.avatarUri }}
-                style={styles.podiumAvatarImg2}
-              />
-            </View>
-            <Text style={styles.podiumUserName} numberOfLines={1}>{countryBoard.podium.p3.name}</Text>
-            <View style={[styles.podiumCityBadge, isDark && { backgroundColor: "#334155" }]}>
-              <Text style={[styles.podiumCityText, isDark && { color: "#CBD5E1" }]} numberOfLines={1}>{countryBoard.podium.p3.city}</Text>
-            </View>
-            <Text style={styles.podiumXpSmall}>{countryBoard.podium.p3.xpFormatted}</Text>
-            <View style={[styles.podiumPlinth, { height: 40, backgroundColor: isDark ? "rgba(245, 158, 11, 0.2)" : "#F5DEB3", borderWidth: isDark ? 1 : 0, borderColor: "rgba(245, 158, 11, 0.35)" }]}>
-              <Text style={[styles.podiumPlinthNum, { color: isDark ? "#FBBF24" : "#D97706" }]}>3</Text>
-            </View>
+            <Animated.View
+              style={{
+                alignItems: "center",
+                width: "100%",
+                opacity: podiumAnim3.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 0.6, 1] }),
+                transform: [{
+                  translateY: podiumAnim3.interpolate({ inputRange: [0, 1], outputRange: [16, 0] })
+                }],
+              }}
+            >
+              <View style={styles.podiumAvatarRing3}>
+                <Image
+                  source={{ uri: countryBoard.podium.p3.avatarUri }}
+                  style={styles.podiumAvatarImg2}
+                />
+              </View>
+              <Text style={styles.podiumUserName} numberOfLines={1}>{countryBoard.podium.p3.name}</Text>
+              <View style={[styles.podiumCityBadge, isDark && { backgroundColor: "#334155" }]}>
+                <Text style={[styles.podiumCityText, isDark && { color: "#CBD5E1" }]} numberOfLines={1}>{countryBoard.podium.p3.city}</Text>
+              </View>
+              <Text style={styles.podiumXpSmall}>{countryBoard.podium.p3.xpFormatted}</Text>
+            </Animated.View>
+            <Animated.View
+              style={[
+                styles.podiumPlinth,
+                {
+                  height: podiumAnim3.interpolate({ inputRange: [0, 1], outputRange: [0, 40] }),
+                  overflow: "hidden",
+                  backgroundColor: isDark ? "rgba(245, 158, 11, 0.2)" : "#F5DEB3",
+                  borderWidth: isDark ? 1 : 0,
+                  borderColor: "rgba(245, 158, 11, 0.35)",
+                }
+              ]}
+            >
+              <Animated.Text
+                style={[
+                  styles.podiumPlinthNum,
+                  {
+                    color: isDark ? "#FBBF24" : "#D97706",
+                    opacity: podiumAnim3.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 0.6, 1] }),
+                  }
+                ]}
+              >
+                3
+              </Animated.Text>
+            </Animated.View>
           </View>
 
         </View>
@@ -666,8 +843,21 @@ export default function LeaderboardScreen({
       {/* ── Main Scroll Content ────────────────────────────────── */}
       <ScrollView
         showsVerticalScrollIndicator={false}
-        onScroll={(e) => setScrollY(e.nativeEvent.contentOffset.y)}
+        onScroll={(e) => {
+          const currentY = e.nativeEvent.contentOffset.y;
+          setScrollY(currentY);
+          const vpHeight = e.nativeEvent.layoutMeasurement?.height || viewportHeightRef.current;
+          viewportHeightRef.current = vpHeight;
+          checkPodiumVisibility(currentY, vpHeight);
+        }}
         scrollEventThrottle={16}
+        onLayout={(e) => {
+          const h = e.nativeEvent.layout.height;
+          if (h > 0) {
+            viewportHeightRef.current = h;
+            checkPodiumVisibility(scrollY, h);
+          }
+        }}
         contentContainerStyle={[
           styles.scrollContainer,
           { paddingBottom: Math.max(insets.bottom, 20) + 110 },

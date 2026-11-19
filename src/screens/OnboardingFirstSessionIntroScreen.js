@@ -108,7 +108,7 @@ export default function OnboardingFirstSessionIntroScreen({
             <Text style={[styles.readyText, { color: theme.textPrimary }]}>ready?</Text>
 
             <TouchableOpacity
-              style={styles.startButton}
+              style={[styles.startButton, isDark && { backgroundColor: '#2563EB', shadowColor: '#2563EB' }]}
               onPress={onContinue}
               activeOpacity={0.88}
             >

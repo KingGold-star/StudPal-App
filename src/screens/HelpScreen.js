@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+﻿import React, { useState, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -52,15 +52,15 @@ const ChevronUpIcon = ({ color = '#64748B', size = 18 }) => (
 const EXPANDED_FAQS = [
   {
     id: 'ai-1',
-    question: 'How do I use AI Coach Branco?',
+    question: 'How do I use AI Coach Nia?',
     answer:
       'Navigate to the AI Coach tab to ask study questions, get step-by-step concept explanations, generate custom flashcards from topics, or build personalized exam revision plans.',
   },
   {
     id: 'ai-2',
-    question: 'Can I upload lecture notes or PDFs for Branco to analyze?',
+    question: 'Can I upload lecture notes or PDFs for Nia to analyze?',
     answer:
-      'Yes! In AI Coach, tap the attachment icon (+) to upload PDF notes, textbook chapters, or lecture slides. Branco will extract key takeaways, summarize sections, and generate practice questions.',
+      'Yes! In AI Coach, tap the attachment icon (+) to upload PDF notes, textbook chapters, or lecture slides. Nia will extract key takeaways, summarize sections, and generate practice questions.',
   },
   {
     id: 'study-1',
@@ -84,7 +84,7 @@ const EXPANDED_FAQS = [
     id: 'xp-1',
     question: 'How do I earn XP, Level up, and unlock Badges?',
     answer:
-      'You earn XP by reviewing flashcards (+10 XP), completing focus sessions (+25 XP), asking Branco questions (+15 XP), and maintaining daily study streaks. Reaching XP milestones promotes you to higher scholar ranks.',
+      'You earn XP by reviewing flashcards (+10 XP), completing focus sessions (+25 XP), asking Nia questions (+15 XP), and maintaining daily study streaks. Reaching XP milestones promotes you to higher scholar ranks.',
   },
   {
     id: 'streak-1',

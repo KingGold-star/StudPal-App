@@ -84,7 +84,7 @@ function StudPalStarIcon({ size = 44 }) {
   );
 }
 
-function ClockIcon({ size = 18, color = '#1200C6' }) {
+function ClockIcon({ size = 18, color = '#2563EB' }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Circle cx="12" cy="12" r="9" stroke={color} strokeWidth="2.2" />
@@ -210,7 +210,7 @@ export default function OnboardingFirstSessionMetricsScreen({
               <View style={[styles.statCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
                 <View style={styles.cardHeaderRow}>
                   <View style={styles.clockIconBadge}>
-                    <ClockIcon size={18} color="#1200C6" />
+                    <ClockIcon size={18} color={isDark ? "#3B82F6" : "#1200C6"} />
                   </View>
                   <View style={[styles.timeTagBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#F1F5F9' }]}>
                     <Text style={[styles.timeTagText, { color: theme.textSecondary }]}>TIME</Text>

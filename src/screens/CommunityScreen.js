@@ -29,6 +29,8 @@ import { useTranslation, normalizeLanguageCode } from '../services/i18n/i18nServ
 import { getLocalizedGroups, getLocalizedPosts, getLocalizedChallenges, getLocalizedRules, getLocalizedTimeAgo } from '../services/i18n/communityContentTranslations';
 import { Colors } from '../theme/colors';
 import { useTheme } from '../theme/themeContext';
+import { authService } from '../services/supabase/authService';
+import { communitySupabaseService } from '../services/supabase/communityService';
 
 // ─── SVG Icons ───────────────────────────────────────────────────────────────
 const SearchIcon = ({ color = '#94A3B8', size = 18 }) => (
@@ -116,6 +118,23 @@ const LockIcon = ({ color = '#F59E0B', size = 20 }) => (
   </Svg>
 );
 
+const EditPenIcon = ({ color = '#64748B', size = 16 }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+    <Path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+  </Svg>
+);
+
+const PinIcon = ({ color = '#2563EB', size = 14 }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <Line x1="12" y1="17" x2="12" y2="22" />
+    <Path d="M5 17h14v-2l-2-4V5h1V2H6v3h1v6l-2 4v2z" />
+  </Svg>
+);
+
+// ─── Community Mascot Source Asset ──────────────────────────────────────────
+const communityMascotSource = require('../../assets/images/community_mascot.png');
+
 // ─── Initial Mock Data ───────────────────────────────────────────────────────
 const INITIAL_GROUPS = [
   {
@@ -125,6 +144,7 @@ const INITIAL_GROUPS = [
     membersCount: 14200,
     onlineCount: 1400,
     avatarBg: Colors.brandNavy || '#112B8A',
+    avatarSource: communityMascotSource,
     joined: false,
     description: 'The official StudPal community for announcements, tips, and general chat.',
     category: 'Trending',
@@ -172,6 +192,43 @@ const INITIAL_GROUPS = [
   },
 ];
 
+const DEFAULT_POST_COMMENTS = {
+  'post-1': [
+    { id: 'c1-1', author: 'Alex', avatarBg: '#6236FF', avatarLetter: 'A', timeAgo: '15m ago', text: 'This makes so much sense now! Thank you Sarah!' },
+    { id: 'c1-2', author: 'Marcus', avatarBg: '#10B981', avatarLetter: 'M', timeAgo: '12m ago', text: 'LIATE is legendary. Saved me on the midterm calculus exam.' },
+    { id: 'c1-3', author: 'Tunde W.', avatarBg: '#0EA5E9', avatarLetter: 'T', timeAgo: '10m ago', text: 'What about when you have exponential times trigonometric? Does order matter there?' },
+    { id: 'c1-4', author: 'Sarah Jenkins', authorRole: 'Host', avatarBg: '#2D62FF', avatarLetter: 'S', timeAgo: '7m ago', text: 'Great question Tunde! With e^x * sin(x), you loop back to the original integral after two applications.' },
+    { id: 'c1-5', author: 'Blessing A.', avatarBg: '#EC4899', avatarLetter: 'B', timeAgo: '4m ago', text: 'Mind blown 🤯 Bookmark saved!' },
+  ],
+  'post-2': [
+    { id: 'c2-1', author: 'Sarah Jenkins', authorRole: 'Host', avatarBg: '#2D62FF', avatarLetter: 'S', timeAgo: '2h ago', text: 'Welcome everyone! So excited to have a dedicated hub for all subjects 🚀' },
+    { id: 'c2-2', author: 'David O.', avatarBg: '#F59E0B', avatarLetter: 'D', timeAgo: '2h ago', text: 'When does the first global weekly challenge kick off?' },
+    { id: 'c2-3', author: 'Admin Team', authorRole: 'Official', avatarSource: communityMascotSource, avatarLetter: 'S', avatarBg: '#112B8A', timeAgo: '1h ago', text: 'The first global challenge starts this Monday at 8 AM! Check the Study & Challenges tab ⚡' },
+    { id: 'c2-4', author: 'Chiamaka E.', avatarBg: '#10B981', avatarLetter: 'C', timeAgo: '1h ago', text: 'The AI study rhythm planner helped me set up my weekly timetable. Glad to be here!' },
+    { id: 'c2-5', author: 'Marcus V.', avatarBg: '#10B981', avatarLetter: 'M', timeAgo: '45m ago', text: 'Does anyone know if there are voice study rooms for pomodoro sprints?' },
+    { id: 'c2-6', author: 'Admin Team', authorRole: 'Official', avatarSource: communityMascotSource, avatarLetter: 'S', avatarBg: '#112B8A', timeAgo: '30m ago', text: 'Yes Marcus! Live Pomodoro sprints are active under the Study Skills channels.' },
+    { id: 'c2-7', author: 'Blessing A.', avatarBg: '#EC4899', avatarLetter: 'B', timeAgo: '20m ago', text: 'StudPal has completely transformed how I organize my study sessions.' },
+    { id: 'c2-8', author: 'Alex', avatarBg: '#6236FF', avatarLetter: 'A', timeAgo: '10m ago', text: 'Ready to crush the weekly goals with everyone!' },
+  ],
+  'post-3': [
+    { id: 'c3-1', author: 'Chiamaka E.', avatarBg: '#10B981', avatarLetter: 'C', timeAgo: '22h ago', text: 'Yes please David! Could you kindly share the PDF link? Preparing for JAMB next month 🙏' },
+    { id: 'c3-2', author: 'David O.', authorRole: 'Author', avatarBg: '#F59E0B', avatarLetter: 'D', timeAgo: '21h ago', text: 'Here you go: drive.google.com/studpal-jamb-physics. Make sure to review the mechanics section carefully!' },
+    { id: 'c3-3', author: 'Ibrahim K.', avatarBg: '#6366F1', avatarLetter: 'I', timeAgo: '19h ago', text: 'Downloaded! Thank you so much David, waves and optics questions are usually my weak point.' },
+    { id: 'c3-4', author: 'Blessing A.', avatarBg: '#EC4899', avatarLetter: 'B', timeAgo: '18h ago', text: 'Are the step-by-step working solutions included as well?' },
+    { id: 'c3-5', author: 'David O.', authorRole: 'Author', avatarBg: '#F59E0B', avatarLetter: 'D', timeAgo: '17h ago', text: 'Yes Blessing! Complete step-by-step working solutions for 2018-2023 are attached at the end.' },
+    { id: 'c3-6', author: 'Tunde W.', avatarBg: '#0EA5E9', avatarLetter: 'T', timeAgo: '16h ago', text: 'God bless you for this! Any tips for remembering electromagnetic induction formulas?' },
+    { id: 'c3-7', author: 'Sarah Jenkins', authorRole: 'Host', avatarBg: '#2D62FF', avatarLetter: 'S', timeAgo: '14h ago', text: 'For electromagnetism, group the formulas by Faraday and Lenz laws with units. Flashcards work wonders!' },
+    { id: 'c3-8', author: 'Zainab M.', avatarBg: '#8B5CF6', avatarLetter: 'Z', timeAgo: '12h ago', text: 'Just solved the 2021 section. The explanations in this compilation are super clear.' },
+    { id: 'c3-9', author: 'Emeka U.', avatarBg: '#14B8A6', avatarLetter: 'E', timeAgo: '10h ago', text: 'Anyone want to form a study group to go through 10 questions a day together?' },
+    { id: 'c3-10', author: 'Fatimah B.', avatarBg: '#F43F5E', avatarLetter: 'F', timeAgo: '8h ago', text: 'I am down for the study group Emeka! Count me in.' },
+    { id: 'c3-11', author: 'Kelechi N.', avatarBg: '#F97316', avatarLetter: 'K', timeAgo: '6h ago', text: 'Can you please compile Chemistry past questions next if you have time?' },
+    { id: 'c3-12', author: 'David O.', authorRole: 'Author', avatarBg: '#F59E0B', avatarLetter: 'D', timeAgo: '5h ago', text: 'Working on Chemistry Organic & Physical right now Kelechi, will post it soon!' },
+    { id: 'c3-13', author: 'Amina S.', avatarBg: '#3B82F6', avatarLetter: 'A', timeAgo: '4h ago', text: 'The link is working perfectly. Really appreciate you sharing this with everyone.' },
+    { id: 'c3-14', author: 'Victor J.', avatarBg: '#10B981', avatarLetter: 'V', timeAgo: '3h ago', text: 'Question 14 on Projectile Motion was on my school mock exam last week! Exact same numbers.' },
+    { id: 'c3-15', author: 'Alex', avatarBg: '#6236FF', avatarLetter: 'A', timeAgo: '1h ago', text: 'Saved to my study resources. Best compilation so far!' },
+  ],
+};
+
 const INITIAL_POSTS = [
   {
     id: 'post-1',
@@ -185,19 +242,17 @@ const INITIAL_POSTS = [
     title: 'Intuitive trick for Integration by Parts (LIATE Rule)',
     content: 'Struggling with integral Calculus? Always choose u in order: Logarithmic, Inverse trig, Algebraic, Trigonometric, Exponential. It saved my grades last term!',
     likesCount: 18,
-    commentsCount: 5,
+    commentsCount: DEFAULT_POST_COMMENTS['post-1'].length,
     isLiked: false,
     isBookmarked: true,
-    comments: [
-      { id: 'c1', author: 'Alex', avatarBg: '#6236FF', avatarLetter: 'A', timeAgo: '15m ago', text: 'This makes so much sense now! Thank you Sarah!' },
-      { id: 'c2', author: 'Marcus', avatarBg: '#10B981', avatarLetter: 'M', timeAgo: '5m ago', text: 'LIATE is legendary. Saved me on the midterm.' },
-    ],
+    comments: DEFAULT_POST_COMMENTS['post-1'],
   },
   {
     id: 'post-2',
     communityId: 'grp-0',
     author: 'Admin Team',
     authorRole: 'Official',
+    avatarSource: communityMascotSource,
     avatarLetter: 'S',
     avatarBg: '#112B8A',
     timeAgo: '2 hours ago',
@@ -205,10 +260,10 @@ const INITIAL_POSTS = [
     title: 'Welcome to StudPal Global!',
     content: 'This is the official hub for all StudPal updates. Keep an eye out for our weekly global study challenges!',
     likesCount: 245,
-    commentsCount: 32,
+    commentsCount: DEFAULT_POST_COMMENTS['post-2'].length,
     isLiked: true,
     isBookmarked: false,
-    comments: [],
+    comments: DEFAULT_POST_COMMENTS['post-2'],
   },
   {
     id: 'post-3',
@@ -222,10 +277,10 @@ const INITIAL_POSTS = [
     title: 'JAMB Physics Past Questions Compilation',
     content: 'Hey everyone, I compiled the most repeated physics questions from 2015-2023. Let me know if you want the PDF link.',
     likesCount: 42,
-    commentsCount: 15,
+    commentsCount: DEFAULT_POST_COMMENTS['post-3'].length,
     isLiked: false,
     isBookmarked: false,
-    comments: [],
+    comments: DEFAULT_POST_COMMENTS['post-3'],
   }
 ];
 
@@ -400,9 +455,29 @@ export default function CommunityScreen({ user = { name: 'Alex' }, onSelectTab, 
   const [newChallengeTitle, setNewChallengeTitle] = useState('');
   const [newChallengeDays, setNewChallengeDays] = useState('7');
 
-  // Form States for Post Creation
+  // Form States for Post Creation (Dedicated Form Arrangements)
+  const [postType, setPostType] = useState('tip'); // 'tip' | 'question' | 'notes'
   const [newPostTitle, setNewPostTitle] = useState('');
   const [newPostContent, setNewPostContent] = useState('');
+
+  // 1. Study Tip Fields
+  const [tipTitle, setTipTitle] = useState('');
+  const [tipSubject, setTipSubject] = useState('Mathematics');
+  const [tipMethod, setTipMethod] = useState('');
+  const [tipTakeaway, setTipTakeaway] = useState('');
+
+  // 2. Ask Question Fields
+  const [questionTitle, setQuestionTitle] = useState('');
+  const [questionSubject, setQuestionSubject] = useState('Physics');
+  const [questionDetails, setQuestionDetails] = useState('');
+  const [questionTried, setQuestionTried] = useState('');
+  const [questionUrgency, setQuestionUrgency] = useState('Normal'); // 'Normal' | 'Assignment' | 'Urgent'
+
+  // 3. Study Notes Fields
+  const [notesTitle, setNotesTitle] = useState('');
+  const [notesSubject, setNotesSubject] = useState('Exam Prep');
+  const [notesHighlights, setNotesHighlights] = useState('');
+  const [notesLink, setNotesLink] = useState('');
 
   // Form States for Community Creation
   const [newGroupName, setNewGroupName] = useState('');
@@ -503,6 +578,14 @@ export default function CommunityScreen({ user = { name: 'Alex' }, onSelectTab, 
         const customCreated = groups.filter(g => !INITIAL_GROUPS.some(ig => ig.id === g.id));
         window.localStorage.setItem(CREATED_COMMUNITIES_STORAGE_KEY, JSON.stringify(customCreated));
       }
+
+      // Async Cloud Sync to Supabase
+      authService.getCurrentUser().then((user) => {
+        if (user?.id) {
+          const joinedIds = groups.filter(g => g.joined).map(g => g.id);
+          joinedIds.forEach((id) => communitySupabaseService.joinCommunity(user.id, id));
+        }
+      }).catch((e) => console.warn('[CommunityScreen] Supabase sync notice:', e));
     } catch (err) {
       console.warn('Failed to save communities to storage:', err);
     }
@@ -566,10 +649,43 @@ export default function CommunityScreen({ user = { name: 'Alex' }, onSelectTab, 
     }
   };
 
+  const handleOpenCreatePost = (type = 'tip') => {
+    handleRequireMembership(() => {
+      setPostType(type);
+      setCreatePostOpen(true);
+    });
+  };
+
   const handleCreatePostSubmit = () => {
-    if (!newPostTitle.trim() || !newPostContent.trim()) {
-      Alert.alert('Incomplete Fields', 'Please provide both a title and content for your post.');
-      return;
+    let finalTitle = '';
+    let finalContent = '';
+    let finalSubject = selectedCommunity?.subject || 'General Study';
+
+    if (postType === 'tip') {
+      if (!tipTitle.trim() || !tipMethod.trim()) {
+        Alert.alert('Incomplete Fields', 'Please provide a tip title and explain the method/technique.');
+        return;
+      }
+      finalTitle = tipTitle.trim();
+      finalContent = `${tipMethod.trim()}${tipTakeaway.trim() ? `\n\n💡 Pro Tip: ${tipTakeaway.trim()}` : ''}`;
+      finalSubject = tipSubject;
+    } else if (postType === 'question') {
+      if (!questionTitle.trim() || !questionDetails.trim()) {
+        Alert.alert('Incomplete Fields', 'Please provide your question title and problem details.');
+        return;
+      }
+      finalTitle = questionTitle.trim();
+      finalContent = `${questionDetails.trim()}${questionTried.trim() ? `\n\n🤔 What I've tried:\n${questionTried.trim()}` : ''}${questionUrgency !== 'Normal' ? `\n\n⚡ Status: ${questionUrgency}` : ''}`;
+      finalSubject = questionSubject;
+    } else {
+      // notes
+      if (!notesTitle.trim() || !notesHighlights.trim()) {
+        Alert.alert('Incomplete Fields', 'Please provide a notes title and key overview highlights.');
+        return;
+      }
+      finalTitle = notesTitle.trim();
+      finalContent = `${notesHighlights.trim()}${notesLink.trim() ? `\n\n📎 Resource Link: ${notesLink.trim()}` : ''}`;
+      finalSubject = notesSubject;
     }
 
     const newPost = {
@@ -582,9 +698,11 @@ export default function CommunityScreen({ user = { name: 'Alex' }, onSelectTab, 
       authorBadge: 'Level 7 • Knowledge Builder',
       authorRole: 'Member',
       timeAgo: 'Just now',
-      title: newPostTitle.trim(),
-      content: newPostContent.trim(),
-      communityId: selectedCommunity ? selectedCommunity.id : 'math-mavens',
+      title: finalTitle,
+      content: finalContent,
+      subject: finalSubject,
+      postFormat: postType,
+      communityId: selectedCommunity ? selectedCommunity.id : 'grp-0',
       likesCount: 0,
       isLiked: false,
       isBookmarked: false,
@@ -593,6 +711,15 @@ export default function CommunityScreen({ user = { name: 'Alex' }, onSelectTab, 
     };
 
     setPosts((prev) => [newPost, ...prev]);
+    setTipTitle('');
+    setTipMethod('');
+    setTipTakeaway('');
+    setQuestionTitle('');
+    setQuestionDetails('');
+    setQuestionTried('');
+    setNotesTitle('');
+    setNotesHighlights('');
+    setNotesLink('');
     setNewPostTitle('');
     setNewPostContent('');
     setCreatePostOpen(false);
@@ -600,7 +727,7 @@ export default function CommunityScreen({ user = { name: 'Alex' }, onSelectTab, 
     gamificationService.awardXp(
       'CREATE_COMMUNITY_POST',
       25,
-      `Published Post: ${newPostTitle.trim()}`,
+      `Published ${postType === 'tip' ? 'Study Tip' : postType === 'question' ? 'Question' : 'Study Notes'}: ${finalTitle}`,
       `post_${newPost.id}`
     );
   };
@@ -618,7 +745,10 @@ export default function CommunityScreen({ user = { name: 'Alex' }, onSelectTab, 
         timeAgo: 'Just now',
         text: newCommentText.trim(),
       };
-      const updatedComments = [...(selectedPostForComments.comments || []), commentObj];
+      const currentList = (selectedPostForComments.comments && selectedPostForComments.comments.length > 0)
+        ? selectedPostForComments.comments
+        : (DEFAULT_POST_COMMENTS[selectedPostForComments.id] || []);
+      const updatedComments = [...currentList, commentObj];
 
       setPosts(prev => prev.map(p => {
         if (p.id === selectedPostForComments.id) {
@@ -856,18 +986,23 @@ export default function CommunityScreen({ user = { name: 'Alex' }, onSelectTab, 
             )}
 
             {/* Joined Communities Avatar Circles */}
-            {joinedGroups.map(grp => (
-              <TouchableOpacity key={grp.id} style={styles.storyItem} onPress={() => setSelectedCommunity(grp)} activeOpacity={0.8}>
-                <View style={[styles.storyAvatarRing, { backgroundColor: grp.avatarBg, overflow: 'hidden' }]}>
-                  {grp.avatarUri ? (
-                    <Image source={{ uri: grp.avatarUri }} style={{ width: '100%', height: '100%' }} />
-                  ) : (
-                    <Text style={styles.storyAvatarText}>{grp.avatarIcon || grp.name[0]}</Text>
-                  )}
-                </View>
-                <Text style={[styles.storyName, isDark && { color: '#F8FAFC' }]} numberOfLines={1}>{grp.name}</Text>
-              </TouchableOpacity>
-            ))}
+            {joinedGroups.map(grp => {
+              const grpAvatar = grp.avatarSource || ((grp.id === 'grp-0' || grp.isOfficial) ? communityMascotSource : null);
+              return (
+                <TouchableOpacity key={grp.id} style={styles.storyItem} onPress={() => setSelectedCommunity(grp)} activeOpacity={0.8}>
+                  <View style={[styles.storyAvatarRing, { backgroundColor: grpAvatar ? '#FFFFFF' : grp.avatarBg, overflow: 'hidden' }]}>
+                    {grpAvatar ? (
+                      <Image source={grpAvatar} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                    ) : grp.avatarUri ? (
+                      <Image source={{ uri: grp.avatarUri }} style={{ width: '100%', height: '100%' }} />
+                    ) : (
+                      <Text style={styles.storyAvatarText}>{grp.avatarIcon || grp.name[0]}</Text>
+                    )}
+                  </View>
+                  <Text style={[styles.storyName, isDark && { color: '#F8FAFC' }]} numberOfLines={3}>{grp.name}</Text>
+                </TouchableOpacity>
+              );
+            })}
 
             {joinedGroups.length === 0 && !canCreateGroup && (
               <Text style={styles.noJoinedText}>{t("community.joinToSee", "Join communities below to see them here")}</Text>
@@ -899,33 +1034,62 @@ export default function CommunityScreen({ user = { name: 'Alex' }, onSelectTab, 
         <View style={styles.discoverList}>
           {/* Featured Official Hub Item */}
           {officialGroup && activeFilter === 'Trending' && !searchQuery && (
-            <TouchableOpacity style={[styles.featuredHubItem, { backgroundColor: officialGroup.avatarBg }]} onPress={() => setSelectedCommunity(officialGroup)} activeOpacity={0.9}>
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <Text style={styles.featuredHubTitle}>{officialGroup.name}</Text>
-                  <VerifiedIcon size={28} color="#60A5FA" />
+            <TouchableOpacity 
+              style={[styles.featuredHubItem, { backgroundColor: officialGroup.avatarBg || '#112B8A' }]} 
+              onPress={() => setSelectedCommunity(officialGroup)} 
+              activeOpacity={0.9}
+            >
+              <View style={styles.featuredHubTopRow}>
+                <View style={styles.featuredHubAvatarWrap}>
+                  <Image 
+                    source={officialGroup.avatarSource || communityMascotSource} 
+                    style={styles.featuredHubAvatar} 
+                    resizeMode="cover" 
+                  />
                 </View>
-                <Text style={styles.featuredHubDesc} numberOfLines={4}>{officialGroup.description}</Text>
+                <View style={styles.featuredHubTitleCol}>
+                  <View style={styles.featuredHubTitleRow}>
+                    <Text style={styles.featuredHubTitle}>
+                      {officialGroup.name}
+                    </Text>
+                    <VerifiedIcon size={18} color="#60A5FA" />
+                  </View>
+                  <Text style={styles.featuredHubMeta}>
+                    {t("community.officialHub", "Official Hub")} • {(officialGroup.membersCount / 1000).toFixed(1)}k {t("community.membersLabel", "members")}
+                  </Text>
+                </View>
               </View>
-              <View style={styles.featuredHubBtn}>
-                <Text style={styles.featuredHubBtnText}>{t("community.enterHub", "Enter Hub")}</Text>
+
+              <Text style={styles.featuredHubDesc} numberOfLines={3}>
+                {officialGroup.description}
+              </Text>
+
+              <View style={styles.featuredHubBottomRow}>
+                <View style={styles.featuredHubBtn}>
+                  <Text style={styles.featuredHubBtnText}>{t("community.enterHub", "Enter Hub")}</Text>
+                  <ChevronRightIcon size={14} color={Colors.brandNavy || '#112B8A'} />
+                </View>
               </View>
             </TouchableOpacity>
           )}
 
           {/* Clean Discover List Cards */}
-          {filteredGroups.map(grp => (
-            <TouchableOpacity key={grp.id} style={[styles.discoverCardClean, isDark && { backgroundColor: '#1E293B', borderColor: '#334155' }]} onPress={() => setSelectedCommunity(grp)} activeOpacity={0.85}>
-              <View style={[styles.groupAvatarSmall, { backgroundColor: grp.avatarBg, overflow: 'hidden' }]}>
-                {grp.avatarUri ? (
-                  <Image source={{ uri: grp.avatarUri }} style={{ width: '100%', height: '100%' }} />
-                ) : (
-                  <Text style={styles.groupAvatarTextSmall}>{grp.avatarIcon || grp.name[0]}</Text>
-                )}
-              </View>
+          {filteredGroups.map(grp => {
+            const grpAvatar = grp.avatarSource || ((grp.id === 'grp-0' || grp.isOfficial) ? communityMascotSource : null);
+            return (
+              <TouchableOpacity key={grp.id} style={[styles.discoverCardClean, isDark && { backgroundColor: '#1E293B', borderColor: '#334155' }]} onPress={() => setSelectedCommunity(grp)} activeOpacity={0.85}>
+                <View style={[styles.groupAvatarSmall, { backgroundColor: grpAvatar ? '#FFFFFF' : grp.avatarBg, overflow: 'hidden' }]}>
+                  {grpAvatar ? (
+                    <Image source={grpAvatar} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                  ) : grp.avatarUri ? (
+                    <Image source={{ uri: grp.avatarUri }} style={{ width: '100%', height: '100%' }} />
+                  ) : (
+                    <Text style={styles.groupAvatarTextSmall}>{grp.avatarIcon || grp.name[0]}</Text>
+                  )}
+                </View>
 
               <View style={{ flex: 1, paddingRight: 8 }}>
-                <Text style={[styles.discoverNameClean, isDark && { color: '#F8FAFC' }]} numberOfLines={1}>{grp.name}</Text>
+                <Text style={[styles.discoverNameClean, isDark && { color: '#F8FAFC' }]}>{grp.name}</Text>
                 <Text style={[styles.discoverDescClean, isDark && { color: '#CBD5E1' }]} numberOfLines={4}>{grp.description}</Text>
                 <Text style={[styles.discoverMetaClean, isDark && { color: '#94A3B8' }]}>{grp.category} • {(grp.membersCount / 1000).toFixed(1)}k {t("community.membersLabel", "members")}</Text>
               </View>
@@ -943,7 +1107,8 @@ export default function CommunityScreen({ user = { name: 'Alex' }, onSelectTab, 
                 </Text>
               </TouchableOpacity>
             </TouchableOpacity>
-          ))}
+          );
+        })}
         </View>
       </ScrollView>
     </View>
@@ -1066,20 +1231,38 @@ export default function CommunityScreen({ user = { name: 'Alex' }, onSelectTab, 
           <View style={[styles.detailHeroBanner, { backgroundColor: activeCommunity.avatarBg || '#1E3A8A', paddingTop: insets.top + 48 }]}>
             <Animated.View style={[styles.detailHeaderContentClean, { opacity: heroContentOpacity }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-                <View style={[styles.detailAvatarBadgeClean, { overflow: 'hidden' }]}>
-                  {activeCommunity.avatarUri ? (
-                    <Image source={{ uri: activeCommunity.avatarUri }} style={{ width: '100%', height: '100%' }} />
-                  ) : (
-                    <Text style={{ fontSize: 22, color: '#FFFFFF' }}>
-                      {activeCommunity.avatarIcon || activeCommunity.name[0]}
-                    </Text>
-                  )}
-                </View>
+                {(() => {
+                  const communityAvatarSource = activeCommunity.avatarSource || ((activeCommunity.id === 'grp-0' || activeCommunity.isOfficial) ? communityMascotSource : null);
+                  const hasImage = !!(communityAvatarSource || activeCommunity.avatarUri);
+                  return (
+                    <View style={[styles.detailAvatarBadgeClean, { overflow: 'hidden' }, hasImage && { backgroundColor: '#FFFFFF' }]}>
+                      {communityAvatarSource ? (
+                        <Image
+                          source={communityAvatarSource}
+                          style={{ width: '100%', height: '100%' }}
+                          resizeMode="cover"
+                        />
+                      ) : activeCommunity.avatarUri ? (
+                        <Image source={{ uri: activeCommunity.avatarUri }} style={{ width: '100%', height: '100%' }} />
+                      ) : (
+                        <Text style={{ fontSize: 22, color: '#FFFFFF', fontWeight: '800' }}>
+                          {activeCommunity.avatarIcon || activeCommunity.name[0]}
+                        </Text>
+                      )}
+                    </View>
+                  );
+                })()}
 
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={styles.detailTitleClean}>{activeCommunity.name}</Text>
-                    {activeCommunity.isOfficial && <VerifiedIcon size={22} color="#60A5FA" />}
+                <View style={{ flex: 1, justifyContent: 'center' }}>
+                  <View style={styles.detailTitleRowClean}>
+                    <Text style={styles.detailTitleClean} numberOfLines={2}>
+                      {activeCommunity.name}
+                    </Text>
+                    {activeCommunity.isOfficial && (
+                      <View style={{ justifyContent: 'center', alignItems: 'center' }}>
+                        <VerifiedIcon size={18} color="#60A5FA" />
+                      </View>
+                    )}
                   </View>
 
                   <Text style={styles.detailSubtitleClean}>
@@ -1110,83 +1293,301 @@ export default function CommunityScreen({ user = { name: 'Alex' }, onSelectTab, 
           </View>
 
           {/* Index 1: Sticky Tabs Bar */}
-          <View style={[styles.detailTabs, isDark && { backgroundColor: '#1E293B', borderBottomColor: '#334155' }]}>
-            {[
-              { key: 'Feed', labelKey: 'community.feed', defaultLabel: 'Feed' },
-              { key: 'Study & Challenges', labelKey: 'community.studyAndChallenges', defaultLabel: 'Study & Challenges' },
-              { key: 'Members', labelKey: 'community.members', defaultLabel: 'Members' },
-              { key: 'Rules & Safety', labelKey: 'community.rulesAndSafety', defaultLabel: 'Rules & Safety' },
-            ].map(tabItem => (
-              <TouchableOpacity key={tabItem.key} style={[styles.detailTab, detailTab === tabItem.key && { borderBottomColor: accentColor }]} onPress={() => setDetailTab(tabItem.key)}>
-                <Text style={[styles.detailTabText, isDark && { color: '#94A3B8' }, detailTab === tabItem.key && { color: accentColor, fontWeight: '700' }]}>{t(tabItem.labelKey, tabItem.defaultLabel)}</Text>
-              </TouchableOpacity>
-            ))}
+          <View style={[styles.detailTabsContainer, isDark && styles.detailTabsContainerDark]}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.detailTabsScrollContent}
+              bounces={false}
+            >
+              {[
+                { key: 'Feed', icon: '💬', labelKey: 'community.feed', defaultLabel: 'Feed' },
+                { key: 'Study & Challenges', icon: '⚡', labelKey: 'community.studyAndChallenges', defaultLabel: 'Study & Challenges' },
+                { key: 'Members', icon: '👥', labelKey: 'community.members', defaultLabel: 'Members' },
+                { key: 'Rules & Safety', icon: '🛡️', labelKey: 'community.rulesAndSafety', defaultLabel: 'Rules & Safety' },
+              ].map(tabItem => {
+                const isActive = detailTab === tabItem.key;
+                return (
+                  <TouchableOpacity
+                    key={tabItem.key}
+                    style={[
+                      styles.detailTabPill,
+                      isActive && [styles.detailTabPillActive, { borderColor: accentColor, backgroundColor: isDark ? 'rgba(45, 98, 255, 0.18)' : '#EFF6FF' }],
+                      isDark && !isActive && styles.detailTabPillDark,
+                    ]}
+                    onPress={() => setDetailTab(tabItem.key)}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={styles.detailTabIcon}>{tabItem.icon}</Text>
+                    <Text
+                      style={[
+                        styles.detailTabPillText,
+                        isActive && [styles.detailTabPillTextActive, { color: accentColor }],
+                        isDark && !isActive && { color: '#94A3B8' },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {t(tabItem.labelKey, tabItem.defaultLabel)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
           </View>
         {detailTab === 'Feed' && (
-          <View>
+          <View style={{ paddingTop: 4 }}>
+            {/* Ultra-Premium Post Composer Card */}
             <TouchableOpacity 
               style={[
-                styles.createPostBtn, 
-                isDark && { backgroundColor: '#1E293B', borderColor: '#334155' },
+                styles.createPostCard, 
+                isDark && styles.createPostCardDark,
                 !activeCommunity?.joined && { borderColor: accentColor + '40', backgroundColor: accentColor + '0A' }
               ]} 
-              onPress={() => handleRequireMembership(() => setCreatePostOpen(true))}
-              activeOpacity={0.8}
+              onPress={() => handleOpenCreatePost(postType || 'tip')}
+              activeOpacity={0.85}
             >
-              <View style={[styles.authorAvatar, { backgroundColor: user?.avatarBg || accentColor, width: 32, height: 32, borderRadius: 16, overflow: 'hidden' }]}>
-                {user?.avatarUri ? (
-                  <Image source={{ uri: user.avatarUri }} style={{ width: '100%', height: '100%' }} />
-                ) : user?.avatarEmoji ? (
-                  <Text style={{ fontSize: 15 }}>{user.avatarEmoji}</Text>
-                ) : (
-                  <Text style={[styles.authorAvatarText, { fontSize: 14 }]}>{(user?.name?.[0] || 'A').toUpperCase()}</Text>
-                )}
+              <View style={styles.createPostTopRow}>
+                <View style={[styles.createPostAvatarWrap, { backgroundColor: user?.avatarBg || accentColor }]}>
+                  {user?.avatarUri ? (
+                    <Image source={{ uri: user.avatarUri }} style={styles.createPostAvatarImg} />
+                  ) : user?.avatarEmoji ? (
+                    <Text style={{ fontSize: 16 }}>{user.avatarEmoji}</Text>
+                  ) : (
+                    <Text style={styles.createPostAvatarLetter}>{(user?.name?.[0] || 'A').toUpperCase()}</Text>
+                  )}
+                </View>
+                <View style={[styles.createPostInputMock, isDark && styles.createPostInputMockDark]}>
+                  <Text
+                    style={[
+                      styles.createPostPlaceholder,
+                      !activeCommunity?.joined && { color: accentColor, fontWeight: '600' }
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {activeCommunity?.joined
+                      ? t("community.shareSomething", "Share something with the community...")
+                      : t("community.joinToShare", "🔒 Join community to share posts or comments")}
+                  </Text>
+                  <View style={[styles.createPostPenCircle, { backgroundColor: accentColor + '18' }]}>
+                    <EditPenIcon size={13} color={accentColor} />
+                  </View>
+                </View>
               </View>
-              <Text style={[styles.createPostPlaceholder, !activeCommunity?.joined && { color: accentColor, fontWeight: '600' }]}>
-                {activeCommunity?.joined ? t("community.shareSomething", "Share something with the community...") : t("community.joinToShare", "🔒 Join community to share posts or comments")}
-              </Text>
+
+              {/* Quick Action Tags (Each opens its own dedicated form arrangement) */}
+              <View style={[styles.createPostQuickActions, isDark && styles.createPostQuickActionsDark]}>
+                <TouchableOpacity
+                  style={[styles.quickActionTag, isDark && styles.quickActionTagDark]}
+                  onPress={() => handleOpenCreatePost('tip')}
+                  activeOpacity={0.75}
+                >
+                  <Text style={styles.quickActionEmoji}>💡</Text>
+                  <Text style={[styles.quickActionLabel, isDark && { color: '#CBD5E1' }]}>Study Tip</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.quickActionTag, isDark && styles.quickActionTagDark]}
+                  onPress={() => handleOpenCreatePost('question')}
+                  activeOpacity={0.75}
+                >
+                  <Text style={styles.quickActionEmoji}>❓</Text>
+                  <Text style={[styles.quickActionLabel, isDark && { color: '#CBD5E1' }]}>Ask Question</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.quickActionTag, isDark && styles.quickActionTagDark]}
+                  onPress={() => handleOpenCreatePost('notes')}
+                  activeOpacity={0.75}
+                >
+                  <Text style={styles.quickActionEmoji}>📚</Text>
+                  <Text style={[styles.quickActionLabel, isDark && { color: '#CBD5E1' }]}>Notes</Text>
+                </TouchableOpacity>
+              </View>
             </TouchableOpacity>
 
             {communityPosts.map(post => {
+              const isOfficialPost = post.communityId === 'grp-0' && (post.authorRole === 'Official' || post.author === 'Admin Team');
+              const postAvatarSource = post.avatarSource || (isOfficialPost ? communityMascotSource : null);
               const pImg = post.authorAvatar || post.avatarUri || (post.author === user?.name ? user?.avatarUri : null);
               const pEmoji = post.authorEmoji || (post.author === user?.name ? user?.avatarEmoji : null);
               const pLetter = post.avatarLetter || (post.author?.[0] || 'A').toUpperCase();
-              const pBg = post.avatarBg || (post.author === user?.name ? (user?.avatarBg || accentColor) : '#2D62FF');
+              const pBg = postAvatarSource ? '#FFFFFF' : (post.avatarBg || (post.author === user?.name ? (user?.avatarBg || accentColor) : '#2D62FF'));
+              const isHost = post.authorRole === 'Host';
+
               return (
-                <View key={post.id} style={[styles.postCard, isDark && { backgroundColor: '#1E293B', borderColor: '#334155' }]}>
-                  <View style={styles.postHeader}>
-                    <View style={[styles.authorAvatar, { backgroundColor: pBg, overflow: 'hidden' }]}>
-                      {pImg ? (
-                        <Image source={{ uri: pImg }} style={{ width: '100%', height: '100%' }} />
+                <View
+                  key={post.id}
+                  style={[
+                    styles.postCardPremium,
+                    isDark && styles.postCardPremiumDark,
+                    isOfficialPost && [styles.officialPostCardGlow, { borderColor: isDark ? 'rgba(45, 98, 255, 0.4)' : '#BFDBFE' }],
+                  ]}
+                >
+                  {/* Official / Pinned Announcement Badge */}
+                  {isOfficialPost && (
+                    <View style={[styles.pinnedBannerPill, isDark && styles.pinnedBannerPillDark]}>
+                      <PinIcon size={12} color="#2563EB" />
+                      <Text style={styles.pinnedBannerText}>PINNED ANNOUNCEMENT</Text>
+                    </View>
+                  )}
+
+                  {/* Header: Avatar, Name, Role Badge, Time, and Bookmark */}
+                  <View style={styles.postHeaderPremium}>
+                    <View style={[styles.authorAvatarPremium, { backgroundColor: pBg }, isDark && { borderColor: '#334155' }]}>
+                      {postAvatarSource ? (
+                        <Image source={postAvatarSource} style={styles.authorAvatarImg} resizeMode="cover" />
+                      ) : pImg ? (
+                        <Image source={{ uri: pImg }} style={styles.authorAvatarImg} />
                       ) : pEmoji ? (
-                        <Text style={{ fontSize: 16 }}>{pEmoji}</Text>
+                        <Text style={{ fontSize: 18 }}>{pEmoji}</Text>
                       ) : (
-                        <Text style={styles.authorAvatarText}>{pLetter}</Text>
+                        <Text style={styles.authorAvatarTextPremium}>{pLetter}</Text>
                       )}
                     </View>
+
                     <View style={{ flex: 1 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Text style={[styles.authorName, isDark && { color: '#F8FAFC' }]}>{post.author}</Text>
-                        <View style={styles.roleBadge}><Text style={styles.roleBadgeText}>{t(`community.role${post.authorRole || 'Member'}`, post.authorRole || 'Member')}</Text></View>
+                      <View style={styles.authorNameRow}>
+                        <Text style={[styles.authorNamePremium, isDark && { color: '#F8FAFC' }]}>
+                          {post.author}
+                        </Text>
+
+                        {/* Role Badge */}
+                        {isOfficialPost ? (
+                          <View style={styles.officialRoleBadge}>
+                            <VerifiedIcon size={12} color="#2563EB" />
+                            <Text style={styles.officialRoleBadgeText}>
+                              {t(`community.role${post.authorRole || 'Official'}`, post.authorRole || 'Official')}
+                            </Text>
+                          </View>
+                        ) : isHost ? (
+                          <View style={styles.hostRoleBadge}>
+                            <Text style={styles.hostRoleBadgeText}>👑 Host</Text>
+                          </View>
+                        ) : (
+                          <View style={[styles.memberRoleBadge, isDark && styles.memberRoleBadgeDark]}>
+                            <Text style={[styles.memberRoleBadgeText, isDark && { color: '#94A3B8' }]}>
+                              {t(`community.role${post.authorRole || 'Member'}`, post.authorRole || 'Member')}
+                            </Text>
+                          </View>
+                        )}
                       </View>
-                      <Text style={styles.postTime}>{getLocalizedTimeAgo(post.timeAgo, currentLang)}</Text>
+
+                      <View style={styles.postMetaRow}>
+                        <Text style={[styles.postTimeText, isDark && { color: '#94A3B8' }]}>
+                          {getLocalizedTimeAgo(post.timeAgo, currentLang)}
+                        </Text>
+                        {post.subject && (
+                          <>
+                            <Text style={[styles.postMetaDot, isDark && { color: '#64748B' }]}>•</Text>
+                            <Text style={[styles.postSubjectTag, isDark && { color: '#94A3B8' }]}>
+                              {post.subject}
+                            </Text>
+                          </>
+                        )}
+                      </View>
                     </View>
+
+                    {/* Bookmark Toggle in Header */}
+                    <TouchableOpacity
+                      style={[styles.headerBookmarkBtn, isDark && styles.headerBookmarkBtnDark]}
+                      onPress={() => handleToggleBookmark(post.id)}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      activeOpacity={0.7}
+                    >
+                      <BookmarkIcon
+                        size={17}
+                        isBookmarked={post.isBookmarked}
+                        color={post.isBookmarked ? accentColor : (isDark ? '#64748B' : '#94A3B8')}
+                      />
+                    </TouchableOpacity>
                   </View>
-                <Text style={[styles.postTitle, isDark && { color: '#F8FAFC' }]}>{post.title}</Text>
-                <Text style={styles.postContent}>{post.content}</Text>
-                <View style={styles.postActionsRow}>
-                  <TouchableOpacity style={styles.actionItem} onPress={() => handleToggleLike(post.id)}>
-                    <HeartIcon size={18} isLiked={post.isLiked} color="#64748B" />
-                    <Text style={[styles.actionText, post.isLiked && { color: '#EF4444' }]}>{post.likesCount}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.actionItem} onPress={() => handleRequireMembership(() => setSelectedPostForComments(post))}>
-                    <MessageSquareIcon size={18} color="#64748B" />
-                    <Text style={styles.actionText}>{post.commentsCount}</Text>
-                  </TouchableOpacity>
+
+                  {/* Post Title */}
+                  <Text style={[styles.postTitlePremium, isDark && { color: '#F8FAFC' }]}>
+                    {post.title}
+                  </Text>
+
+                  {/* Post Content Body */}
+                  <Text style={[styles.postContentPremium, isDark && { color: '#CBD5E1' }]}>
+                    {post.content}
+                  </Text>
+
+                  {/* Actions Footer */}
+                  <View style={[styles.postActionsFooter, isDark && styles.postActionsFooterDark]}>
+                    <View style={styles.actionsLeftGroup}>
+                      {/* Like Action Pill */}
+                      <TouchableOpacity
+                        style={[
+                          styles.actionPillBtn,
+                          post.isLiked && styles.actionPillBtnLiked,
+                          isDark && !post.isLiked && styles.actionPillBtnDark,
+                        ]}
+                        onPress={() => handleToggleLike(post.id)}
+                        activeOpacity={0.75}
+                      >
+                        <HeartIcon
+                          size={16}
+                          isLiked={post.isLiked}
+                          color={post.isLiked ? '#EF4444' : (isDark ? '#94A3B8' : '#64748B')}
+                        />
+                        <Text
+                          style={[
+                            styles.actionPillCount,
+                            post.isLiked && styles.actionPillCountLiked,
+                            isDark && !post.isLiked && { color: '#E2E8F0' },
+                          ]}
+                        >
+                          {post.likesCount}
+                        </Text>
+                      </TouchableOpacity>
+
+                      {/* Comment Action Pill */}
+                      <TouchableOpacity
+                        style={[
+                          styles.actionPillBtn,
+                          isDark && styles.actionPillBtnDark,
+                        ]}
+                        onPress={() => handleRequireMembership(() => {
+                          const existingComments = (post.comments && post.comments.length > 0)
+                            ? post.comments
+                            : (DEFAULT_POST_COMMENTS[post.id] || []);
+                          setSelectedPostForComments({
+                            ...post,
+                            comments: existingComments,
+                            commentsCount: Math.max(post.commentsCount || 0, existingComments.length),
+                          });
+                        })}
+                        activeOpacity={0.75}
+                      >
+                        <MessageSquareIcon size={16} color={isDark ? '#94A3B8' : '#64748B'} />
+                        <Text style={[styles.actionPillCount, isDark && { color: '#E2E8F0' }]}>
+                          {post.commentsCount}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Share Button */}
+                    <TouchableOpacity
+                      style={[styles.sharePillBtn, isDark && styles.actionPillBtnDark]}
+                      onPress={() => {
+                        try {
+                          Share.share({
+                            title: post.title,
+                            message: `${post.title}\n\n"${post.content}"\n\nShared via StudPal Global Community`,
+                          });
+                        } catch (e) {
+                          console.warn('Share error:', e);
+                        }
+                      }}
+                      activeOpacity={0.75}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Text style={[styles.shareActionText, isDark && { color: '#E2E8F0' }]}>Share ↗</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              </View>
-            );
-          })}
+              );
+            })}
             {communityPosts.length === 0 && (
               <View style={{ padding: 40, alignItems: 'center' }}>
                 <Text style={{ fontSize: 15, color: '#94A3B8' }}>No posts yet. Be the first to share!</Text>
@@ -1482,37 +1883,313 @@ export default function CommunityScreen({ user = { name: 'Alex' }, onSelectTab, 
          </SafeAreaView>
       )}
 
-      {/* ── CREATE NEW POST MODAL ────────────────────────────────────── */}
+      {/* ── CREATE NEW POST MODAL (DEDICATED ARRANGEMENT FOR EACH TYPE) ── */}
       <Modal visible={isCreatePostOpen} animationType="slide" transparent onRequestClose={() => setCreatePostOpen(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
-          <View style={[styles.modalSheetContainer, isDark && { backgroundColor: '#0F172A' }]}>
+          <View style={[styles.modalSheetContainer, { height: '88%', maxHeight: '94%' }, isDark && { backgroundColor: '#0F172A' }]}>
+            <View style={styles.dragHandle} />
             <View style={styles.modalSheetHeader}>
-              <Text style={[styles.modalSheetTitle, isDark && { color: '#F8FAFC' }]}>Create Post</Text>
-              <TouchableOpacity onPress={() => setCreatePostOpen(false)}>
+              <View style={{ flex: 1, paddingRight: 10 }}>
+                <Text style={[styles.modalSheetTitle, isDark && { color: '#F8FAFC' }]}>
+                  {postType === 'tip' ? '💡 Share Study Tip' : postType === 'question' ? '❓ Ask a Question' : '📚 Share Study Notes'}
+                </Text>
+                <Text style={[styles.modalSheetSub, isDark && { color: '#94A3B8' }]}>
+                  {postType === 'tip'
+                    ? 'Share a formula trick, mnemonic, or study technique'
+                    : postType === 'question'
+                    ? 'Get step-by-step help from peers & community'
+                    : 'Share high-yield summaries, formulas & resources'}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setCreatePostOpen(false)} style={styles.closeBtnCircle}>
                 <CloseIcon size={18} color={isDark ? '#94A3B8' : '#64748B'} />
               </TouchableOpacity>
             </View>
-            <View style={styles.formGroup}>
-              <TextInput
-                style={[styles.modalTextInput, isDark && { backgroundColor: '#1E293B', color: '#F8FAFC' }]}
-                placeholder="Title"
-                placeholderTextColor="#94A3B8"
-                value={newPostTitle}
-                onChangeText={setNewPostTitle}
-              />
-              <TextInput
-                style={[styles.modalTextInput, styles.modalTextArea, isDark && { backgroundColor: '#1E293B', color: '#F8FAFC' }]}
-                placeholder="What do you want to share?"
-                placeholderTextColor="#94A3B8"
-                multiline
-                numberOfLines={4}
-                value={newPostContent}
-                onChangeText={setNewPostContent}
-              />
+
+            {/* Segmented Type Switcher */}
+            <View style={[styles.postTypeSwitcher, isDark && styles.postTypeSwitcherDark]}>
+              <TouchableOpacity
+                style={[
+                  styles.postTypeOption,
+                  postType === 'tip' && [styles.postTypeOptionActive, { borderColor: '#F59E0B', backgroundColor: isDark ? 'rgba(245, 158, 11, 0.18)' : '#FEF3C7' }],
+                ]}
+                onPress={() => setPostType('tip')}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.postTypeOptionEmoji}>💡</Text>
+                <Text style={[styles.postTypeOptionText, postType === 'tip' && { color: '#D97706', fontWeight: '800' }, isDark && postType !== 'tip' && { color: '#94A3B8' }]}>
+                  Study Tip
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.postTypeOption,
+                  postType === 'question' && [styles.postTypeOptionActive, { borderColor: '#EF4444', backgroundColor: isDark ? 'rgba(239, 68, 68, 0.18)' : '#FEE2E2' }],
+                ]}
+                onPress={() => setPostType('question')}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.postTypeOptionEmoji}>❓</Text>
+                <Text style={[styles.postTypeOptionText, postType === 'question' && { color: '#DC2626', fontWeight: '800' }, isDark && postType !== 'question' && { color: '#94A3B8' }]}>
+                  Question
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.postTypeOption,
+                  postType === 'notes' && [styles.postTypeOptionActive, { borderColor: '#10B981', backgroundColor: isDark ? 'rgba(16, 185, 129, 0.18)' : '#D1FAE5' }],
+                ]}
+                onPress={() => setPostType('notes')}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.postTypeOptionEmoji}>📚</Text>
+                <Text style={[styles.postTypeOptionText, postType === 'notes' && { color: '#059669', fontWeight: '800' }, isDark && postType !== 'notes' && { color: '#94A3B8' }]}>
+                  Notes
+                </Text>
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity style={[styles.modalActionBtn, { backgroundColor: accentColor }]} onPress={handleCreatePostSubmit}>
-              <Text style={styles.modalActionBtnText}>Publish</Text>
-            </TouchableOpacity>
+
+            <ScrollView 
+              showsVerticalScrollIndicator={false}
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingBottom: 28 }}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* ─── ARRANGEMENT 1: STUDY TIP ─── */}
+              {postType === 'tip' && (
+                <View style={styles.formGroupCustom}>
+                  <View style={styles.fieldBlock}>
+                    <Text style={[styles.inputLabelCustom, isDark && { color: '#E2E8F0' }]}>Concept or Trick Name *</Text>
+                    <TextInput
+                      style={[styles.modalTextInput, isDark && styles.modalTextInputDark]}
+                      placeholder="e.g. LIATE Rule for Integration by Parts"
+                      placeholderTextColor="#94A3B8"
+                      value={tipTitle}
+                      onChangeText={setTipTitle}
+                    />
+                  </View>
+
+                  <View style={styles.fieldBlock}>
+                    <Text style={[styles.inputLabelCustom, isDark && { color: '#E2E8F0' }]}>Subject Category</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                      {['Mathematics', 'Physics', 'Chemistry', 'Biology', 'General Study'].map((subj) => (
+                        <TouchableOpacity
+                          key={subj}
+                          style={[
+                            styles.subjectChipPill,
+                            tipSubject === subj && [styles.subjectChipPillActive, { borderColor: '#F59E0B', backgroundColor: isDark ? 'rgba(245, 158, 11, 0.18)' : '#FEF3C7' }],
+                            isDark && tipSubject !== subj && styles.subjectChipPillDark,
+                          ]}
+                          onPress={() => setTipSubject(subj)}
+                        >
+                          <Text style={[styles.subjectChipText, tipSubject === subj && { color: '#D97706', fontWeight: '800' }, isDark && tipSubject !== subj && { color: '#94A3B8' }]}>
+                            {subj}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+
+                  <View style={styles.fieldBlock}>
+                    <Text style={[styles.inputLabelCustom, isDark && { color: '#E2E8F0' }]}>How It Works / Steps *</Text>
+                    <TextInput
+                      style={[styles.modalTextInput, styles.modalTextAreaCustom, isDark && styles.modalTextInputDark]}
+                      placeholder="Explain the shortcut, formula order, or technique clearly step-by-step..."
+                      placeholderTextColor="#94A3B8"
+                      multiline
+                      numberOfLines={4}
+                      value={tipMethod}
+                      onChangeText={setTipMethod}
+                    />
+                  </View>
+
+                  <View style={styles.fieldBlock}>
+                    <Text style={[styles.inputLabelCustom, isDark && { color: '#E2E8F0' }]}>Pro Tip / Key Takeaway</Text>
+                    <TextInput
+                      style={[styles.modalTextInput, { height: 74, paddingTop: 10, textAlignVertical: 'top' }, isDark && styles.modalTextInputDark]}
+                      placeholder="e.g. Saves ~5 mins per question on exam; watch out for negative signs!"
+                      placeholderTextColor="#94A3B8"
+                      multiline
+                      numberOfLines={2}
+                      value={tipTakeaway}
+                      onChangeText={setTipTakeaway}
+                    />
+                  </View>
+                </View>
+              )}
+
+              {/* ─── ARRANGEMENT 2: ASK QUESTION ─── */}
+              {postType === 'question' && (
+                <View style={styles.formGroupCustom}>
+                  <View style={styles.fieldBlock}>
+                    <Text style={[styles.inputLabelCustom, isDark && { color: '#E2E8F0' }]}>What's your question? *</Text>
+                    <TextInput
+                      style={[styles.modalTextInput, isDark && styles.modalTextInputDark]}
+                      placeholder="e.g. Why does acceleration equal zero at terminal velocity?"
+                      placeholderTextColor="#94A3B8"
+                      value={questionTitle}
+                      onChangeText={setQuestionTitle}
+                    />
+                  </View>
+
+                  <View style={styles.fieldBlock}>
+                    <Text style={[styles.inputLabelCustom, isDark && { color: '#E2E8F0' }]}>Subject</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                      {['Physics', 'Mathematics', 'Chemistry', 'JAMB / WAEC', 'Computer Science'].map((subj) => (
+                        <TouchableOpacity
+                          key={subj}
+                          style={[
+                            styles.subjectChipPill,
+                            questionSubject === subj && [styles.subjectChipPillActive, { borderColor: '#EF4444', backgroundColor: isDark ? 'rgba(239, 68, 68, 0.18)' : '#FEE2E2' }],
+                            isDark && questionSubject !== subj && styles.subjectChipPillDark,
+                          ]}
+                          onPress={() => setQuestionSubject(subj)}
+                        >
+                          <Text style={[styles.subjectChipText, questionSubject === subj && { color: '#DC2626', fontWeight: '800' }, isDark && questionSubject !== subj && { color: '#94A3B8' }]}>
+                            {subj}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+
+                  <View style={styles.fieldBlock}>
+                    <Text style={[styles.inputLabelCustom, isDark && { color: '#E2E8F0' }]}>Problem Details *</Text>
+                    <TextInput
+                      style={[styles.modalTextInput, styles.modalTextAreaCustom, isDark && styles.modalTextInputDark]}
+                      placeholder="Paste the problem statement, formula, or question number..."
+                      placeholderTextColor="#94A3B8"
+                      multiline
+                      numberOfLines={4}
+                      value={questionDetails}
+                      onChangeText={setQuestionDetails}
+                    />
+                  </View>
+
+                  <View style={styles.fieldBlock}>
+                    <Text style={[styles.inputLabelCustom, isDark && { color: '#E2E8F0' }]}>What I've Tried / Where I'm Stuck</Text>
+                    <TextInput
+                      style={[styles.modalTextInput, { height: 74, paddingTop: 10, textAlignVertical: 'top' }, isDark && styles.modalTextInputDark]}
+                      placeholder="e.g. I used F = ma and got mg - R, but don't know how R relates to velocity..."
+                      placeholderTextColor="#94A3B8"
+                      multiline
+                      numberOfLines={2}
+                      value={questionTried}
+                      onChangeText={setQuestionTried}
+                    />
+                  </View>
+
+                  <View style={styles.fieldBlock}>
+                    <Text style={[styles.inputLabelCustom, isDark && { color: '#E2E8F0' }]}>Urgency Level</Text>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      {[
+                        { id: 'Normal', label: '🟢 Normal Study' },
+                        { id: 'Assignment', label: '🟡 Assignment Help' },
+                        { id: 'Urgent', label: '🔴 Urgent (Exam Soon)' },
+                      ].map((urg) => (
+                        <TouchableOpacity
+                          key={urg.id}
+                          style={[
+                            styles.urgencyPill,
+                            questionUrgency === urg.id && styles.urgencyPillActive,
+                            isDark && questionUrgency !== urg.id && styles.urgencyPillDark,
+                          ]}
+                          onPress={() => setQuestionUrgency(urg.id)}
+                        >
+                          <Text style={[styles.urgencyPillText, questionUrgency === urg.id && { fontWeight: '800', color: accentColor }]}>
+                            {urg.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                </View>
+              )}
+
+              {/* ─── ARRANGEMENT 3: STUDY NOTES ─── */}
+              {postType === 'notes' && (
+                <View style={styles.formGroupCustom}>
+                  <View style={styles.fieldBlock}>
+                    <Text style={[styles.inputLabelCustom, isDark && { color: '#E2E8F0' }]}>Notes & Topic Title *</Text>
+                    <TextInput
+                      style={[styles.modalTextInput, isDark && styles.modalTextInputDark]}
+                      placeholder="e.g. JAMB Physics 2015-2023 Past Q&A Compilation"
+                      placeholderTextColor="#94A3B8"
+                      value={notesTitle}
+                      onChangeText={setNotesTitle}
+                    />
+                  </View>
+
+                  <View style={styles.fieldBlock}>
+                    <Text style={[styles.inputLabelCustom, isDark && { color: '#E2E8F0' }]}>Subject Area</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                      {['Physics', 'Chemistry', 'Biology', 'Exam Prep', 'Economics', 'Literature'].map((subj) => (
+                        <TouchableOpacity
+                          key={subj}
+                          style={[
+                            styles.subjectChipPill,
+                            notesSubject === subj && [styles.subjectChipPillActive, { borderColor: '#10B981', backgroundColor: isDark ? 'rgba(16, 185, 129, 0.18)' : '#D1FAE5' }],
+                            isDark && notesSubject !== subj && styles.subjectChipPillDark,
+                          ]}
+                          onPress={() => setNotesSubject(subj)}
+                        >
+                          <Text style={[styles.subjectChipText, notesSubject === subj && { color: '#059669', fontWeight: '800' }, isDark && notesSubject !== subj && { color: '#94A3B8' }]}>
+                            {subj}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+
+                  <View style={styles.fieldBlock}>
+                    <Text style={[styles.inputLabelCustom, isDark && { color: '#E2E8F0' }]}>Overview & Key Points *</Text>
+                    <TextInput
+                      style={[styles.modalTextInput, styles.modalTextAreaCustom, isDark && styles.modalTextInputDark]}
+                      placeholder="• Summary of core formulas&#10;• Most repeated exam questions&#10;• Step-by-step solutions for chapters 1-5"
+                      placeholderTextColor="#94A3B8"
+                      multiline
+                      numberOfLines={4}
+                      value={notesHighlights}
+                      onChangeText={setNotesHighlights}
+                    />
+                  </View>
+
+                  <View style={styles.fieldBlock}>
+                    <Text style={[styles.inputLabelCustom, isDark && { color: '#E2E8F0' }]}>Drive / PDF Link (Optional)</Text>
+                    <TextInput
+                      style={[styles.modalTextInput, isDark && styles.modalTextInputDark]}
+                      placeholder="https://drive.google.com/..."
+                      placeholderTextColor="#94A3B8"
+                      value={notesLink}
+                      onChangeText={setNotesLink}
+                      autoCapitalize="none"
+                    />
+                  </View>
+                </View>
+              )}
+
+              {/* Action Button */}
+              <TouchableOpacity
+                style={[
+                  styles.modalActionBtnCustom,
+                  {
+                    backgroundColor: postType === 'tip' ? '#D97706' : postType === 'question' ? '#DC2626' : '#059669',
+                  },
+                ]}
+                onPress={handleCreatePostSubmit}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.modalActionBtnText}>
+                  {postType === 'tip'
+                    ? '💡 Publish Study Tip (+25 XP)'
+                    : postType === 'question'
+                    ? '❓ Ask Question (+25 XP)'
+                    : '📚 Publish Notes (+25 XP)'}
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -2118,83 +2795,104 @@ export default function CommunityScreen({ user = { name: 'Alex' }, onSelectTab, 
 
       {/* ── COMMENTS DRAWER MODAL ────────────────────────────────────── */}
       <Modal visible={!!selectedPostForComments} animationType="slide" transparent onRequestClose={() => setSelectedPostForComments(null)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
-          <View style={[styles.modalSheetContainer, { height: '75%' }, isDark && { backgroundColor: '#0F172A' }]}>
-            <View style={styles.dragHandle} />
-            <View style={styles.modalSheetHeader}>
-              <Text style={[styles.modalSheetTitle, isDark && { color: '#F8FAFC' }]}>
-                Comments ({selectedPostForComments?.commentsCount || 0})
-              </Text>
-              <TouchableOpacity onPress={() => setSelectedPostForComments(null)} style={styles.closeBtnCircle}>
-                <CloseIcon size={18} color={isDark ? '#94A3B8' : '#64748B'} />
-              </TouchableOpacity>
-            </View>
+        {(() => {
+          const activePostComments = (selectedPostForComments?.comments && selectedPostForComments.comments.length > 0)
+            ? selectedPostForComments.comments
+            : (DEFAULT_POST_COMMENTS[selectedPostForComments?.id] || []);
 
-            <ScrollView style={{ flex: 1, paddingVertical: 6 }} showsVerticalScrollIndicator={false}>
-              {selectedPostForComments?.comments?.map((c) => {
-                const cImg = c.authorAvatar || c.avatarUri || (c.author === user?.name ? user?.avatarUri : null);
-                const cEmoji = c.authorEmoji || (c.author === user?.name ? user?.avatarEmoji : null);
-                const cLetter = c.avatarLetter || (c.author?.[0] || 'A').toUpperCase();
-                const cBg = c.avatarBg || (c.author === user?.name ? (user?.avatarBg || accentColor) : '#2D62FF');
-
-                return (
-                  <View key={c.id} style={[styles.commentItemRow, isDark && { borderBottomWidth: 0, borderBottomColor: 'transparent' }]}>
-                    <View style={[styles.commentAvatarCircle, { backgroundColor: cBg }]}>
-                      {cImg ? (
-                        <Image source={{ uri: cImg }} style={styles.commentAvatarImg} />
-                      ) : cEmoji ? (
-                        <Text style={{ fontSize: 15 }}>{cEmoji}</Text>
-                      ) : (
-                        <Text style={styles.commentAvatarText}>{cLetter}</Text>
-                      )}
-                    </View>
-
-                    <View style={{ flex: 1 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-                        <Text style={[styles.commentAuthorName, isDark && { color: '#F8FAFC' }]}>
-                          {c.author}
-                        </Text>
-                        <Text style={styles.commentTimeAgo}>• {c.timeAgo || 'Just now'}</Text>
-                      </View>
-                      <Text style={[styles.commentTextBody, isDark && { color: '#CBD5E1' }]}>
-                        {c.text}
-                      </Text>
-                    </View>
-                  </View>
-                );
-              })}
-
-              {(!selectedPostForComments?.comments || selectedPostForComments.comments.length === 0) && (
-                <View style={{ paddingVertical: 40, alignItems: 'center' }}>
-                  <Text style={{ color: '#94A3B8', fontSize: 14 }}>No comments yet. Start the conversation!</Text>
+          return (
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
+              <View style={[styles.modalSheetContainer, { height: '75%' }, isDark && { backgroundColor: '#0F172A' }]}>
+                <View style={styles.dragHandle} />
+                <View style={styles.modalSheetHeader}>
+                  <Text style={[styles.modalSheetTitle, isDark && { color: '#F8FAFC' }]}>
+                    Comments ({activePostComments.length})
+                  </Text>
+                  <TouchableOpacity onPress={() => setSelectedPostForComments(null)} style={styles.closeBtnCircle}>
+                    <CloseIcon size={18} color={isDark ? '#94A3B8' : '#64748B'} />
+                  </TouchableOpacity>
                 </View>
-              )}
-            </ScrollView>
 
-            <View style={styles.commentInputRow}>
-              <View style={[styles.commentAvatarCircle, { backgroundColor: user?.avatarBg || accentColor, width: 32, height: 32 }]}>
-                {user?.avatarUri ? (
-                  <Image source={{ uri: user.avatarUri }} style={styles.commentAvatarImg} />
-                ) : user?.avatarEmoji ? (
-                  <Text style={{ fontSize: 14 }}>{user.avatarEmoji}</Text>
-                ) : (
-                  <Text style={[styles.commentAvatarText, { fontSize: 13 }]}>{(user?.name?.[0] || 'A').toUpperCase()}</Text>
-                )}
+                <ScrollView style={{ flex: 1, paddingVertical: 6 }} showsVerticalScrollIndicator={false}>
+                  {activePostComments.map((c) => {
+                    const cImg = c.authorAvatar || c.avatarUri || (c.author === user?.name ? user?.avatarUri : null);
+                    const cEmoji = c.authorEmoji || (c.author === user?.name ? user?.avatarEmoji : null);
+                    const cLetter = c.avatarLetter || (c.author?.[0] || 'A').toUpperCase();
+                    const cBg = c.avatarSource ? '#FFFFFF' : (c.avatarBg || (c.author === user?.name ? (user?.avatarBg || accentColor) : '#2D62FF'));
+                    const isPostAuthor = c.author === selectedPostForComments?.author;
+
+                    return (
+                      <View key={c.id} style={[styles.commentItemRow, isDark && { borderBottomColor: 'rgba(255,255,255,0.06)' }]}>
+                        <View style={[styles.commentAvatarCircle, { backgroundColor: cBg }, isDark && { borderColor: '#334155' }]}>
+                          {c.avatarSource ? (
+                            <Image source={c.avatarSource} style={styles.commentAvatarImg} resizeMode="cover" />
+                          ) : cImg ? (
+                            <Image source={{ uri: cImg }} style={styles.commentAvatarImg} />
+                          ) : cEmoji ? (
+                            <Text style={{ fontSize: 15 }}>{cEmoji}</Text>
+                          ) : (
+                            <Text style={styles.commentAvatarText}>{cLetter}</Text>
+                          )}
+                        </View>
+
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3, flexWrap: 'wrap' }}>
+                            <Text style={[styles.commentAuthorName, isDark && { color: '#F8FAFC' }]}>
+                              {c.author}
+                            </Text>
+                            {isPostAuthor && (
+                              <View style={styles.commentAuthorBadge}>
+                                <Text style={styles.commentAuthorBadgeText}>Author</Text>
+                              </View>
+                            )}
+                            {c.authorRole && c.authorRole !== 'Author' && !isPostAuthor && (
+                              <View style={[styles.commentAuthorBadge, c.authorRole === 'Official' && { backgroundColor: 'rgba(37,99,235,0.1)' }]}>
+                                <Text style={[styles.commentAuthorBadgeText, c.authorRole === 'Official' && { color: '#2563EB' }]}>{c.authorRole}</Text>
+                              </View>
+                            )}
+                            <Text style={[styles.commentTimeAgo, isDark && { color: '#94A3B8' }]}>• {c.timeAgo || 'Just now'}</Text>
+                          </View>
+                          <Text style={[styles.commentTextBody, isDark && { color: '#CBD5E1' }]}>
+                            {c.text}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+
+                  {activePostComments.length === 0 && (
+                    <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                      <Text style={{ color: '#94A3B8', fontSize: 14 }}>No comments yet. Start the conversation!</Text>
+                    </View>
+                  )}
+                </ScrollView>
+
+                <View style={styles.commentInputRow}>
+                  <View style={[styles.commentAvatarCircle, { backgroundColor: user?.avatarBg || accentColor, width: 32, height: 32 }]}>
+                    {user?.avatarUri ? (
+                      <Image source={{ uri: user.avatarUri }} style={styles.commentAvatarImg} />
+                    ) : user?.avatarEmoji ? (
+                      <Text style={{ fontSize: 14 }}>{user.avatarEmoji}</Text>
+                    ) : (
+                      <Text style={[styles.commentAvatarText, { fontSize: 13 }]}>{(user?.name?.[0] || 'A').toUpperCase()}</Text>
+                    )}
+                  </View>
+
+                  <TextInput
+                    style={[styles.commentTextInput, isDark && { backgroundColor: '#1E293B', color: '#F8FAFC' }]}
+                    placeholder="Write a comment..."
+                    placeholderTextColor="#94A3B8"
+                    value={newCommentText}
+                    onChangeText={setNewCommentText}
+                  />
+                  <TouchableOpacity style={[styles.sendBtn, { backgroundColor: accentColor }]} onPress={handleAddCommentSubmit} activeOpacity={0.8}>
+                    <SendIcon size={16} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
               </View>
-
-              <TextInput
-                style={[styles.commentTextInput, isDark && { backgroundColor: '#1E293B', color: '#F8FAFC' }]}
-                placeholder="Write a comment..."
-                placeholderTextColor="#94A3B8"
-                value={newCommentText}
-                onChangeText={setNewCommentText}
-              />
-              <TouchableOpacity style={[styles.sendBtn, { backgroundColor: accentColor }]} onPress={handleAddCommentSubmit} activeOpacity={0.8}>
-                <SendIcon size={16} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
+            </KeyboardAvoidingView>
+          );
+        })()}
       </Modal>
 
       {/* ── REPORT COMMUNITY MODAL ────────────────────────────────────── */}
@@ -2573,26 +3271,35 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   detailHeaderContentClean: {
-    paddingHorizontal: 20,
-    marginTop: 10,
+    paddingHorizontal: 18,
+    marginTop: 8,
+  },
+  detailTitleRowClean: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
   },
   detailTitleClean: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: -0.3,
+    lineHeight: 25,
+    flexShrink: 1,
   },
   detailSubtitleClean: {
     fontSize: 13,
     color: 'rgba(255, 255, 255, 0.9)',
     fontWeight: '600',
+    marginTop: 2,
     marginBottom: 8,
   },
   detailBioTextClean: {
-    fontSize: 13,
+    fontSize: 13.5,
     color: 'rgba(255, 255, 255, 0.95)',
-    lineHeight: 19,
-    fontWeight: '500',
+    lineHeight: 20,
+    fontWeight: '400',
     marginBottom: 14,
   },
   detailJoinBtnClean: {
@@ -2612,24 +3319,390 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontSize: 14,
   },
-  detailTabs: { flexDirection: 'row', backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0', marginBottom: 16 },
-  detailTab: { flex: 1, alignItems: 'center', paddingVertical: 14, borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  detailTabText: { fontSize: 14, fontWeight: '600', color: '#475569' },
-  createPostBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', marginHorizontal: 20, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 16, gap: 12 },
-  createPostPlaceholder: { color: '#475569', fontSize: 15, fontWeight: '500' },
-  postCard: { backgroundColor: '#FFFFFF', marginHorizontal: 20, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 12 },
-  postHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
-  authorAvatar: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  authorAvatarText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-  authorName: { fontSize: 15, fontWeight: '800', color: '#0F172A' },
-  roleBadge: { backgroundColor: 'rgba(45, 98, 255, 0.12)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  roleBadgeText: { color: '#2D62FF', fontSize: 11, fontWeight: '800' },
-  postTime: { fontSize: 12, color: '#475569', fontWeight: '600' },
-  postTitle: { fontSize: 16, fontWeight: '800', color: '#0F172A', marginBottom: 6 },
-  postContent: { fontSize: 14, color: '#1E293B', lineHeight: 22, marginBottom: 16, fontWeight: '500' },
-  postActionsRow: { flexDirection: 'row', alignItems: 'center', gap: 24, borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 12 },
-  actionItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  actionText: { fontSize: 13, color: '#334155', fontWeight: '600' },
+  /* ─── Ultra-Premium Sticky Detail Tabs ─── */
+  detailTabsContainer: {
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+  detailTabsContainerDark: {
+    backgroundColor: '#1E293B',
+    borderBottomColor: '#334155',
+  },
+  detailTabsScrollContent: {
+    paddingHorizontal: 16,
+    gap: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  detailTabPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 20,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  detailTabPillDark: {
+    backgroundColor: '#0F172A',
+    borderColor: '#334155',
+  },
+  detailTabPillActive: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1.5,
+  },
+  detailTabIcon: {
+    fontSize: 13,
+  },
+  detailTabPillText: {
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  detailTabPillTextActive: {
+    fontWeight: '800',
+  },
+
+  /* ─── Ultra-Premium Post Composer ─── */
+  createPostCard: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 1.2,
+    borderColor: '#E2E8F0',
+    marginBottom: 14,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  createPostCardDark: {
+    backgroundColor: '#1E293B',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  createPostTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  createPostAvatarWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#F1F5F9',
+  },
+  createPostAvatarImg: {
+    width: '100%',
+    height: '100%',
+  },
+  createPostAvatarLetter: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  createPostInputMock: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  createPostInputMockDark: {
+    backgroundColor: '#0F172A',
+    borderColor: '#334155',
+  },
+  createPostPlaceholder: {
+    color: '#64748B',
+    fontSize: 13.5,
+    fontWeight: '500',
+    flex: 1,
+  },
+  createPostPenCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 6,
+  },
+  createPostQuickActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  createPostQuickActionsDark: {
+    borderTopColor: '#334155',
+  },
+  quickActionTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  quickActionTagDark: {
+    backgroundColor: '#0F172A',
+    borderColor: '#334155',
+  },
+  quickActionEmoji: {
+    fontSize: 12,
+  },
+  quickActionLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+  },
+
+  /* ─── Ultra-Premium Post Card ─── */
+  postCardPremium: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1.2,
+    borderColor: '#E2E8F0',
+    marginBottom: 14,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  postCardPremiumDark: {
+    backgroundColor: '#1E293B',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  officialPostCardGlow: {
+    borderWidth: 1.5,
+  },
+  pinnedBannerPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    borderRadius: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    alignSelf: 'flex-start',
+    marginBottom: 12,
+  },
+  pinnedBannerPillDark: {
+    backgroundColor: 'rgba(37, 99, 235, 0.15)',
+    borderColor: 'rgba(37, 99, 235, 0.35)',
+  },
+  pinnedBannerText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#2563EB',
+    letterSpacing: 0.5,
+  },
+  postHeaderPremium: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  authorAvatarPremium: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#F1F5F9',
+  },
+  authorAvatarImg: {
+    width: '100%',
+    height: '100%',
+  },
+  authorAvatarTextPremium: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  authorNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  authorNamePremium: {
+    fontSize: 15.5,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: -0.2,
+  },
+  officialRoleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(37, 99, 235, 0.25)',
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: 14,
+  },
+  officialRoleBadgeText: {
+    color: '#2563EB',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  hostRoleBadge: {
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.25)',
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: 14,
+  },
+  hostRoleBadgeText: {
+    color: '#D97706',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  memberRoleBadge: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
+  memberRoleBadgeDark: {
+    backgroundColor: '#334155',
+  },
+  memberRoleBadgeText: {
+    color: '#64748B',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  postMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 2,
+  },
+  postTimeText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  postMetaDot: {
+    fontSize: 11,
+    color: '#94A3B8',
+  },
+  postSubjectTag: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  headerBookmarkBtn: {
+    padding: 6,
+    borderRadius: 10,
+  },
+  headerBookmarkBtnDark: {
+    backgroundColor: 'transparent',
+  },
+  postTitlePremium: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#0F172A',
+    lineHeight: 23,
+    letterSpacing: -0.3,
+    marginBottom: 8,
+  },
+  postContentPremium: {
+    fontSize: 14.5,
+    color: '#334155',
+    lineHeight: 22,
+    marginBottom: 16,
+    fontWeight: '400',
+  },
+  postContentPremiumDark: {
+    color: '#CBD5E1',
+  },
+  postActionsFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    paddingTop: 12,
+  },
+  postActionsFooterDark: {
+    borderTopColor: '#334155',
+  },
+  actionsLeftGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  actionPillBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  actionPillBtnDark: {
+    backgroundColor: '#0F172A',
+    borderColor: '#334155',
+  },
+  actionPillBtnLiked: {
+    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+    borderColor: 'rgba(239, 68, 68, 0.25)',
+  },
+  actionPillCount: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  actionPillCountLiked: {
+    color: '#EF4444',
+  },
+  sharePillBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  shareActionText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#475569',
+  },
   detailAvatarBadgeClean: {
     width: 44,
     height: 44,
@@ -2995,6 +4068,118 @@ const styles = StyleSheet.create({
   closeBtnCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(148, 163, 184, 0.15)', alignItems: 'center', justifyContent: 'center' },
   modalNoticeBox: { backgroundColor: '#F1F5F9', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#E2E8F0', marginTop: 12, marginBottom: 14 },
   modalNoticeText: { fontSize: 13, color: '#1E293B', lineHeight: 19, fontWeight: '500' },
+  /* ─── Post Form Arrangement Styles ─── */
+  postTypeSwitcher: {
+    flexDirection: 'row',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 14,
+    padding: 4,
+    marginBottom: 16,
+    gap: 4,
+  },
+  postTypeSwitcherDark: {
+    backgroundColor: '#1E293B',
+  },
+  postTypeOption: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingVertical: 9,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  postTypeOptionActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  postTypeOptionEmoji: {
+    fontSize: 13,
+  },
+  postTypeOptionText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  formGroupCustom: {
+    gap: 14,
+    marginBottom: 16,
+  },
+  fieldBlock: {
+    gap: 6,
+  },
+  inputLabelCustom: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  modalTextAreaCustom: {
+    height: 100,
+    paddingTop: 10,
+    textAlignVertical: 'top',
+  },
+  modalTextInputDark: {
+    backgroundColor: '#1E293B',
+    color: '#F8FAFC',
+    borderColor: '#334155',
+  },
+  subjectChipPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  subjectChipPillDark: {
+    backgroundColor: '#1E293B',
+    borderColor: '#334155',
+  },
+  subjectChipPillActive: {
+    borderWidth: 1.5,
+  },
+  subjectChipText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  urgencyPill: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  urgencyPillDark: {
+    backgroundColor: '#1E293B',
+    borderColor: '#334155',
+  },
+  urgencyPillActive: {
+    borderColor: '#2563EB',
+    backgroundColor: '#EFF6FF',
+  },
+  urgencyPillText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#475569',
+    textAlign: 'center',
+  },
+  modalActionBtnCustom: {
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+    marginTop: 10,
+  },
   benefitsList: { gap: 10, marginVertical: 8 },
   benefitRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   benefitBullet: { fontSize: 16 },
@@ -3029,6 +4214,17 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     fontWeight: '700',
     color: '#0F172A',
+  },
+  commentAuthorBadge: {
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 8,
+  },
+  commentAuthorBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#2563EB',
   },
   commentTimeAgo: {
     fontSize: 12,
@@ -3322,22 +4518,104 @@ const styles = StyleSheet.create({
   sectionHeadingSmall: { fontSize: 16, fontWeight: '800', color: '#0F172A' },
   lockedPillInline: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.warning + '18', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
   lockedPillText: { fontSize: 11, fontWeight: '700', color: Colors.warning },
-  storyRow: { paddingHorizontal: 20, gap: 14, alignItems: 'center' },
-  storyItem: { width: 72, alignItems: 'center' },
+  storyRow: { paddingHorizontal: 20, gap: 12, alignItems: 'flex-start' },
+  storyItem: { width: 90, alignItems: 'center' },
   storyAvatarRing: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
   storyAvatarCreate: { width: 56, height: 56, borderRadius: 28, borderWidth: 2, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
   storyAvatarText: { color: '#FFFFFF', fontSize: 20, fontWeight: '800' },
-  storyName: { fontSize: 13, fontWeight: '700', color: '#1E293B', textAlign: 'center' },
+  storyName: { fontSize: 11.5, fontWeight: '700', color: '#1E293B', textAlign: 'center', lineHeight: 14.5 },
   noJoinedText: { fontSize: 13, color: '#475569', fontStyle: 'italic', fontWeight: '500', paddingVertical: 8 },
-  featuredHubItem: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 16, marginBottom: 12, marginHorizontal: 20 },
-  featuredHubTitle: { fontSize: 17, fontWeight: '800', color: '#FFFFFF' },
-  featuredHubDesc: { fontSize: 13, color: 'rgba(255,255,255,0.95)', fontWeight: '500' },
-  featuredHubBtn: { backgroundColor: '#FFFFFF', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 18, marginLeft: 10 },
-  featuredHubBtnText: { color: Colors.brandNavy, fontWeight: '800', fontSize: 13 },
+  featuredHubItem: { 
+    padding: 16, 
+    borderRadius: 18, 
+    marginBottom: 14, 
+    marginHorizontal: 20,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  featuredHubTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  featuredHubAvatarWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    marginRight: 12,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  featuredHubAvatar: {
+    width: '100%',
+    height: '100%',
+  },
+  featuredHubTitleCol: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  featuredHubTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  featuredHubTitle: { 
+    fontSize: 18, 
+    fontWeight: '800', 
+    color: '#FFFFFF',
+    letterSpacing: -0.2,
+    flexShrink: 1,
+  },
+  featuredHubMeta: {
+    fontSize: 12.5,
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  featuredHubDesc: { 
+    fontSize: 13.5, 
+    color: 'rgba(255, 255, 255, 0.95)', 
+    fontWeight: '400',
+    lineHeight: 19.5,
+    marginBottom: 8,
+  },
+  featuredHubBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginTop: 4,
+  },
+  featuredHubBtn: { 
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFFFFF', 
+    paddingHorizontal: 14, 
+    paddingVertical: 7.5, 
+    borderRadius: 18, 
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  featuredHubBtnText: { 
+    color: Colors.brandNavy || '#112B8A', 
+    fontWeight: '800', 
+    fontSize: 13,
+  },
   discoverCardClean: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 12, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 6, elevation: 1 },
   groupAvatarSmall: { width: 50, height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
   groupAvatarTextSmall: { color: '#FFFFFF', fontSize: 18, fontWeight: '800' },
-  discoverNameClean: { fontSize: 16, fontWeight: '800', color: '#0F172A', marginBottom: 3 },
+  discoverNameClean: { fontSize: 16, fontWeight: '800', color: '#0F172A', marginBottom: 4, lineHeight: 21, letterSpacing: -0.2 },
   discoverDescClean: { fontSize: 13, color: '#334155', fontWeight: '500', marginBottom: 4, lineHeight: 19 },
   discoverMetaClean: { fontSize: 12, color: '#475569', fontWeight: '600' },
   joinBtnClean: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 18 },

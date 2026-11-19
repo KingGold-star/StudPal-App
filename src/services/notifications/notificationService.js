@@ -1,4 +1,6 @@
 import AsyncStoragePackage from '@react-native-async-storage/async-storage';
+import { supabase, isSupabaseConfigured } from '../../lib/supabaseClient';
+import { authService } from '../supabase/authService';
 
 const AsyncStorage = AsyncStoragePackage?.default || AsyncStoragePackage;
 
@@ -204,6 +206,23 @@ class NotificationService {
     await this._save();
     this._notify();
     return newNotif;
+  }
+
+  async registerPushToken(token, deviceType = 'device') {
+    if (!token) return;
+    try {
+      const user = await authService.getCurrentUser();
+      if (user?.id && isSupabaseConfigured()) {
+        await supabase.from('push_tokens').upsert({
+          user_id: user.id,
+          expo_push_token: token,
+          device_type: deviceType,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'expo_push_token' });
+      }
+    } catch (e) {
+      console.warn('[notificationService] Failed to register push token with Supabase:', e);
+    }
   }
 }
 

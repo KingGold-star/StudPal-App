@@ -1,4 +1,4 @@
-// src/services/adaptiveTopicsService.js
+﻿// src/services/adaptiveTopicsService.js
 // Generates personalized, daily-rotating study prompts and topic pills tailored to the user's data & weak areas.
 
 export const SUBJECT_KNOWLEDGE_BANK = {
@@ -10,7 +10,7 @@ export const SUBJECT_KNOWLEDGE_BANK = {
       {
         topic: 'Organic Chemistry Mechanisms',
         queries: [
-          'Branco, explain SN1 vs SN2 and E1 vs E2 reaction mechanisms with transition states and solvent effects.',
+          'Nia, explain SN1 vs SN2 and E1 vs E2 reaction mechanisms with transition states and solvent effects.',
           'Walk me through Aldol addition and condensation mechanisms step-by-step with electron-pushing arrows.',
           'Explain electrophilic aromatic substitution (EAS) directing groups: ortho/para vs meta directors.',
         ],
@@ -39,7 +39,7 @@ export const SUBJECT_KNOWLEDGE_BANK = {
       {
         topic: 'Integration by Parts',
         queries: [
-          'Branco, guide me through Integration by Parts using the LIATE rule with 2 challenging exam-style examples.',
+          'Nia, guide me through Integration by Parts using the LIATE rule with 2 challenging exam-style examples.',
           'Explain tabular integration (DI method) for repeated integrals with trig and exponential functions.',
         ],
       },
@@ -67,7 +67,7 @@ export const SUBJECT_KNOWLEDGE_BANK = {
       {
         topic: 'Electromagnetism & Flux',
         queries: [
-          'Branco, explain Gauss’s Law and magnetic flux: Faraday’s Law of induction and Lenz’s Law with direction rules.',
+          'Nia, explain Gauss’s Law and magnetic flux: Faraday’s Law of induction and Lenz’s Law with direction rules.',
           'Walk me through Ampere’s Law, Biot-Savart Law, and Lorentz force calculations on charged particles.',
         ],
       },
@@ -95,7 +95,7 @@ export const SUBJECT_KNOWLEDGE_BANK = {
       {
         topic: 'Cellular Respiration & ATP',
         queries: [
-          'Branco, trace glycolysis, Krebs cycle, and oxidative phosphorylation electron transport chain with ATP yields.',
+          'Nia, trace glycolysis, Krebs cycle, and oxidative phosphorylation electron transport chain with ATP yields.',
           'Explain Chemiosmosis and the proton-motive force across the inner mitochondrial membrane.',
         ],
       },
@@ -116,7 +116,7 @@ export const SUBJECT_KNOWLEDGE_BANK = {
       {
         topic: 'Data Structures & Big-O',
         queries: [
-          'Branco, compare time and space complexity of Trees, Hash Maps, and Heaps with edge-case scenarios.',
+          'Nia, compare time and space complexity of Trees, Hash Maps, and Heaps with edge-case scenarios.',
           'Explain dynamic programming memoization vs tabulation using the Knapsack and Fibonacci problems.',
         ],
       },
@@ -137,7 +137,7 @@ export const SUBJECT_KNOWLEDGE_BANK = {
       {
         topic: 'Argumentative Essay Structure',
         queries: [
-          'Branco, help me structure a compelling thesis statement and rebuttal paragraph for an academic essay.',
+          'Nia, help me structure a compelling thesis statement and rebuttal paragraph for an academic essay.',
           'Explain rhetorical analysis: ethos, pathos, and logos with high-scoring analytical templates.',
         ],
       },
@@ -158,7 +158,7 @@ export const SUBJECT_KNOWLEDGE_BANK = {
       {
         topic: 'Price Elasticity of Demand',
         queries: [
-          'Branco, explain price elasticity of demand (PED) calculations and total revenue test.',
+          'Nia, explain price elasticity of demand (PED) calculations and total revenue test.',
           'Walk me through cross-price and income elasticity with normal, inferior, and luxury goods.',
         ],
       },
@@ -179,7 +179,7 @@ export const SUBJECT_KNOWLEDGE_BANK = {
       {
         topic: 'Separation of Powers & Judiciary',
         queries: [
-          'Branco, explain the checks and balances between Legislature, Executive, and Judiciary.',
+          'Nia, explain the checks and balances between Legislature, Executive, and Judiciary.',
           'Walk me through judicial review and constitutional supremacy principles.',
         ],
       },
@@ -200,7 +200,7 @@ export const SUBJECT_KNOWLEDGE_BANK = {
       {
         topic: 'Plate Tectonics & Earthquakes',
         queries: [
-          'Branco, explain convergent, divergent, and transform plate boundaries with landform outcomes.',
+          'Nia, explain convergent, divergent, and transform plate boundaries with landform outcomes.',
           'Walk me through seismic waves (P-waves vs S-waves) and Richter vs Mercalli scales.',
         ],
       },
@@ -221,7 +221,7 @@ export const SUBJECT_KNOWLEDGE_BANK = {
       {
         topic: 'World War II & Post-War Order',
         queries: [
-          'Branco, summarize the causes and turning points of World War II in Europe and the Pacific.',
+          'Nia, summarize the causes and turning points of World War II in Europe and the Pacific.',
           'Explain the origin of the United Nations and the onset of the Cold War.',
         ],
       },
@@ -242,7 +242,7 @@ export const SUBJECT_KNOWLEDGE_BANK = {
       {
         topic: 'Poetic Forms & Meter',
         queries: [
-          'Branco, break down Shakespearean vs Petrarchan sonnet rhyme schemes and iambic pentameter.',
+          'Nia, break down Shakespearean vs Petrarchan sonnet rhyme schemes and iambic pentameter.',
           'Explain tone, mood, and dramatic irony in classic theatre.',
         ],
       },
@@ -256,7 +256,7 @@ export const SUBJECT_KNOWLEDGE_BANK = {
       {
         topic: 'Passé Composé vs Imparfait',
         queries: [
-          'Branco, explain when to use Passé Composé vs Imparfait with narrative story examples.',
+          'Nia, explain when to use Passé Composé vs Imparfait with narrative story examples.',
           'Walk me through irregular French verb conjugations with être vs avoir auxiliary.',
         ],
       },
@@ -270,7 +270,7 @@ export const SUBJECT_KNOWLEDGE_BANK = {
       {
         topic: 'Balance Sheet & Ledger Entries',
         queries: [
-          'Branco, explain double-entry journal entries for asset depreciation and accruals.',
+          'Nia, explain double-entry journal entries for asset depreciation and accruals.',
           'Walk me through preparing a Statement of Financial Position and Trial Balance.',
         ],
       },
@@ -360,7 +360,7 @@ export function getDailyAdaptivePills(user = {}) {
         color: '#6236FF',
         topic: sKey.charAt(0).toUpperCase() + sKey.slice(1) + ' Core Principles',
         queries: [
-          'Branco, explain key principles and exam problem-solving in ' + sKey + '.',
+          'Nia, explain key principles and exam problem-solving in ' + sKey + '.',
         ],
       });
     }
@@ -375,7 +375,7 @@ export function getDailyAdaptivePills(user = {}) {
         color: '#EF4444',
         topic: area,
         queries: [
-          "Branco, let's practice my key focus area: " + area + ". Provide a step-by-step breakdown and active recall questions.",
+          "Nia, let's practice my key focus area: " + area + ". Provide a step-by-step breakdown and active recall questions.",
         ],
       });
     });
@@ -409,7 +409,7 @@ export function getDailyAdaptivePills(user = {}) {
     pills.push({
       id: 'pill_subj_' + todayKey + '_' + subjKey,
       label: topicObj.topic,
-      prompt: 'Branco, ' + dayTheme.queryPrefix + topicObj.topic + '. Please explain with clear examples and formulas.',
+      prompt: 'Nia, ' + dayTheme.queryPrefix + topicObj.topic + '. Please explain with clear examples and formulas.',
       tag: topicObj.topic,
       isWeakArea: false,
       badgeText: 'Daily Focus',
@@ -441,7 +441,7 @@ export function getDailyAdaptivePills(user = {}) {
     pills.push({
       id: 'pill_quiz_' + todayKey,
       label: 'Quiz: ' + quizSubj.topic,
-      prompt: 'Branco, generate a 3-question diagnostic practice quiz with step-by-step solutions for ' + quizSubj.topic + '.',
+      prompt: 'Nia, generate a 3-question diagnostic practice quiz with step-by-step solutions for ' + quizSubj.topic + '.',
       tag: 'Quiz: ' + quizSubj.topic,
       isWeakArea: true,
       badgeText: 'Active Recall',
@@ -453,7 +453,7 @@ export function getDailyAdaptivePills(user = {}) {
   pills.push({
     id: 'pill_summary_' + todayKey,
     label: 'Summarize Today’s Notes',
-    prompt: 'Branco, help me summarize my study notes, extract key formulas, and generate active recall flashcards for my upcoming exam.',
+    prompt: 'Nia, help me summarize my study notes, extract key formulas, and generate active recall flashcards for my upcoming exam.',
     tag: 'Summarize',
     isWeakArea: false,
     badgeText: 'Study Tool',

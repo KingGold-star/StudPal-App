@@ -1,9 +1,10 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { handleAiTutorRequest, handleGenerateSpeechRequest } = require('./serverAiTutor');
 
 const PORT = process.env.PORT || 3000;
-const HOST = 'localhost';
+const HOST = '0.0.0.0';
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -23,7 +24,31 @@ const MIME_TYPES = {
 };
 
 const server = http.createServer((req, res) => {
-  let reqUrl = decodeURI(req.url.split('?')[0]);
+  // Global CORS preflight handler
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Accept, Authorization, apikey, x-client-info, x-gemini-api-key',
+    });
+    res.end();
+    return;
+  }
+
+  const rawUrl = req.url || '';
+  const pathname = rawUrl.split('?')[0];
+
+  // Backend AI Tutor Endpoint (Supabase edge function parity & local proxy)
+  if (pathname === '/functions/v1/ai-tutor' || pathname === '/api/ai-tutor') {
+    return handleAiTutorRequest(req, res);
+  }
+
+  // Backend TTS Speech Endpoint (Aoede realistic female voice & caching)
+  if (pathname === '/functions/v1/generate-speech' || pathname === '/api/generate-speech') {
+    return handleGenerateSpeechRequest(req, res);
+  }
+
+  let reqUrl = decodeURI(pathname);
   if (reqUrl === '/') reqUrl = '/index.html';
 
   // Candidate paths to search for the requested file
@@ -66,10 +91,27 @@ const server = http.createServer((req, res) => {
   });
 });
 
+server.on('error', (err) => {
+  console.error('[Preview Server Error]:', err);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[Preview Server UncaughtException]:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[Preview Server UnhandledRejection]:', reason);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[Preview Server UnhandledRejection]:', reason);
+});
+
 server.listen(PORT, HOST, () => {
   console.log(`====================================================`);
-  console.log(`  StudPal Flutter Device Preview is LIVE!`);
-  console.log(`  Local URL: http://${HOST}:${PORT}`);
-  console.log(`  Dark & Light Mode: Fully Supported`);
+  console.log(`  StudPal AI Tutor Backend Server is LIVE!`);
+  console.log(`  Local URL: http://localhost:${PORT}`);
+  console.log(`  AI Tutor Endpoint: http://localhost:${PORT}/functions/v1/ai-tutor`);
+  console.log(`  Speech Endpoint:   http://localhost:${PORT}/functions/v1/generate-speech`);
   console.log(`====================================================`);
 });

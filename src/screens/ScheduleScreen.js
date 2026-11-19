@@ -21,6 +21,9 @@ import BottomNavBar from '../components/BottomNavBar';
 import { gamificationService } from '../services/gamification/gamificationService';
 import { useTranslation } from '../services/i18n/i18nService';
 import { useTheme } from '../theme/themeContext';
+import StudyTimetableTable from '../components/StudyTimetableTable';
+import { timetableService } from '../services/timetable';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ─── SVG Icons ───────────────────────────────────────────────────────────────
 const ChevronLeftIcon = ({ size = 22, color = '#0F172A' }) => (
@@ -126,14 +129,37 @@ const getOffsetDateInfo = (offsetDays) => {
 
 const TODAY_DATE = getOffsetDate(0);
 
-// ─── Dummy Initial Data ──────────────────────────────────────────────────────
+// Calculate current week concrete dates (Mon - Sun)
+const getCurrentWeekDates = () => {
+  const d = new Date();
+  const day = d.getDay();
+  const diffToMonday = d.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(d);
+  monday.setDate(diffToMonday);
+  monday.setHours(0, 0, 0, 0);
+
+  const dates = [];
+  for (let i = 0; i < 7; i++) {
+    const cur = new Date(monday);
+    cur.setDate(monday.getDate() + i);
+    const y = cur.getFullYear();
+    const m = String(cur.getMonth() + 1).padStart(2, '0');
+    const dt = String(cur.getDate()).padStart(2, '0');
+    dates.push(`${y}-${m}-${dt}`);
+  }
+  return dates;
+};
+
+const CURRENT_WEEK_DATES = getCurrentWeekDates();
+
+// ─── Initial Calendar Events (Exams & Deadlines anchored to current study week) ─
 const INITIAL_CALENDAR_EVENTS = [
   {
     id: 'cal-1',
     title: 'Physics Midterm Exam',
     type: 'Exam',
     subject: 'Physics',
-    date: getOffsetDate(0),
+    date: CURRENT_WEEK_DATES[2], // Wednesday
     time: '10:00 AM - 12:00 PM',
     location: 'Exam Hall B',
     color: '#EF4444',
@@ -144,7 +170,7 @@ const INITIAL_CALENDAR_EVENTS = [
     title: 'Calculus Problem Set #4 Due',
     type: 'Deadline',
     subject: 'Mathematics',
-    date: getOffsetDate(0),
+    date: CURRENT_WEEK_DATES[2], // Wednesday
     time: '11:59 PM',
     location: 'Online Portal',
     color: '#F97316',
@@ -155,7 +181,7 @@ const INITIAL_CALENDAR_EVENTS = [
     title: 'Organic Chemistry Revision Session',
     type: 'Session',
     subject: 'Chemistry',
-    date: getOffsetDate(1),
+    date: CURRENT_WEEK_DATES[3], // Thursday
     time: '3:00 PM - 4:30 PM',
     location: 'Library Quiet Zone',
     color: '#2D62FF',
@@ -166,13 +192,104 @@ const INITIAL_CALENDAR_EVENTS = [
     title: 'Biology Lab Report Submission',
     type: 'Deadline',
     subject: 'Biology',
-    date: getOffsetDate(3),
+    date: CURRENT_WEEK_DATES[4], // Friday
     time: '5:00 PM',
     location: 'Science Building',
     color: '#10B981',
     bg: '#ECFDF5',
   },
 ];
+
+const SUBJECT_COLORS = {
+  Mathematics: { color: '#2D62FF', bg: '#EFF6FF' },
+  Physics: { color: '#6366F1', bg: '#EEF2FF' },
+  Chemistry: { color: '#0EA5E9', bg: '#F0F9FF' },
+  Biology: { color: '#10B981', bg: '#ECFDF5' },
+  'Computer Science': { color: '#8B5CF6', bg: '#F5F3FF' },
+  Economics: { color: '#F97316', bg: '#FFF7ED' },
+  English: { color: '#EC4899', bg: '#FDF2F8' },
+  Revision: { color: '#6366F1', bg: '#EEF2FF' },
+};
+
+function getSubjectPalette(subjectName) {
+  if (subjectName && SUBJECT_COLORS[subjectName]) {
+    return SUBJECT_COLORS[subjectName];
+  }
+  const palettes = [
+    { label: 'Blue', color: '#2D62FF', bg: '#EFF6FF' },
+    { label: 'Indigo', color: '#6366F1', bg: '#EEF2FF' },
+    { label: 'Sky', color: '#0EA5E9', bg: '#F0F9FF' },
+    { label: 'Emerald', color: '#10B981', bg: '#ECFDF5' },
+    { label: 'Purple', color: '#8B5CF6', bg: '#F5F3FF' },
+    { label: 'Orange', color: '#F97316', bg: '#FFF7ED' },
+    { label: 'Rose', color: '#EF4444', bg: '#FEF2F2' },
+  ];
+  let hash = 0;
+  for (let i = 0; i < (subjectName || '').length; i++) {
+    hash = (hash << 5) - hash + subjectName.charCodeAt(i);
+  }
+  return palettes[Math.abs(hash) % palettes.length];
+}
+
+function parseTimeSortKey(timeStr) {
+  if (!timeStr) return 9999;
+  const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)?/i);
+  if (!match) return 9999;
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  const ampm = (match[3] || '').toUpperCase();
+  if (ampm === 'PM' && hours < 12) hours += 12;
+  if (ampm === 'AM' && hours === 12) hours = 0;
+  return hours * 60 + minutes;
+}
+
+function timetableSessionToCalendarItem(session) {
+  const palette = getSubjectPalette(session.subject);
+  let timeStr = session.time;
+  if (!timeStr && session.startTime && session.endTime) {
+    timeStr = `${session.startTime} - ${session.endTime}`;
+  }
+  if (!timeStr) timeStr = session.startTime || '10:00 PM - 10:25 PM';
+
+  return {
+    id: session.id,
+    title: session.topic || `${session.subject} Study Session`,
+    type: 'Session',
+    subject: session.subject || 'General Study',
+    date: session.date,
+    time: timeStr,
+    location: session.room || (session.isPomodoro !== false ? 'Pomodoro Study Desk' : 'Study Desk'),
+    notes: session.notes || (session.activityType ? `${session.activityType} • AI Timetable Plan` : ''),
+    color: session.color || palette.color,
+    bg: session.bg || palette.bg,
+    isFromTimetable: true,
+    status: session.status || 'upcoming',
+    rawSession: session,
+  };
+}
+
+const CALENDAR_STORAGE_KEY = '@studpal_calendar_events_v2';
+
+const loadCalendarEventsFromStorage = async () => {
+  try {
+    const raw = await AsyncStorage.getItem(CALENDAR_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {
+    console.warn('Error reading calendar storage:', e);
+  }
+  return null;
+};
+
+const saveCalendarEventsToStorage = async (events) => {
+  try {
+    await AsyncStorage.setItem(CALENDAR_STORAGE_KEY, JSON.stringify(events));
+  } catch (e) {
+    console.warn('Error saving calendar storage:', e);
+  }
+};
 
 const INITIAL_TIMETABLE_ROUTINE = [
   {
@@ -255,7 +372,44 @@ const ROUTINE_COLOR_PALETTES = [
 
 const DAYS_OF_WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-export default function ScheduleScreen({ user = { name: 'Alex' }, onBack, onSelectTab }) {
+export default function ScheduleScreen({
+  user = { name: 'Alex' },
+  onboardingData = null,
+  settings,
+  onBack,
+  onSelectTab,
+}) {
+  const [timetableSessions, setTimetableSessions] = useState([]);
+  const [isTimetableLoading, setIsTimetableLoading] = useState(false);
+
+  const loadTimetable = async () => {
+    setIsTimetableLoading(true);
+    try {
+      const res = await timetableService.getOrGenerateTimetable(user, onboardingData);
+      const sessionList = Array.isArray(res) ? res : (res?.sessions || []);
+      setTimetableSessions(sessionList);
+    } catch (err) {
+      console.warn('Error loading timetable in ScheduleScreen:', err);
+    } finally {
+      setIsTimetableLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    loadTimetable();
+    const unsubscribe = timetableService.subscribe((updated) => {
+      const sessionList = Array.isArray(updated) ? updated : (updated?.sessions || []);
+      setTimetableSessions(sessionList);
+    });
+
+    loadCalendarEventsFromStorage().then((saved) => {
+      if (saved && Array.isArray(saved) && saved.length > 0) {
+        setCalendarEvents(saved);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [user?.id]);
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { isDark, accentColor } = useTheme();
@@ -266,7 +420,34 @@ export default function ScheduleScreen({ user = { name: 'Alex' }, onBack, onSele
 
   // Calendar State
   const [calendarEvents, setCalendarEvents] = useState(INITIAL_CALENDAR_EVENTS);
-  const [selectedDate, setSelectedDate] = useState(TODAY_DATE);
+  // Default selected date: Wednesday of current week if available, or TODAY_DATE
+  const [selectedDate, setSelectedDate] = useState(CURRENT_WEEK_DATES[2] || TODAY_DATE);
+
+  // Compute week offset between selectedDate and current week
+  const weekOffset = useMemo(() => {
+    if (!selectedDate) return 0;
+    try {
+      const target = new Date(selectedDate + 'T12:00:00');
+      const now = new Date();
+
+      const tDay = target.getDay();
+      const tDiffToMonday = target.getDate() - tDay + (tDay === 0 ? -6 : 1);
+      const targetMonday = new Date(target);
+      targetMonday.setDate(tDiffToMonday);
+      targetMonday.setHours(0, 0, 0, 0);
+
+      const nDay = now.getDay();
+      const nDiffToMonday = now.getDate() - nDay + (nDay === 0 ? -6 : 1);
+      const nowMonday = new Date(now);
+      nowMonday.setDate(nDiffToMonday);
+      nowMonday.setHours(0, 0, 0, 0);
+
+      const diffTime = targetMonday.getTime() - nowMonday.getTime();
+      return Math.round(diffTime / (7 * 24 * 60 * 60 * 1000));
+    } catch {
+      return 0;
+    }
+  }, [selectedDate]);
   const [calendarFilter, setCalendarFilter] = useState('All');
   const [isAddCalModalOpen, setAddCalModalOpen] = useState(false);
 
@@ -304,14 +485,24 @@ export default function ScheduleScreen({ user = { name: 'Alex' }, onBack, onSele
     return Array.from({ length: 30 }).map((_, i) => getOffsetDateInfo(i - 3));
   }, []);
 
-  // Filtered Calendar Events
+  // Combined Calendar Items: Calendar Events + Timetable Sessions
+  const allCalendarItems = useMemo(() => {
+    const ttItems = (timetableSessions || []).map(timetableSessionToCalendarItem);
+    const eventIds = new Set(calendarEvents.map((e) => e.id));
+    const uniqueTtItems = ttItems.filter((t) => !eventIds.has(t.id));
+    return [...calendarEvents, ...uniqueTtItems];
+  }, [calendarEvents, timetableSessions]);
+
+  // Filtered Calendar Events for selected date and category
   const filteredEvents = useMemo(() => {
-    return calendarEvents.filter((evt) => {
-      const matchesDate = evt.date === selectedDate || calendarFilter === 'All';
+    const list = allCalendarItems.filter((evt) => {
+      const matchesDate = evt.date === selectedDate;
       const matchesCategory = calendarFilter === 'All' || evt.type === calendarFilter;
       return matchesDate && matchesCategory;
     });
-  }, [calendarEvents, selectedDate, calendarFilter]);
+
+    return list.sort((a, b) => parseTimeSortKey(a.time) - parseTimeSortKey(b.time));
+  }, [allCalendarItems, selectedDate, calendarFilter]);
 
   // Filtered Timetable Routines for selected day
   const dayRoutines = useMemo(() => {
@@ -330,24 +521,51 @@ export default function ScheduleScreen({ user = { name: 'Alex' }, onBack, onSele
   };
 
   // Handlers
-  const handleAddCalendarEvent = () => {
+  const handleAddCalendarEvent = async () => {
     if (!newCalTitle.trim()) {
       Alert.alert('Event Title Required', 'Please enter a valid event title.');
       return;
     }
+    const eventDate = newCalDate || selectedDate;
     const newEvt = {
       id: `cal-${Date.now()}`,
       title: newCalTitle.trim(),
       type: newCalType,
       subject: newCalSubject.trim() || 'General Study',
-      date: newCalDate || selectedDate,
+      date: eventDate,
       time: newCalTime.trim() || 'All Day',
       location: newCalLocation.trim(),
       notes: newCalNotes.trim(),
       color: newCalType === 'Exam' ? '#EF4444' : newCalType === 'Deadline' ? '#F97316' : '#2D62FF',
       bg: newCalType === 'Exam' ? '#FEF2F2' : newCalType === 'Deadline' ? '#FFF7ED' : '#EFF6FF',
     };
-    setCalendarEvents([newEvt, ...calendarEvents]);
+
+    // If it's a study session, also add it into timetableSessions!
+    if (newCalType === 'Session') {
+      const timeParts = newEvt.time.includes('-') ? newEvt.time.split('-') : [newEvt.time, ''];
+      const ttSession = {
+        id: `tt_${eventDate}_${Date.now()}`,
+        userId: user?.id || 'local_student',
+        subject: newEvt.subject,
+        topic: newEvt.title,
+        date: eventDate,
+        dayName: new Date(eventDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' }),
+        startTime: timeParts[0]?.trim() || newEvt.time,
+        endTime: timeParts[1]?.trim() || '',
+        room: newEvt.location,
+        notes: newEvt.notes,
+        status: 'upcoming',
+        isPomodoro: false,
+        sessionType: 'Continuous',
+      };
+      await timetableService.addSession(ttSession, user);
+      await loadTimetable();
+    }
+
+    const updated = [newEvt, ...calendarEvents];
+    setCalendarEvents(updated);
+    await saveCalendarEventsToStorage(updated);
+
     setAddCalModalOpen(false);
     setNewCalTitle('');
     setNewCalLocation('Library');
@@ -359,19 +577,20 @@ export default function ScheduleScreen({ user = { name: 'Alex' }, onBack, onSele
   const promptDeleteEvent = (evt) => {
     setDeleteTarget({
       id: evt.id,
-      type: 'calendar',
+      type: evt.isFromTimetable ? 'timetable' : 'calendar',
       title: evt.title,
       subtitle: evt.subject,
-      category: evt.type,
+      category: evt.isFromTimetable ? 'Study Session' : evt.type,
       time: evt.time,
       dateOrDay: evt.date,
       location: evt.location,
       color: evt.color,
+      isFromTimetable: evt.isFromTimetable,
     });
     setIsDeleteModalOpen(true);
   };
 
-  const handleAddTimetableRoutine = () => {
+  const handleAddTimetableRoutine = async () => {
     if (!newTtSubject.trim()) {
       Alert.alert('Subject Required', 'Please enter a valid subject name.');
       return;
@@ -389,6 +608,53 @@ export default function ScheduleScreen({ user = { name: 'Alex' }, onBack, onSele
       bg: newTtBg || '#EFF6FF',
     };
     setTimetableRoutines([...timetableRoutines, newTt]);
+
+    // Create session instances for upcoming weeks on that day
+    const dayMap = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 0 };
+    const targetDayIndex = dayMap[newTtDay] ?? 1;
+
+    const today = new Date();
+    const currentMonday = new Date(today);
+    const day = currentMonday.getDay();
+    const diffToMonday = currentMonday.getDate() - day + (day === 0 ? -6 : 1);
+    currentMonday.setDate(diffToMonday);
+    currentMonday.setHours(0, 0, 0, 0);
+
+    const timeParts = newTt.time.includes('-') ? newTt.time.split('-') : [newTt.time, ''];
+    const sessionsToAdd = [];
+
+    for (let w = 0; w < 4; w++) {
+      const sessDate = new Date(currentMonday);
+      const dayOffset = (targetDayIndex === 0 ? 6 : targetDayIndex - 1) + (w * 7);
+      sessDate.setDate(currentMonday.getDate() + dayOffset);
+
+      const y = sessDate.getFullYear();
+      const m = String(sessDate.getMonth() + 1).padStart(2, '0');
+      const dt = String(sessDate.getDate()).padStart(2, '0');
+      const dateKey = `${y}-${m}-${dt}`;
+
+      sessionsToAdd.push({
+        id: `tt_routine_${dateKey}_${Date.now()}_${w}`,
+        userId: user?.id || 'local_student',
+        subject: newTt.subject,
+        topic: newTt.topic,
+        date: dateKey,
+        dayName: newTt.day,
+        startTime: timeParts[0]?.trim() || newTt.time,
+        endTime: timeParts[1]?.trim() || '',
+        room: newTt.room,
+        instructor: newTt.instructor,
+        focusMode: newTt.focusMode,
+        status: 'upcoming',
+        color: newTt.color,
+        bg: newTt.bg,
+        sessionType: 'Routine',
+      });
+    }
+
+    await timetableService.addSession(sessionsToAdd, user);
+    await loadTimetable();
+
     setAddTtModalOpen(false);
     setNewTtSubject('');
     setNewTtTopic('');
@@ -410,15 +676,21 @@ export default function ScheduleScreen({ user = { name: 'Alex' }, onBack, onSele
       dateOrDay: routine.day,
       location: routine.room,
       color: routine.color,
+      isFromTimetable: false,
     });
     setIsDeleteModalOpen(true);
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
 
-    if (deleteTarget.type === 'calendar') {
-      setCalendarEvents((prev) => prev.filter((e) => e.id !== deleteTarget.id));
+    if (deleteTarget.isFromTimetable) {
+      await timetableService.deleteSession(deleteTarget.id, user);
+      await loadTimetable();
+    } else if (deleteTarget.type === 'calendar') {
+      const updated = calendarEvents.filter((e) => e.id !== deleteTarget.id);
+      setCalendarEvents(updated);
+      await saveCalendarEventsToStorage(updated);
     } else {
       setTimetableRoutines((prev) => prev.filter((t) => t.id !== deleteTarget.id));
     }
@@ -622,108 +894,20 @@ export default function ScheduleScreen({ user = { name: 'Alex' }, onBack, onSele
           </View>
         ) : (
           /* ========================================================================= */
-          /* ⏰ 2. TIMETABLE VIEW (Recurring Weekly Study Routine)                      */
+          /* ⏰ 2. TIMETABLE VIEW (Research-Informed Weekly Study Timetable) */
           /* ========================================================================= */
           <View style={styles.sectionContainer}>
-            {/* Banner explaining Timetable distinction */}
-            <View style={[styles.hubInfoBanner, isDark ? { backgroundColor: '#1E293B', borderColor: '#334155' } : { backgroundColor: '#F5F3FF', borderColor: '#E9E3FF' }]}>
-              <View style={[styles.infoBannerIconBox, isDark ? { backgroundColor: `${accentColor}25` } : { backgroundColor: '#ECE6FF' }]}>
-                <ClockIcon size={18} color={isDark ? accentColor : '#6236FF'} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.infoBannerTitle, isDark ? { color: '#F8FAFC' } : { color: '#0F172A' }]}>{t("schedule.weeklyTimetable", "Weekly Study Timetable")}</Text>
-                <Text style={[styles.infoBannerSub, isDark ? { color: '#94A3B8' } : { color: '#334155' }]}>
-                  {t("schedule.timetableSub", "Your recurring weekly class schedule and study routine (e.g. Mon 4:00 PM).")}
-                </Text>
-              </View>
-            </View>
-
-            {/* Day of Week Selector */}
-            <View style={styles.daySelectorRow}>
-              {DAYS_OF_WEEK.map((day) => {
-                const isSelected = selectedDay === day;
-                return (
-                  <TouchableOpacity
-                    key={day}
-                    style={[styles.daySelectorChip, isSelected && styles.daySelectorChipSelected]}
-                    onPress={() => setSelectedDay(day)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.daySelectorText, isSelected && styles.daySelectorTextSelected]}>
-                      {day}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            {/* Day Routine List */}
-            <View style={styles.routineListContainer}>
-              <Text style={styles.routineDayHeader}>{selectedDay}'s Recurring Schedule</Text>
-
-              {dayRoutines.length === 0 ? (
-                <View style={styles.emptyCard}>
-                  <Text style={{ fontSize: 32 }}>⏰</Text>
-                  <Text style={styles.emptyTitle}>Free Day!</Text>
-                  <Text style={styles.emptySub}>No recurring sessions scheduled for {selectedDay}.</Text>
-                </View>
-              ) : (
-                dayRoutines.map((item) => (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={styles.routineCard}
-                    activeOpacity={0.9}
-                    onLongPress={() => promptDeleteRoutine(item)}
-                  >
-                    <View style={[styles.routineIconBox, { backgroundColor: isDark ? (item.color ? `${item.color}25` : '#1E293B') : (item.bg || '#EFF6FF') }]}>
-                      <Text style={[styles.routineAvatarInitials, { color: item.color || '#2D62FF' }]}>
-                        {item.subject ? item.subject.substring(0, 2).toUpperCase() : 'SB'}
-                      </Text>
-                    </View>
-
-                    <View style={styles.routineCardBody}>
-                      <View style={styles.routineHeaderRow}>
-                        <Text style={styles.routineSubjectTitle} numberOfLines={1}>{item.subject}</Text>
-                        <View style={[styles.routineTimeBadge, { backgroundColor: isDark ? `${item.color || '#6236FF'}25` : (item.bg || '#EFF6FF') }]}>
-                          <ClockIcon size={11} color={item.color || '#6236FF'} />
-                          <Text style={[styles.routineTimeText, { color: item.color || '#6236FF' }]}>{item.time}</Text>
-                        </View>
-                      </View>
-
-                      <Text style={styles.routineTopicText} numberOfLines={1}>{item.topic || 'General Weekly Session'}</Text>
-
-                      <View style={styles.routineMetaRow}>
-                        {item.room ? (
-                          <View style={styles.metaChip}>
-                            <LocationPinIcon size={11} color={isDark ? "#94A3B8" : "#64748B"} />
-                            <Text style={styles.metaChipText} numberOfLines={1}>{item.room}</Text>
-                          </View>
-                        ) : null}
-                        {item.instructor ? (
-                          <View style={styles.metaChip}>
-                            <UserIcon size={11} color={isDark ? "#94A3B8" : "#64748B"} />
-                            <Text style={styles.metaChipText} numberOfLines={1}>{item.instructor}</Text>
-                          </View>
-                        ) : null}
-                        {item.focusMode ? (
-                          <View style={styles.focusModeActiveChip}>
-                            <Text style={styles.focusModeActiveText}>⚡ Focus Locked</Text>
-                          </View>
-                        ) : null}
-                        <TouchableOpacity
-                          style={styles.cardDeleteBtn}
-                          onPress={() => promptDeleteRoutine(item)}
-                          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                          activeOpacity={0.7}
-                        >
-                          <TrashIcon size={14} color="#EF4444" />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                ))
-              )}
-            </View>
+            <StudyTimetableTable
+              sessions={timetableSessions}
+              user={user}
+              onboardingData={onboardingData}
+              onSessionUpdated={loadTimetable}
+              onRegenerate={async () => {
+                const refreshed = await timetableService.regenerateTimetable(user, onboardingData);
+                const sessionList = Array.isArray(refreshed) ? refreshed : (refreshed?.sessions || []);
+                setTimetableSessions(sessionList);
+              }}
+            />
           </View>
         )}
       </ScrollView>
@@ -998,7 +1182,11 @@ export default function ScheduleScreen({ user = { name: 'Alex' }, onBack, onSele
 
             {/* Title & Warning Copy */}
             <Text style={styles.confirmModalTitle}>
-              {deleteTarget?.type === 'calendar' ? 'Delete Calendar Event?' : 'Delete Weekly Routine?'}
+              {deleteTarget?.isFromTimetable
+                ? 'Remove Study Session?'
+                : deleteTarget?.type === 'calendar'
+                ? 'Delete Calendar Event?'
+                : 'Delete Weekly Routine?'}
             </Text>
             <Text style={styles.confirmModalSub}>
               This action cannot be undone. Are you sure you want to permanently remove this from your study schedule?

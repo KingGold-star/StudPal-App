@@ -3,6 +3,10 @@
 import { XP_VALUES, ANTI_ABUSE_RULES } from "./xpConfig";
 import { calculateUserLevel, getNextLevelBreakdown } from "./levels";
 import { MASTER_ACHIEVEMENTS, evaluateAchievements } from "./achievements";
+import { authService } from "../supabase/authService";
+import { gamificationSupabaseService } from "../supabase/gamificationService";
+import { networkService } from "../networkService";
+import { offlineSyncService } from "../offlineSyncService";
 
 const STORAGE_KEY = "@studpal_gamification_v1";
 
@@ -135,6 +139,20 @@ class GamificationService {
     try {
       if (typeof window !== "undefined" && window.localStorage) {
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
+      }
+      // Cloud Sync or Offline Queue
+      if (networkService.isOnline()) {
+        authService.getCurrentUser().then((user) => {
+          if (user?.id) {
+            gamificationSupabaseService.syncProgress(user.id, this.state);
+          } else {
+            offlineSyncService.enqueueAction('GAMIFICATION_PROGRESS', this.state);
+          }
+        }).catch(() => {
+          offlineSyncService.enqueueAction('GAMIFICATION_PROGRESS', this.state);
+        });
+      } else {
+        offlineSyncService.enqueueAction('GAMIFICATION_PROGRESS', this.state);
       }
     } catch (e) {
       console.warn("Unable to persist gamification data:", e);

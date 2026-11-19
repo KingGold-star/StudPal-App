@@ -9,6 +9,7 @@ import {
   Share,
   Animated,
   Easing,
+  Dimensions,
   TextInput,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -32,18 +33,23 @@ import ScrollDownAnimatedCard from "./charts/ScrollDownAnimatedCard";
 import ShareAnalyticsModal from "./ShareAnalyticsModal";
 
 // Animated Progress Bar Component for Weekly Summary Progress Bar
-function AnimatedProgressBar({ completionPercentage = 85 }) {
+function AnimatedProgressBar({ completionPercentage = 85, isVisible = true }) {
   const widthAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    if (!isVisible) {
+      widthAnim.stopAnimation();
+      widthAnim.setValue(0);
+      return;
+    }
     widthAnim.setValue(0);
     Animated.timing(widthAnim, {
       toValue: completionPercentage,
-      duration: 1400,
+      duration: 1200,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
-  }, [completionPercentage]);
+  }, [completionPercentage, isVisible]);
 
   const widthPct = widthAnim.interpolate({
     inputRange: [0, 100],
@@ -107,6 +113,75 @@ export default function MetricsModal({ visible, onClose, inline = false, onShare
   const [selectedSubject, setSelectedSubject] = useState(null);
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
   const [newGoalTitle, setNewGoalTitle] = useState("");
+
+  // Viewport & Scroll Tracking for All Charts and Metrics Cards
+  const [visibleSections, setVisibleSections] = useState({
+    todayProgress: inline ? true : !!visible,
+    weeklyActivity: inline ? true : !!visible,
+    progressTrend: inline ? true : !!visible,
+    subjectPerformance: inline ? true : !!visible,
+    goalBreakdown: inline ? true : !!visible,
+    consistency: inline ? true : !!visible,
+    examReadiness: inline ? true : !!visible,
+    nextMilestone: inline ? true : !!visible,
+  });
+  const sectionLayoutsRef = useRef({});
+  const viewportHeightRef = useRef(Dimensions.get("window").height);
+  const lastScrollYRef = useRef(0);
+
+  const checkSectionsVisibility = (scrollY = lastScrollYRef.current, vpHeight = viewportHeightRef.current) => {
+    if (inline) return;
+    const screenTop = scrollY;
+    const screenBottom = scrollY + vpHeight;
+    const layouts = sectionLayoutsRef.current;
+
+    setVisibleSections((prev) => {
+      let changed = false;
+      const next = { ...prev };
+
+      for (const key of Object.keys(layouts)) {
+        const layout = layouts[key];
+        if (!layout || layout.height <= 0) continue;
+
+        const itemTop = layout.y;
+        const itemBottom = layout.y + layout.height;
+        const inView = (screenBottom >= itemTop + 45) && (screenTop <= itemBottom - 20);
+
+        if (next[key] !== inView) {
+          next[key] = inView;
+          changed = true;
+        }
+      }
+
+      return changed ? next : prev;
+    });
+  };
+
+  const registerSectionLayout = (key, event) => {
+    if (inline) return;
+    const { y, height } = event.nativeEvent.layout;
+    sectionLayoutsRef.current[key] = { y, height };
+    checkSectionsVisibility(lastScrollYRef.current);
+  };
+
+  const isWeeklyChartVisible = !!visibleSections.weeklyActivity;
+
+  useEffect(() => {
+    if (inline || visible) {
+      checkSectionsVisibility(lastScrollYRef.current);
+    } else {
+      setVisibleSections({
+        todayProgress: false,
+        weeklyActivity: false,
+        progressTrend: false,
+        subjectPerformance: false,
+        goalBreakdown: false,
+        consistency: false,
+        examReadiness: false,
+        nextMilestone: false,
+      });
+    }
+  }, [visible, inline]);
 
   const handleAddGoal = () => {
     if (!newGoalTitle.trim()) return;
@@ -193,7 +268,7 @@ export default function MetricsModal({ visible, onClose, inline = false, onShare
       </View>
 
       {/* ── SECTION 1 — TODAY'S PROGRESS (LARGE ANIMATED DONUT) ─────────────── */}
-      <View style={styles.sectionCard}>
+      <View onLayout={(e) => registerSectionLayout("todayProgress", e)} style={styles.sectionCard}>
         <View style={styles.sectionHeaderRow}>
           <View>
             <Text style={styles.sectionPretitle}>DAILY ANALYTICS</Text>
@@ -214,6 +289,7 @@ export default function MetricsModal({ visible, onClose, inline = false, onShare
           hasGoals={daily.hasGoals}
           size={250}
           strokeWidth={22}
+          isVisible={visibleSections.todayProgress}
         />
 
         {/* Today's Checklist */}
@@ -253,7 +329,7 @@ export default function MetricsModal({ visible, onClose, inline = false, onShare
       </View>
 
       {/* ── SECTION 2 — THIS WEEK (7-DAY VERTICAL BAR CHART) ────────────────── */}
-      <View style={styles.sectionCard}>
+      <View onLayout={(e) => registerSectionLayout("weeklyActivity", e)} style={styles.sectionCard}>
         <View style={styles.sectionHeaderRow}>
           <View>
             <Text style={styles.sectionPretitle}>WEEKLY BREAKDOWN</Text>
@@ -266,7 +342,7 @@ export default function MetricsModal({ visible, onClose, inline = false, onShare
           </View>
         </View>
 
-        <WeeklyGoalBarChart dailyData={weekly.dailyBreakdown} height={240} />
+        <WeeklyGoalBarChart dailyData={weekly.dailyBreakdown} height={240} isVisible={visibleSections.weeklyActivity} />
 
         {/* Weekly Summary Progress Bar */}
         <View style={styles.weeklySummaryBox}>
@@ -274,13 +350,13 @@ export default function MetricsModal({ visible, onClose, inline = false, onShare
             <Text style={styles.summaryLabel}>THIS WEEK</Text>
             <Text style={styles.summaryPct}>{weekly.completionPercentage}%</Text>
           </View>
-          <AnimatedProgressBar completionPercentage={weekly.completionPercentage} />
+          <AnimatedProgressBar completionPercentage={weekly.completionPercentage} isVisible={isWeeklyChartVisible} />
           <Text style={styles.summarySubtext}>{weekly.totalCompleted} / {weekly.totalPlanned} goals completed</Text>
         </View>
       </View>
 
       {/* ── SECTION 3 — PROGRESS TREND (LINE CHART) ────────────────────────── */}
-      <View style={styles.sectionCard}>
+      <View onLayout={(e) => registerSectionLayout("progressTrend", e)} style={styles.sectionCard}>
         <View style={styles.sectionHeaderRow}>
           <View>
             <Text style={styles.sectionPretitle}>LONG TERM TREND</Text>
@@ -292,11 +368,12 @@ export default function MetricsModal({ visible, onClose, inline = false, onShare
           period={selectedPeriod}
           dataPoints={metricsState.trendData ? metricsState.trendData[selectedPeriod] : undefined}
           height={230}
+          isVisible={visibleSections.progressTrend}
         />
       </View>
 
       {/* ── SECTION 4 — SUBJECT PERFORMANCE (HORIZONTAL BAR CHART) ──────────── */}
-      <View style={styles.sectionCard}>
+      <View onLayout={(e) => registerSectionLayout("subjectPerformance", e)} style={styles.sectionCard}>
         <View style={styles.sectionHeaderRow}>
           <View>
             <Text style={styles.sectionPretitle}>SUBJECT ANALYTICS</Text>
@@ -304,11 +381,15 @@ export default function MetricsModal({ visible, onClose, inline = false, onShare
             <Text style={styles.sectionSubtitle}>Tap a subject for detailed analytics.</Text>
           </View>
         </View>
-        <SubjectPerformanceChart subjectsData={subjectMetrics} onSelectSubject={handleOpenSubjectModal} />
+        <SubjectPerformanceChart
+          subjectsData={subjectMetrics}
+          onSelectSubject={handleOpenSubjectModal}
+          isVisible={visibleSections.subjectPerformance}
+        />
       </View>
 
       {/* ── SECTION 5 — GOAL BREAKDOWN (DONUT CHART) ───────────────────────── */}
-      <View style={styles.sectionCard}>
+      <View onLayout={(e) => registerSectionLayout("goalBreakdown", e)} style={styles.sectionCard}>
         <Text style={styles.sectionPretitle}>COMPOSITION</Text>
         <Text style={styles.sectionTitle}>Goal Breakdown</Text>
         <GoalBreakdownDonut
@@ -318,11 +399,12 @@ export default function MetricsModal({ visible, onClose, inline = false, onShare
           percentage={monthly.completionPercentage}
           size={220}
           strokeWidth={20}
+          isVisible={visibleSections.goalBreakdown}
         />
       </View>
 
       {/* ── SECTION 6 — CONSISTENCY (CIRCULAR PROGRESS RING) ────────────────── */}
-      <View style={styles.sectionCard}>
+      <View onLayout={(e) => registerSectionLayout("consistency", e)} style={styles.sectionCard}>
         <Text style={styles.sectionPretitle}>RELIABILITY</Text>
         <Text style={styles.sectionTitle}>Study Consistency</Text>
         <ConsistencyRing
@@ -331,6 +413,7 @@ export default function MetricsModal({ visible, onClose, inline = false, onShare
           activeDays={consistency.activeDays}
           size={210}
           strokeWidth={18}
+          isVisible={visibleSections.consistency}
         />
       </View>
 
@@ -342,14 +425,29 @@ export default function MetricsModal({ visible, onClose, inline = false, onShare
       </View>
 
       {/* ── SECTION 8 — EXAM READINESS VISUALIZATION ───────────────────────── */}
-      <View style={styles.sectionCard}>
+      <View onLayout={(e) => registerSectionLayout("examReadiness", e)} style={styles.sectionCard}>
         <Text style={styles.sectionPretitle}>PREPARATION INDEX</Text>
         <Text style={styles.sectionTitle}>Exam Readiness</Text>
-        <ExamReadinessCard overallScore={72} masteryPct={70} goalPct={80} revisionPct={65} size={170} strokeWidth={16} />
+        <ExamReadinessCard
+          overallScore={72}
+          masteryPct={70}
+          goalPct={80}
+          revisionPct={65}
+          size={170}
+          strokeWidth={16}
+          isVisible={visibleSections.examReadiness}
+        />
       </View>
 
       {/* ── SECTION 9 — NEXT MILESTONE PROGRESS ────────────────────────────── */}
-      <NextMilestoneCard title="100 Goals Completed" currentCount={monthly.totalCompleted} targetCount={100} />
+      <View onLayout={(e) => registerSectionLayout("nextMilestone", e)}>
+        <NextMilestoneCard
+          title="100 Goals Completed"
+          currentCount={monthly.totalCompleted}
+          targetCount={100}
+          isVisible={visibleSections.nextMilestone}
+        />
+      </View>
 
 
 
@@ -388,7 +486,26 @@ export default function MetricsModal({ visible, onClose, inline = false, onShare
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
         {renderHeader()}
-        <ScrollView style={styles.scrollView} contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, 20) + 24 }]} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, 20) + 24 }]}
+          showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onLayout={(e) => {
+            const h = e.nativeEvent.layout.height;
+            if (h > 0) {
+              viewportHeightRef.current = h;
+              checkSectionsVisibility(lastScrollYRef.current, h);
+            }
+          }}
+          onScroll={(e) => {
+            const currentY = e.nativeEvent.contentOffset.y;
+            const vpHeight = e.nativeEvent.layoutMeasurement.height || viewportHeightRef.current;
+            viewportHeightRef.current = vpHeight;
+            lastScrollYRef.current = currentY;
+            checkSectionsVisibility(currentY, vpHeight);
+          }}
+        >
           {renderBody()}
         </ScrollView>
 

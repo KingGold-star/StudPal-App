@@ -22,6 +22,7 @@ import TooltipTouchable from "../components/TooltipTouchable";
 import { gamificationService } from "../services/gamification/gamificationService";
 import { goalMetricsService } from "../services/goalMetricsService";
 import { useTranslation } from "../services/i18n/i18nService";
+import { authService } from "../services/supabase/authService";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -562,8 +563,13 @@ export default function ProfileScreen({
     setLogoutModalOpen(true);
   };
 
-  const handleConfirmLogOut = () => {
+  const handleConfirmLogOut = async () => {
     setLogoutModalOpen(false);
+    try {
+      await authService.signOut();
+    } catch (err) {
+      console.warn('[ProfileScreen] Sign out error:', err);
+    }
     if (onNavigate) {
       onNavigate("auth");
     } else if (onSelectTab) {

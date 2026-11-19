@@ -1,4 +1,4 @@
-// src/screens/SettingsScreen.js
+﻿// src/screens/SettingsScreen.js
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
@@ -192,8 +192,8 @@ const FAQ_ITEMS = [
     a: "Every completed 25-minute Pomodoro session earns you 50 XP. Completing a full 4-cycle study block awards bonus badges and levels up your scholar rank on the leaderboard.",
   },
   {
-    q: "How does Branco handle my uploaded documents?",
-    a: "Your study PDFs and lecture notes are processed securely in an isolated sandbox. Branco extracts key concepts, generates practice quizzes, and never shares your notes with third parties.",
+    q: "How does Nia handle my uploaded documents?",
+    a: "Your study PDFs and lecture notes are processed securely in an isolated sandbox. Nia extracts key concepts, generates practice quizzes, and never shares your notes with third parties.",
   },
 ];
 
@@ -298,6 +298,8 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
     return () => unsubIp();
   }, []);
   const [isAiPersonaModalOpen, setAiPersonaModalOpen] = useState(false);
+  const [geminiKeyInput, setGeminiKeyInput] = useState("");
+  const [showGeminiKey, setShowGeminiKey] = useState(false);
   const [isFaqModalOpen, setFaqModalOpen] = useState(false);
   const [expandedFaqIndex, setExpandedFaqIndex] = useState(null);
   const [isFeedbackModalOpen, setFeedbackModalOpen] = useState(false);
@@ -329,6 +331,9 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
           await settingsService.updateSetting("autoStartBreaks", true);
         }
         setSettings(loaded);
+        if (loaded.geminiApiKey) {
+          setGeminiKeyInput(loaded.geminiApiKey);
+        }
         if (loaded.notificationTime) {
           const parts = loaded.notificationTime.split(":");
           if (parts.length === 2) {
@@ -366,6 +371,13 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
     if (toastLabel) {
       showToast(`${toastLabel}`);
     }
+  };
+
+  const handleSaveGeminiKey = async () => {
+    const trimmed = (geminiKeyInput || "").trim();
+    const newSettings = await settingsService.updateSetting("geminiApiKey", trimmed);
+    setSettings(newSettings);
+    showToast(trimmed ? "Google Gemini API key saved! Live cloud AI active." : "Gemini API key cleared. Using local smart tutor.");
   };
 
   // Avatar Picker
@@ -593,6 +605,7 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
             { id: "appearance", label: `🎨 ${t("settings.appearance")}` },
             { id: "study", label: `⏱️ ${t("settings.studyFocus")}` },
             { id: "focus", label: `🎯 ${t("nav.focusMode")}` },
+            { id: "ai", label: "🤖 AI Coach" },
             { id: "notifications", label: `🔔 ${t("settings.notifications")}` },
             { id: "language", label: `🌐 ${t("settings.languageRegion")}` },
             { id: "security", label: `🛡️ ${t("settings.accountSecurity")}` },
@@ -894,6 +907,147 @@ export default function SettingsScreen({ user = {}, onUpdateUser, onBack, onNavi
               </View>
             </View>
           </TouchableOpacity>
+        )}
+
+        {/* ========================================================================= */}
+        {/* 🤖 4. AI COACH & MODEL INTELLIGENCE SECTION                              */}
+        {/* ========================================================================= */}
+        {shouldShow("ai", ["ai", "coach", "gemini", "chatgpt", "persona", "model", "intelligence", "api", "key", "tutor"]) && (
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeaderRow}>
+              <View style={[styles.sectionIconBox, { backgroundColor: "#F0EEFF" }]}>
+                <BotIcon size={18} color="#8B5CF6" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sectionTitle}>AI Coach & Intelligence</Text>
+                <Text style={styles.sectionSubtitle}>Google Gemini API key & study companion persona</Text>
+              </View>
+            </View>
+
+            <View style={styles.sectionHeaderDivider} />
+
+            {/* Google Gemini Cloud AI Key */}
+            <View style={styles.settingGroup}>
+              <View style={styles.settingGroupHeader}>
+                <Text style={styles.settingGroupLabel}>GOOGLE GEMINI API KEY (OPTIONAL)</Text>
+                <View style={[styles.activeValBadge, { backgroundColor: (settings.geminiApiKey ? "#10B98115" : "#64748B15") }]}>
+                  <Text style={[styles.activeValBadgeText, { color: (settings.geminiApiKey ? "#10B981" : "#64748B") }]}>
+                    {settings.geminiApiKey ? "Cloud AI Active" : "Smart Local Engine"}
+                  </Text>
+                </View>
+              </View>
+              <Text style={{ fontSize: 12, color: "#64748B", marginBottom: 10, lineHeight: 17 }}>
+                Add your free Google Gemini API key to stream live, conversational answers like ChatGPT & Gemini. When empty, StudPal uses its built-in intelligent tutor.
+              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <TextInput
+                  style={[styles.modalTextInput, { flex: 1, height: 44, paddingVertical: 8 }]}
+                  placeholder="AIzaSy..."
+                  placeholderTextColor="#94A3B8"
+                  value={geminiKeyInput}
+                  onChangeText={setGeminiKeyInput}
+                  secureTextEntry={!showGeminiKey}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowGeminiKey(!showGeminiKey)}
+                  style={{ paddingHorizontal: 10, paddingVertical: 10 }}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: activeAccentColor }}>
+                    {showGeminiKey ? "Hide" : "Show"}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleSaveGeminiKey}
+                  style={{
+                    backgroundColor: activeAccentColor,
+                    paddingHorizontal: 16,
+                    height: 44,
+                    borderRadius: 12,
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 13 }}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.settingRowDivider} />
+
+            {/* AI Personality Selector */}
+            <View style={styles.settingGroup}>
+              <View style={styles.settingGroupHeader}>
+                <Text style={styles.settingGroupLabel}>AI COMPANION PERSONA</Text>
+              </View>
+              <View style={{ gap: 8, marginTop: 4 }}>
+                {[
+                  { id: "all_round", title: "All-Round Coach", desc: "Balanced, encouraging, and versatile across all subjects" },
+                  { id: "advisor", title: "Academic Advisor", desc: "Goal-oriented, time management and exam strategy focus" },
+                  { id: "tutor", title: "Socratic Tutor", desc: "Guided questions, active recall, and step-by-step reasoning" },
+                  { id: "librarian", title: "Research Scholar", desc: "Deep conceptual breakdowns, references, and rigorous context" },
+                  { id: "editor", title: "Crisp Editor", desc: "Concise explanations, outline drafting, and structure clarity" },
+                  { id: "roommate", title: "Study Buddy", desc: "Casual, friendly tone with quick memory hooks and relatable examples" },
+                ].map((item) => {
+                  const isSelected = (settings.aiPersonality || "all_round") === item.id;
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={[
+                        styles.personaOptionCard,
+                        isSelected && [styles.personaOptionCardSelected, { borderColor: activeAccentColor }],
+                      ]}
+                      onPress={() => handleSelectSetting("aiPersonality", item.id, item.title)}
+                      activeOpacity={0.75}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.personaTitle, isSelected && { color: activeAccentColor }]}>
+                          {item.title}
+                        </Text>
+                        <Text style={styles.personaDesc}>{item.desc}</Text>
+                      </View>
+                      {isSelected && (
+                        <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: activeAccentColor, justifyContent: "center", alignItems: "center" }}>
+                          <CheckIcon size={12} color="#FFFFFF" />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            <View style={styles.settingRowDivider} />
+
+            {/* Smart Study Features */}
+            <View style={styles.settingRow}>
+              <View style={{ flex: 1, paddingRight: 10 }}>
+                <Text style={styles.settingRowTitle}>Smart PDF Summarization</Text>
+                <Text style={styles.settingRowSub}>Automatically extract key study takeaways from uploaded course files</Text>
+              </View>
+              <CustomToggle
+                value={settings.autoSummarizePdfs !== false}
+                onValueChange={() => handleToggle("autoSummarizePdfs", "Smart PDF summarization")}
+                activeColor={activeAccentColor}
+              />
+            </View>
+
+            <View style={styles.settingRowDivider} />
+
+            <View style={styles.settingRow}>
+              <View style={{ flex: 1, paddingRight: 10 }}>
+                <Text style={styles.settingRowTitle}>Adaptive Spaced Repetition</Text>
+                <Text style={styles.settingRowSub}>Optimize flashcard revision intervals based on your recall accuracy</Text>
+              </View>
+              <CustomToggle
+                value={settings.spacedRepetitionSmartIntervals !== false}
+                onValueChange={() => handleToggle("spacedRepetitionSmartIntervals", "Adaptive spaced repetition")}
+                activeColor={activeAccentColor}
+              />
+            </View>
+          </View>
         )}
 
 

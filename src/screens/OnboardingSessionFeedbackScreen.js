@@ -207,8 +207,8 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   optionCardSelected: {
-    backgroundColor: '#1200C6',
-    borderColor: '#1200C6',
+    backgroundColor: '#2563EB',
+    borderColor: '#2563EB',
     shadowColor: '#1200C6',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.28,
@@ -234,7 +234,7 @@ const styles = StyleSheet.create({
     width: 14,
     height: 14,
     borderRadius: 7,
-    backgroundColor: '#1200C6',
+    backgroundColor: '#2563EB',
   },
   optionLabel: {
     fontSize: 16,

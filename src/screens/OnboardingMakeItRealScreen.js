@@ -3,7 +3,6 @@ import {
   StyleSheet,
   View,
   Text,
-  TouchableOpacity,
   Pressable,
   StatusBar,
   Animated,
@@ -18,6 +17,15 @@ export default function OnboardingMakeItRealScreen({ onContinue, onBack }) {
   const theme = getOnboardingTheme(isDark);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const hasAdvancedRef = useRef(false);
+
+  const handleAdvance = () => {
+    if (hasAdvancedRef.current) return;
+    hasAdvancedRef.current = true;
+    if (onContinue) {
+      onContinue();
+    }
+  };
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -25,12 +33,19 @@ export default function OnboardingMakeItRealScreen({ onContinue, onBack }) {
       duration: 550,
       useNativeDriver: Platform.OS !== 'web',
     }).start();
-  }, [fadeAnim]);
+
+    // Automatically transition to next screen after 1.5 seconds
+    const timer = setTimeout(() => {
+      handleAdvance();
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [fadeAnim, onContinue]);
 
   return (
     <Pressable
       style={[styles.container, { backgroundColor: theme.bg }]}
-      onPress={onContinue}
+      onPress={handleAdvance}
       activeOpacity={0.98}
     >
       <StatusBar barStyle={theme.barStyle} backgroundColor={theme.bg} translucent />
@@ -62,15 +77,6 @@ export default function OnboardingMakeItRealScreen({ onContinue, onBack }) {
               your plan is ready. now we{'\n'}turn it into progress.
             </Text>
           </View>
-
-          {/* Bottom Footer Button */}
-          <TouchableOpacity
-            style={styles.footerButton}
-            onPress={onContinue}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.footerButtonText, { color: theme.textPrimary }]}>tap to continue ➔</Text>
-          </TouchableOpacity>
         </Animated.View>
       </SafeAreaView>
     </Pressable>
@@ -89,15 +95,13 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     flex: 1,
-    justifyContent: 'space-between',
-    paddingBottom: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   centerSection: {
-    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 12,
-    marginTop: -30, // Visual center compensation
   },
   titleText: {
     fontSize: 44,
@@ -115,16 +119,5 @@ const styles = StyleSheet.create({
     lineHeight: 26,
     textAlign: 'center',
     letterSpacing: -0.3,
-  },
-  footerButton: {
-    alignSelf: 'flex-end',
-    paddingVertical: 12,
-    paddingHorizontal: 6,
-  },
-  footerButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#000000',
-    letterSpacing: -0.1,
   },
 });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
   StyleSheet,
   View,
@@ -36,6 +36,12 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const ChevronLeftIcon = ({ size = 20, color = "#0F172A" }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <Path d="M15 18l-6-6 6-6" />
+  </Svg>
+);
+
+const ChevronDownIcon = ({ size = 14, color = "#64748B" }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M6 9l6 6 6-6" />
   </Svg>
 );
 
@@ -338,10 +344,8 @@ const NumberListIcon = ({ size = 15, color = "#64748B" }) => (
 
 const ChecklistIcon = ({ size = 15, color = "#64748B" }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-    <Rect x="3" y="5" width="6" height="6" rx="1" />
-    <Line x1="12" y1="8" x2="21" y2="8" />
-    <Rect x="3" y="13" width="6" height="6" rx="1" />
-    <Line x1="12" y1="16" x2="21" y2="16" />
+    <Path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+    <Path d="M22 4L12 14.01l-3-3" />
   </Svg>
 );
 
@@ -442,6 +446,7 @@ const parseInlineMarkdown = (text, isDark, accentColor) => {
     }
     // Math Formula ($formula$)
     if (part.startsWith('$') && part.endsWith('$') && part.length >= 2) {
+      const cleanFormula = part.slice(1, -1).replace(/^\$+\s*|\s*\$+$/g, '').trim();
       return (
         <Text
           key={idx}
@@ -454,7 +459,7 @@ const parseInlineMarkdown = (text, isDark, accentColor) => {
             paddingHorizontal: 4,
           }}
         >
-          {part.slice(1, -1).trim()}
+          {`$ ${cleanFormula} $`}
         </Text>
       );
     }
@@ -478,6 +483,213 @@ const parseInlineMarkdown = (text, isDark, accentColor) => {
 
     return <Text key={idx}>{part}</Text>;
   });
+};
+
+const markdownToHtml = (md) => {
+  if (!md) return '<p><br></p>';
+  const lines = md.split('\n');
+  let html = '';
+  let inUl = false;
+  let inOl = false;
+
+  const closeLists = () => {
+    if (inUl) { html += '</ul>'; inUl = false; }
+    if (inOl) { html += '</ol>'; inOl = false; }
+  };
+
+  const formatInline = (text) => {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/~~(.+?)~~/g, '<del>$1</del>')
+      .replace(/==(.+?)==/g, '<mark>$1</mark>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/&lt;u&gt;(.+?)&lt;\/u&gt;/g, '<u>$1</u>')
+      .replace(/\$([^\$]+)\$/g, (_, math) => {
+        const clean = math.replace(/^\$+\s*|\s*\$+$/g, '').trim();
+        return clean ? `<span class="studpal-formula">$ ${clean} $</span>` : '';
+      });
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      closeLists();
+      html += '<p><br></p>';
+      continue;
+    }
+
+    if (trimmed.startsWith('# ')) {
+      closeLists();
+      html += '<h1>' + formatInline(trimmed.slice(2)) + '</h1>';
+      continue;
+    }
+    if (trimmed.startsWith('## ')) {
+      closeLists();
+      html += '<h2>' + formatInline(trimmed.slice(3)) + '</h2>';
+      continue;
+    }
+    if (trimmed.startsWith('### ')) {
+      closeLists();
+      html += '<h3>' + formatInline(trimmed.slice(4)) + '</h3>';
+      continue;
+    }
+
+    // Check task checklist
+    const taskMatch = trimmed.match(/^[-*+]\s*\[([ xX])\]\s*(.*)$/);
+    if (taskMatch) {
+      closeLists();
+      const checked = taskMatch[1].toLowerCase() === 'x';
+      let content = taskMatch[2].trim();
+      let headingLevel = 0;
+      if (content.startsWith('### ')) {
+        headingLevel = 3;
+        content = content.slice(4).trim();
+      } else if (content.startsWith('## ')) {
+        headingLevel = 2;
+        content = content.slice(3).trim();
+      } else if (content.startsWith('# ')) {
+        headingLevel = 1;
+        content = content.slice(2).trim();
+      }
+      const textHtml = formatInline(content) || '<br>';
+      const tag = headingLevel > 0 ? `h${headingLevel}` : 'span';
+      const headingClass = headingLevel > 0 ? ` studpal-task-h${headingLevel}` : '';
+      const dataHeading = headingLevel > 0 ? ` data-heading="${headingLevel}"` : '';
+
+      html += `<div class="studpal-task-item${headingClass}${checked ? ' is-checked' : ''}" data-checked="${checked ? 'true' : 'false'}"${dataHeading}><span class="studpal-task-checkbox" contenteditable="false"></span><${tag} class="studpal-task-text">${textHtml}</${tag}></div>`;
+      continue;
+    }
+
+    // Bullet list
+    if (/^[-*+]\s+/.test(trimmed)) {
+      if (inOl) { html += '</ol>'; inOl = false; }
+      if (!inUl) { html += '<ul>'; inUl = true; }
+      html += '<li>' + formatInline(trimmed.replace(/^[-*+]\s+/, '')) + '</li>';
+      continue;
+    }
+
+    // Numbered list
+    if (/^\d+\.\s+/.test(trimmed)) {
+      if (inUl) { html += '</ul>'; inUl = false; }
+      if (!inOl) { html += '<ol>'; inOl = true; }
+      html += '<li>' + formatInline(trimmed.replace(/^\d+\.\s+/, '')) + '</li>';
+      continue;
+    }
+
+    // Blockquote
+    if (trimmed.startsWith('> ')) {
+      closeLists();
+      html += '<blockquote>' + formatInline(trimmed.slice(2)) + '</blockquote>';
+      continue;
+    }
+
+    closeLists();
+    html += '<p>' + formatInline(line) + '</p>';
+  }
+
+  closeLists();
+  return html;
+};
+
+const htmlToMarkdown = (html) => {
+  if (!html) return '';
+
+  let text = html;
+
+  // Replace task items first to preserve headings inside task items
+  text = text.replace(/<div[^>]*class="[^"]*studpal-task-item[^"]*"[^>]*>([\s\S]*?)<\/div>/gi, (match, inner) => {
+    const isChecked = /data-checked="true"/i.test(match) || /class="[^"]*is-checked[^"]*"/i.test(match) || /checked/i.test(inner);
+    let itemContent = inner;
+    itemContent = itemContent.replace(/<span[^>]*class="[^"]*studpal-task-checkbox[^"]*"[^>]*>[\s\S]*?<\/span>/gi, '');
+    itemContent = itemContent.replace(/<input[^>]*>/gi, '');
+
+    let headingPrefix = '';
+    const h1Match = itemContent.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+    const h2Match = itemContent.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i);
+    const h3Match = itemContent.match(/<h3[^>]*>([\s\S]*?)<\/h3>/i);
+    if (h1Match || /data-heading="1"/i.test(match) || /studpal-task-h1/i.test(match)) {
+      headingPrefix = '# ';
+      if (h1Match) itemContent = h1Match[1];
+    } else if (h2Match || /data-heading="2"/i.test(match) || /studpal-task-h2/i.test(match)) {
+      headingPrefix = '## ';
+      if (h2Match) itemContent = h2Match[1];
+    } else if (h3Match || /data-heading="3"/i.test(match) || /studpal-task-h3/i.test(match)) {
+      headingPrefix = '### ';
+      if (h3Match) itemContent = h3Match[1];
+    }
+
+    itemContent = itemContent.replace(/<\/?(?:span|h[1-3])[^>]*class="[^"]*studpal-task-text[^"]*"[^>]*>/gi, '');
+    itemContent = itemContent.replace(/<br\s*[\/]?>/gi, '').trim();
+    return `- [${isChecked ? 'x' : ' '}] ${headingPrefix}${itemContent}\n`;
+  });
+
+  // Replace block tags - single newline per block
+  text = text.replace(/<h1[^>]*>(.*?)<\/h1>/gi, '# $1\n');
+  text = text.replace(/<h2[^>]*>(.*?)<\/h2>/gi, '## $1\n');
+  text = text.replace(/<h3[^>]*>(.*?)<\/h3>/gi, '### $1\n');
+  text = text.replace(/<blockquote[^>]*>(.*?)<\/blockquote>/gi, '> $1\n');
+
+  // Replace ordered list items
+  text = text.replace(/<ol[^>]*>([\s\S]*?)<\/ol>/gi, (match, p1) => {
+    let idx = 1;
+    return p1.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, (_, item) => {
+      return `${idx++}. ${item.trim()}\n`;
+    });
+  });
+
+  // Replace unordered list items
+  text = text.replace(/<ul[^>]*>([\s\S]*?)<\/ul>/gi, (match, p1) => {
+    return p1.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, (_, item) => {
+      return `- ${item.trim()}\n`;
+    });
+  });
+
+  // Empty paragraphs -> single newline (handles empty lines without runaway multiplication)
+  text = text.replace(/<p[^>]*>\s*(?:<br\s*[\/]?>|&nbsp;|\u200B)?\s*<\/p>/gi, '\n');
+  // Content paragraphs -> line with single newline
+  text = text.replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n');
+  text = text.replace(/<div[^>]*>(.*?)<\/div>/gi, '$1\n');
+  text = text.replace(/<br\s*[\/]?>/gi, '\n');
+
+  // Inlines
+  text = text.replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**');
+  text = text.replace(/<b[^>]*>(.*?)<\/b>/gi, '**$1**');
+  text = text.replace(/<em[^>]*>(.*?)<\/em>/gi, '*$1*');
+  text = text.replace(/<i[^>]*>(.*?)<\/i>/gi, '*$1*');
+  text = text.replace(/<del[^>]*>(.*?)<\/del>/gi, '~~$1~~');
+  text = text.replace(/<s[^>]*>(.*?)<\/s>/gi, '~~$1~~');
+  text = text.replace(/<strike[^>]*>(.*?)<\/strike>/gi, '~~$1~~');
+  text = text.replace(/<mark[^>]*>(.*?)<\/mark>/gi, '==$1==');
+  text = text.replace(/<code[^>]*>(.*?)<\/code>/gi, '`$1`');
+  text = text.replace(/<span[^>]*class="[^"]*studpal-formula[^"]*"[^>]*>([\s\S]*?)<\/span>/gi, (_, inner) => {
+    const clean = inner.replace(/<[^>]+>/g, '').replace(/^\$+\s*|\s*\$+$/g, '').trim();
+    return clean ? `$ ${clean} $` : '';
+  });
+  text = text.replace(/<u[^>]*>(.*?)<\/u>/gi, '__STUDPAL_U_START__$1__STUDPAL_U_END__');
+
+  // Strip remaining tags
+  text = text.replace(/<[^>]+>/g, '');
+
+  text = text.replace(/__STUDPAL_U_START__/g, '<u>').replace(/__STUDPAL_U_END__/g, '</u>');
+
+  // Decode entities
+  text = text.replace(/&amp;/g, '&');
+  text = text.replace(/&lt;/g, '<');
+  text = text.replace(/&gt;/g, '>');
+  text = text.replace(/&nbsp;/g, ' ');
+
+  // Strip trailing newline only if it's the very end of the string
+  if (text.endsWith('\n')) {
+    text = text.slice(0, -1);
+  }
+
+  return text;
 };
 
 const FormattedMarkdownView = ({
@@ -655,7 +867,24 @@ const FormattedMarkdownView = ({
     const taskMatch = line.match(/^[-*+]\s*\[([ xX])\]\s*(.*)$/);
     if (taskMatch) {
       const isChecked = taskMatch[1].toLowerCase() === 'x';
-      const taskText = taskMatch[2];
+      let rawContent = (taskMatch[2] || '').trim();
+      let headingStyle = null;
+      let checkboxMarginTop = 2;
+
+      if (rawContent.startsWith('### ')) {
+        headingStyle = { fontSize: 17, fontWeight: '700', lineHeight: 24, color: isDark ? '#E2E8F0' : '#334155' };
+        rawContent = rawContent.slice(4).trim();
+        checkboxMarginTop = 3;
+      } else if (rawContent.startsWith('## ')) {
+        headingStyle = { fontSize: 20, fontWeight: '700', lineHeight: 28, color: isDark ? '#F1F5F9' : '#1E293B', letterSpacing: -0.3 };
+        rawContent = rawContent.slice(3).trim();
+        checkboxMarginTop = 5;
+      } else if (rawContent.startsWith('# ')) {
+        headingStyle = { fontSize: 24, fontWeight: '800', lineHeight: 32, color: isDark ? '#FFFFFF' : '#0F172A', letterSpacing: -0.5 };
+        rawContent = rawContent.slice(2).trim();
+        checkboxMarginTop = 6;
+      }
+
       elements.push(
         <TouchableOpacity
           key={`task-${lineIdx}`}
@@ -663,7 +892,7 @@ const FormattedMarkdownView = ({
             flexDirection: 'row',
             alignItems: 'flex-start',
             gap: 8,
-            marginVertical: 3,
+            marginVertical: headingStyle ? 5 : 3,
             paddingVertical: 2,
           }}
           onPress={() => onToggleTask && onToggleTask(lineIdx)}
@@ -673,28 +902,36 @@ const FormattedMarkdownView = ({
             style={{
               width: 18,
               height: 18,
-              borderRadius: 5,
+              borderRadius: 9,
               borderWidth: 1.5,
               borderColor: isChecked ? (accentColor || '#2D62FF') : (isDark ? '#64748B' : '#94A3B8'),
               backgroundColor: isChecked ? (accentColor || '#2D62FF') : 'transparent',
               alignItems: 'center',
               justifyContent: 'center',
-              marginTop: 2,
+              marginTop: checkboxMarginTop,
             }}
           >
             {isChecked && <CheckIcon size={12} color="#FFFFFF" />}
           </View>
           <Text
-            style={{
-              flex: 1,
-              fontSize: 15,
-              lineHeight: 22,
-              color: isChecked ? (isDark ? '#64748B' : '#94A3B8') : (isDark ? '#F8FAFC' : '#0F172A'),
-              textDecorationLine: isChecked ? 'line-through' : 'none',
-            }}
+            style={[
+              {
+                flex: 1,
+                fontSize: 15,
+                lineHeight: 22,
+                color: isChecked ? (isDark ? '#64748B' : '#94A3B8') : (isDark ? '#F8FAFC' : '#0F172A'),
+                textDecorationLine: isChecked ? 'line-through' : 'none',
+              },
+              headingStyle,
+              isChecked && {
+                textDecorationLine: 'line-through',
+                opacity: 0.55,
+                color: isDark ? '#64748B' : '#94A3B8',
+              },
+            ]}
             selectable={selectable}
           >
-            {parseInlineMarkdown(taskText, isDark, accentColor)}
+            {parseInlineMarkdown(rawContent, isDark, accentColor)}
           </Text>
         </TouchableOpacity>
       );
@@ -871,37 +1108,39 @@ export default function StudyScreen({
     setIsFlipping(true);
 
     const toVal = isFlippedState ? 0 : 1;
+    const flipDuration = 1000; // Slower, smooth and deliberate 3D card reveal (1000ms)
+    const midPoint = flipDuration / 2;
 
     // Bright glass sheen light reflection - glides smoothly across the glass surface
     shineAnim.setValue(0);
     Animated.timing(shineAnim, {
       toValue: 1,
-      duration: 650,
+      duration: 1200,
       easing: Easing.inOut(Easing.quad),
       useNativeDriver: true,
     }).start();
 
-    // Crisp 3D glass flip animation (450ms)
+    // Smooth, slow 3D glass flip animation
     Animated.timing(cardFlipAnim, {
       toValue: toVal,
-      duration: 450,
+      duration: flipDuration,
       easing: Easing.inOut(Easing.cubic),
       useNativeDriver: true,
     }).start(() => {
       setIsFlipping(false);
     });
 
-    // Toggle content state & animate bottom bar crossfade smoothly at edge-on midpoint (225ms)
+    // Toggle content state & animate bottom bar crossfade smoothly at edge-on midpoint
     setTimeout(() => {
       setIsFlippedState(!isFlippedState);
       setIsFlipped(!isFlippedState);
       Animated.timing(bottomBarAnim, {
         toValue: toVal,
-        duration: 250,
+        duration: 450,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }).start();
-    }, 225);
+    }, midPoint);
   };
 
   const frontInterpolate = cardFlipAnim.interpolate({
@@ -970,9 +1209,11 @@ export default function StudyScreen({
   });
 
   // Start SRS Review Session
-  const handleStartReviewSession = (subjId = null, topId = null, initialIndex = 0) => {
-    const sessionCards = studyService.getCardsForReview(subjId, topId, currentLang);
+  const [isQuizTargetedSession, setIsQuizTargetedSession] = useState(false);
+  const handleStartReviewSession = (subjId = null, topId = null, initialIndex = 0, filterQuizMissedOnly = false) => {
+    const sessionCards = studyService.getCardsForReview(subjId, topId, currentLang, { filterQuizMissedOnly });
     setCards(sessionCards);
+    setIsQuizTargetedSession(Boolean(filterQuizMissedOnly));
     const validIdx = Math.min(Math.max(0, initialIndex), Math.max(0, (sessionCards.length || 1) - 1));
     setCurrentIndex(validIdx);
     setIsFlipped(false);
@@ -1050,6 +1291,14 @@ export default function StudyScreen({
         responseTimeMs,
         responseTimeSec: Math.round(responseTimeMs / 1000),
         rating: ratingType,
+      });
+
+      // ── KNOWLEDGE CROSS-TALK: INVENTORY CARD RATING & NOTIFY QUIZ ENGINE ──
+      studyService.recordCardRating({
+        cardId: currentCard.id,
+        rating: ratingType,
+        responseTimeMs,
+        cardObj: currentCard,
       });
     }
     cardStartTimeRef.current = Date.now();
@@ -1149,6 +1398,10 @@ export default function StudyScreen({
 
   const handleLaunchQuizEngine = (quizObj) => {
     const randomizedQuiz = shuffleQuizEngineData(quizObj);
+    // Prioritize questions connected to flashcard struggles so they are tested first
+    if (randomizedQuiz && Array.isArray(randomizedQuiz.questions)) {
+      randomizedQuiz.questions.sort((a, b) => (b.flashcardBridge ? 1 : 0) - (a.flashcardBridge ? 1 : 0));
+    }
     setActiveQuiz(randomizedQuiz);
     setQuizQuestionIndex(0);
     setQuizSelectedOption(null);
@@ -1245,21 +1498,703 @@ export default function StudyScreen({
   const [noteEditorMode, setNoteEditorMode] = useState('edit'); // 'edit' | 'preview'
   const [contentSelection, setContentSelection] = useState({ start: 0, end: 0 });
   const contentInputRef = useRef(null);
+  const contentEditableRef = useRef(null);
+  const isTypingRef = useRef(false);
+  const savedRangeRef = useRef(null);
+  const lastCheckboxToggleRef = useRef(0);
+  const loadedNoteKeyRef = useRef(null);
+  const lastBackspaceTimeRef = useRef(0);
   const [isSavingSuccess, setIsSavingSuccess] = useState(false);
   const [activeMenuNoteId, setActiveMenuNoteId] = useState(null);
   const saveBtnScale = useRef(new Animated.Value(1)).current;
   const [noteForDetailModal, setNoteForDetailModal] = useState(null);
+  const [isFormatTrayOpen, setIsFormatTrayOpen] = useState(false);
+
+
+
+  // ── Note Undo / Redo History Stack ──
+  const [historyStack, setHistoryStack] = useState(() => [""]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const historyStackRef = useRef([""]);
+  const historyIndexRef = useRef(0);
+  const isHistoryActionRef = useRef(false);
+  const typingHistoryTimerRef = useRef(null);
+
+  const commitHistory = useCallback((textToCommit) => {
+    if (textToCommit === null || textToCommit === undefined) return;
+    const stack = historyStackRef.current;
+    const idx = historyIndexRef.current;
+
+    if (stack[idx] === textToCommit) return;
+
+    const trimmed = stack.slice(0, idx + 1);
+    trimmed.push(textToCommit);
+    if (trimmed.length > 50) {
+      trimmed.shift();
+    }
+
+    const newIdx = trimmed.length - 1;
+    historyStackRef.current = trimmed;
+    historyIndexRef.current = newIdx;
+    setHistoryStack(trimmed);
+    setHistoryIndex(newIdx);
+  }, []);
+
+  const pushHistory = useCallback((newText, immediate = false) => {
+    if (isHistoryActionRef.current) {
+      isHistoryActionRef.current = false;
+      return;
+    }
+
+    if (immediate) {
+      if (typingHistoryTimerRef.current) {
+        clearTimeout(typingHistoryTimerRef.current);
+        typingHistoryTimerRef.current = null;
+      }
+      commitHistory(newText);
+    } else {
+      if (typingHistoryTimerRef.current) {
+        clearTimeout(typingHistoryTimerRef.current);
+      }
+      typingHistoryTimerRef.current = setTimeout(() => {
+        commitHistory(newText);
+        typingHistoryTimerRef.current = null;
+      }, 400);
+    }
+  }, [commitHistory]);
+
+  // Real-time selection tracking for contentEditable on Web
+  const handleSelectChange = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0 && contentEditableRef.current) {
+        const range = sel.getRangeAt(0);
+        if (contentEditableRef.current.contains(range.commonAncestorContainer)) {
+          if (!range.collapsed || document.activeElement === contentEditableRef.current) {
+            savedRangeRef.current = range.cloneRange();
+          }
+        }
+      }
+    } catch (e) {}
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      const handleDocSelectionChange = () => {
+        try {
+          const sel = window.getSelection();
+          if (sel && sel.rangeCount > 0 && contentEditableRef.current) {
+            const range = sel.getRangeAt(0);
+            if (contentEditableRef.current.contains(range.commonAncestorContainer)) {
+              if (!range.collapsed || document.activeElement === contentEditableRef.current) {
+                savedRangeRef.current = range.cloneRange();
+              }
+            }
+          }
+        } catch (e) {}
+      };
+      document.addEventListener('selectionchange', handleDocSelectionChange);
+      return () => {
+        document.removeEventListener('selectionchange', handleDocSelectionChange);
+      };
+    }
+  }, []);
+
+  const syncEditorContent = useCallback((immediate = false) => {
+    if (contentEditableRef.current) {
+      const md = htmlToMarkdown(contentEditableRef.current.innerHTML);
+      setNoteFormContent(md);
+      pushHistory(md, immediate);
+    }
+  }, [pushHistory]);
+
+  const handleContentInput = useCallback(() => {
+    handleSelectChange();
+    syncEditorContent(false);
+  }, [handleSelectChange, syncEditorContent]);
+
+  const handleTaskEnter = useCallback((taskItem, range, sel) => {
+    const textSpan = taskItem.querySelector('.studpal-task-text') || taskItem;
+    const rawText = textSpan.textContent || '';
+    const trimmedText = rawText.replace(/\u200B/g, '').trim();
+
+    // 1. If empty item, pressing Enter exits checklist mode (converts to normal paragraph)
+    if (trimmedText === '') {
+      const p = document.createElement('p');
+      p.innerHTML = '<br>';
+      taskItem.parentNode.replaceChild(p, taskItem);
+      const newRange = document.createRange();
+      newRange.setStart(p, 0);
+      newRange.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+      savedRangeRef.current = newRange.cloneRange();
+      syncEditorContent();
+      return true;
+    }
+
+    // 2. Extract trailing content after caret to put in the next task item
+    let trailingFrag = document.createDocumentFragment();
+    if (textSpan.contains(range.endContainer) || range.endContainer === textSpan) {
+      try {
+        const extractRange = document.createRange();
+        extractRange.setStart(range.endContainer, range.endOffset);
+        extractRange.setEnd(textSpan, textSpan.childNodes.length);
+        trailingFrag = extractRange.extractContents();
+      } catch (err) {
+        trailingFrag = document.createDocumentFragment();
+      }
+    }
+
+    const newTaskItem = document.createElement('div');
+    newTaskItem.className = 'studpal-task-item';
+    newTaskItem.setAttribute('data-checked', 'false');
+
+    const newCheckbox = document.createElement('span');
+    newCheckbox.className = 'studpal-task-checkbox';
+    newCheckbox.setAttribute('contenteditable', 'false');
+    newTaskItem.appendChild(newCheckbox);
+
+    const newSpan = document.createElement('span');
+    newSpan.className = 'studpal-task-text';
+    const hasTrailing = trailingFrag && trailingFrag.textContent && trailingFrag.textContent.replace(/\u200B/g, '').trim().length > 0;
+    if (hasTrailing) {
+      newSpan.appendChild(trailingFrag);
+    } else {
+      newSpan.innerHTML = '<br>';
+    }
+    newTaskItem.appendChild(newSpan);
+
+    // If textSpan in current item was emptied by extraction, provide <br>
+    const currentRemaining = (textSpan.textContent || '').replace(/\u200B/g, '').trim();
+    if (currentRemaining === '') {
+      textSpan.innerHTML = '<br>';
+    }
+
+    if (taskItem.nextSibling) {
+      taskItem.parentNode.insertBefore(newTaskItem, taskItem.nextSibling);
+    } else {
+      taskItem.parentNode.appendChild(newTaskItem);
+    }
+
+    // Position cursor cleanly in the new item's text
+    const newRange = document.createRange();
+    if (hasTrailing && newSpan.firstChild) {
+      newRange.setStart(newSpan.firstChild, 0);
+    } else {
+      newRange.setStart(newSpan, 0);
+    }
+    newRange.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(newRange);
+    savedRangeRef.current = newRange.cloneRange();
+
+    syncEditorContent();
+    return true;
+  }, [syncEditorContent]);
+
+  const handleTaskBackspace = useCallback((taskItem, range, sel) => {
+    const textSpan = taskItem.querySelector('.studpal-task-text') || taskItem;
+    const rawText = textSpan.textContent || '';
+    const trimmedText = rawText.replace(/\u200B/g, '').trim();
+
+    // If text is selected across nodes, let browser delete selection normally
+    if (!range.collapsed) {
+      return false;
+    }
+
+    // 1. If task item has no text: remove it and place cursor at end of previous item
+    if (trimmedText === '') {
+      const prev = taskItem.previousElementSibling;
+      if (prev) {
+        taskItem.remove();
+        const prevTarget = prev.querySelector?.('.studpal-task-text') || prev;
+        const newRange = document.createRange();
+        if (prevTarget.firstChild && prevTarget.firstChild.nodeType === 1 && prevTarget.firstChild.tagName === 'BR') {
+          newRange.setStart(prevTarget, 0);
+          newRange.collapse(true);
+        } else {
+          newRange.selectNodeContents(prevTarget);
+          newRange.collapse(false);
+        }
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+        savedRangeRef.current = newRange.cloneRange();
+      } else {
+        const p = document.createElement('p');
+        p.innerHTML = '<br>';
+        taskItem.parentNode.replaceChild(p, taskItem);
+        const newRange = document.createRange();
+        newRange.setStart(p, 0);
+        newRange.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+        savedRangeRef.current = newRange.cloneRange();
+      }
+      syncEditorContent();
+      return true;
+    }
+
+    // 2. If task item has text but caret is at the very beginning (offset 0):
+    // Convert task item back to a normal paragraph (removes circle, keeps text)
+    let isAtStart = false;
+    if (range.startContainer === textSpan && range.startOffset === 0) {
+      isAtStart = true;
+    } else if (range.startContainer === textSpan.firstChild && range.startOffset === 0) {
+      isAtStart = true;
+    } else if (textSpan.contains(range.startContainer)) {
+      try {
+        const checkRange = document.createRange();
+        checkRange.setStart(textSpan, 0);
+        checkRange.setEnd(range.startContainer, range.startOffset);
+        if (checkRange.toString().replace(/\u200B/g, '').length === 0) {
+          isAtStart = true;
+        }
+      } catch (e) {}
+    }
+
+    if (isAtStart) {
+      const isH1 = taskItem.classList.contains('studpal-task-h1') || taskItem.getAttribute('data-heading') === '1' || (textSpan.tagName && textSpan.tagName.toUpperCase() === 'H1');
+      const isH2 = taskItem.classList.contains('studpal-task-h2') || taskItem.getAttribute('data-heading') === '2' || (textSpan.tagName && textSpan.tagName.toUpperCase() === 'H2');
+      const isH3 = taskItem.classList.contains('studpal-task-h3') || taskItem.getAttribute('data-heading') === '3' || (textSpan.tagName && textSpan.tagName.toUpperCase() === 'H3');
+
+      const targetTag = isH1 ? 'h1' : isH2 ? 'h2' : isH3 ? 'h3' : 'p';
+      const replacement = document.createElement(targetTag);
+      replacement.innerHTML = textSpan.innerHTML || '<br>';
+      taskItem.parentNode.replaceChild(replacement, taskItem);
+      const newRange = document.createRange();
+      newRange.setStart(replacement, 0);
+      newRange.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+      savedRangeRef.current = newRange.cloneRange();
+      syncEditorContent();
+      return true;
+    }
+
+    return false;
+  }, [syncEditorContent]);
+
+  const toggleTaskItem = useCallback((checkboxEl) => {
+    const taskItem = checkboxEl.closest?.('.studpal-task-item');
+    if (!taskItem) return;
+    lastCheckboxToggleRef.current = Date.now();
+    const isChecked = taskItem.getAttribute('data-checked') === 'true' || taskItem.classList.contains('is-checked');
+    const nextChecked = !isChecked;
+    taskItem.setAttribute('data-checked', nextChecked ? 'true' : 'false');
+    if (nextChecked) {
+      taskItem.classList.add('is-checked');
+    } else {
+      taskItem.classList.remove('is-checked');
+    }
+    syncEditorContent();
+  }, [syncEditorContent]);
+
+  const handleEditorPointerDown = useCallback((e) => {
+    const checkboxEl = e.target && (
+      (e.target.classList?.contains('studpal-task-checkbox') && e.target) ||
+      e.target.closest?.('.studpal-task-checkbox')
+    );
+    if (checkboxEl) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleTaskItem(checkboxEl);
+    }
+  }, [toggleTaskItem]);
+
+  const handleEditorClick = useCallback((e) => {
+    handleSelectChange();
+
+    const checkboxEl = e.target && (
+      (e.target.classList?.contains('studpal-task-checkbox') && e.target) ||
+      e.target.closest?.('.studpal-task-checkbox')
+    );
+
+    if (checkboxEl) {
+      e.preventDefault();
+      e.stopPropagation();
+      const now = Date.now();
+      if (lastCheckboxToggleRef.current && (now - lastCheckboxToggleRef.current < 350)) {
+        return;
+      }
+      toggleTaskItem(checkboxEl);
+      return;
+    }
+
+    if (e.target && e.target.type === 'checkbox') {
+      const isChecked = e.target.checked;
+      const taskItem = e.target.closest && e.target.closest('.studpal-task-item');
+      if (taskItem) {
+        taskItem.setAttribute('data-checked', isChecked ? 'true' : 'false');
+        if (isChecked) taskItem.classList.add('is-checked');
+        else taskItem.classList.remove('is-checked');
+        syncEditorContent(true);
+      }
+    }
+  }, [handleSelectChange, toggleTaskItem, syncEditorContent]);
+
+  const handleUndo = useCallback(() => {
+    // If there is an active typing timer, flush current content to history first
+    if (typingHistoryTimerRef.current) {
+      clearTimeout(typingHistoryTimerRef.current);
+      typingHistoryTimerRef.current = null;
+      if (contentEditableRef.current) {
+        const currentMd = htmlToMarkdown(contentEditableRef.current.innerHTML);
+        commitHistory(currentMd);
+      }
+    }
+
+    const currIdx = historyIndexRef.current;
+    if (currIdx <= 0) return;
+
+    const newIdx = currIdx - 1;
+    const targetText = historyStackRef.current[newIdx] ?? "";
+
+    isHistoryActionRef.current = true;
+    historyIndexRef.current = newIdx;
+    setHistoryIndex(newIdx);
+    setNoteFormContent(targetText);
+
+    if (Platform.OS === 'web' && contentEditableRef.current) {
+      const editor = contentEditableRef.current;
+      editor.innerHTML = markdownToHtml(targetText);
+      try {
+        editor.focus({ preventScroll: true });
+        const sel = window.getSelection();
+        if (sel) {
+          const range = document.createRange();
+          range.selectNodeContents(editor);
+          range.collapse(false);
+          sel.removeAllRanges();
+          sel.addRange(range);
+          savedRangeRef.current = range.cloneRange();
+        }
+      } catch (e) {}
+    }
+  }, [commitHistory]);
+
+  const handleRedo = useCallback(() => {
+    const currIdx = historyIndexRef.current;
+    const stack = historyStackRef.current;
+    if (currIdx >= stack.length - 1) return;
+
+    const newIdx = currIdx + 1;
+    const targetText = stack[newIdx] ?? "";
+
+    isHistoryActionRef.current = true;
+    historyIndexRef.current = newIdx;
+    setHistoryIndex(newIdx);
+    setNoteFormContent(targetText);
+
+    if (Platform.OS === 'web' && contentEditableRef.current) {
+      const editor = contentEditableRef.current;
+      editor.innerHTML = markdownToHtml(targetText);
+      try {
+        editor.focus({ preventScroll: true });
+        const sel = window.getSelection();
+        if (sel) {
+          const range = document.createRange();
+          range.selectNodeContents(editor);
+          range.collapse(false);
+          sel.removeAllRanges();
+          sel.addRange(range);
+          savedRangeRef.current = range.cloneRange();
+        }
+      } catch (e) {}
+    }
+  }, []);
+
+  const handleEditorKeyDown = useCallback((e) => {
+    if (typeof window === 'undefined') return;
+
+    const isMod = e.metaKey || e.ctrlKey;
+    if (isMod && e.key && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        handleRedo();
+      } else {
+        handleUndo();
+      }
+      return;
+    }
+    if (isMod && e.key && e.key.toLowerCase() === 'y') {
+      e.preventDefault();
+      handleRedo();
+      return;
+    }
+
+    if (e.key === 'Enter' && !e.shiftKey) {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      const range = sel.getRangeAt(0);
+
+      let node = range.startContainer;
+      while (node && node !== contentEditableRef.current && (!node.classList || !node.classList.contains('studpal-task-item'))) {
+        node = node.parentNode;
+      }
+
+      if (node && node.classList && node.classList.contains('studpal-task-item')) {
+        e.preventDefault();
+        handleTaskEnter(node, range, sel);
+        return;
+      }
+    }
+
+    if (e.key === 'Backspace') {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      const range = sel.getRangeAt(0);
+
+      let node = range.startContainer;
+      while (node && node !== contentEditableRef.current && (!node.classList || !node.classList.contains('studpal-task-item'))) {
+        node = node.parentNode;
+      }
+
+      if (node && node.classList && node.classList.contains('studpal-task-item')) {
+        lastBackspaceTimeRef.current = Date.now();
+        if (handleTaskBackspace(node, range, sel)) {
+          e.preventDefault();
+          return;
+        }
+      }
+    }
+  }, [handleTaskEnter, handleTaskBackspace, handleUndo, handleRedo]);
+
+  const handleBeforeInput = useCallback((e) => {
+    if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      const range = sel.getRangeAt(0);
+
+      let node = range.startContainer;
+      while (node && node !== contentEditableRef.current && (!node.classList || !node.classList.contains('studpal-task-item'))) {
+        node = node.parentNode;
+      }
+
+      if (node && node.classList && node.classList.contains('studpal-task-item')) {
+        e.preventDefault();
+        handleTaskEnter(node, range, sel);
+      }
+    } else if (e.inputType === 'deleteContentBackward') {
+      if (Date.now() - lastBackspaceTimeRef.current < 100) {
+        return;
+      }
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      const range = sel.getRangeAt(0);
+
+      let node = range.startContainer;
+      while (node && node !== contentEditableRef.current && (!node.classList || !node.classList.contains('studpal-task-item'))) {
+        node = node.parentNode;
+      }
+
+      if (node && node.classList && node.classList.contains('studpal-task-item')) {
+        lastBackspaceTimeRef.current = Date.now();
+        if (handleTaskBackspace(node, range, sel)) {
+          e.preventDefault();
+        }
+      }
+    }
+  }, [handleTaskEnter, handleTaskBackspace]);
+
+  const currentNoteKey = editingNote ? `note_${editingNote.id}` : `new_note`;
+
+  const setEditorRef = useCallback((node) => {
+    contentEditableRef.current = node;
+    if (node && loadedNoteKeyRef.current !== currentNoteKey) {
+      loadedNoteKeyRef.current = currentNoteKey;
+      node.innerHTML = markdownToHtml(noteFormContent || '');
+    }
+  }, [currentNoteKey, noteFormContent]);
+
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      // Clean up any stray task elements accidentally inserted outside the editor
+      try {
+        const strayItems = document.querySelectorAll('.studpal-task-item:not(.studpal-editable-preview .studpal-task-item)');
+        strayItems.forEach(item => item.remove());
+      } catch (e) {}
+
+      const editor = contentEditableRef.current;
+      if (!editor) return;
+
+      try {
+        editor.removeEventListener('beforeinput', handleBeforeInput);
+        editor.addEventListener('beforeinput', handleBeforeInput);
+      } catch (err) {}
+
+      return () => {
+        try {
+          editor.removeEventListener('beforeinput', handleBeforeInput);
+        } catch (err) {}
+      };
+    }
+  }, [handleBeforeInput, viewState]);
 
   // ── Voice Dictation State ──
   const [isNoteRecording, setIsNoteRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const recordingTimerRef = useRef(null);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
   const speechRecognitionRef = useRef(null);
   const isRecordingActiveRef = useRef(false);
+  const uncommittedTranscriptRef = useRef('');
+  const sessionFinalTranscriptRef = useRef('');
+  const speechSilenceTimerRef = useRef(null);
+  const contentSelectionRef = useRef({ start: 0, end: 0 });
+  const [dictationInterimPreview, setDictationInterimPreview] = useState('');
+
+  // Helper to commit dictated text into the active note editor immediately
+  const commitDictatedTextToNote = useCallback((textToAdd) => {
+    if (!textToAdd || !textToAdd.trim()) return;
+    const cleanText = textToAdd.trim();
+
+    if (Platform.OS === 'web' && contentEditableRef.current) {
+      let inserted = false;
+      const editor = contentEditableRef.current;
+
+      // 1. Try savedRangeRef first if valid and within contentEditable
+      if (savedRangeRef.current && editor.contains(savedRangeRef.current.commonAncestorContainer)) {
+        try {
+          const range = savedRangeRef.current;
+          range.deleteContents();
+          const textNode = document.createTextNode(` ${cleanText} `);
+          range.insertNode(textNode);
+          range.setStartAfter(textNode);
+          range.setEndAfter(textNode);
+          savedRangeRef.current = range.cloneRange();
+          inserted = true;
+        } catch (e) {
+          inserted = false;
+        }
+      }
+
+      // 2. Try current window selection if within contentEditable
+      if (!inserted) {
+        try {
+          const sel = window.getSelection();
+          if (sel && sel.rangeCount > 0 && editor.contains(sel.anchorNode)) {
+            const range = sel.getRangeAt(0);
+            range.deleteContents();
+            const textNode = document.createTextNode(` ${cleanText} `);
+            range.insertNode(textNode);
+            range.setStartAfter(textNode);
+            range.setEndAfter(textNode);
+            savedRangeRef.current = range.cloneRange();
+            inserted = true;
+          }
+        } catch (e) {
+          inserted = false;
+        }
+      }
+
+      // 3. Fallback: append to the last paragraph or create new paragraph at end
+      if (!inserted) {
+        try {
+          const lastChild = editor.lastElementChild;
+          if (lastChild && (lastChild.tagName === 'P' || lastChild.tagName === 'DIV')) {
+            const textNode = document.createTextNode(` ${cleanText} `);
+            lastChild.appendChild(textNode);
+            const newRange = document.createRange();
+            newRange.selectNodeContents(lastChild);
+            newRange.collapse(false);
+            savedRangeRef.current = newRange.cloneRange();
+          } else {
+            const p = document.createElement('p');
+            p.textContent = cleanText;
+            editor.appendChild(p);
+            const newRange = document.createRange();
+            newRange.selectNodeContents(p);
+            newRange.collapse(false);
+            savedRangeRef.current = newRange.cloneRange();
+          }
+        } catch (e) {
+          editor.innerHTML = (editor.innerHTML || '') + ` <p>${cleanText}</p>`;
+        }
+      }
+
+      const md = htmlToMarkdown(editor.innerHTML);
+      setNoteFormContent(md);
+      pushHistory(md);
+    } else {
+      setNoteFormContent((prev) => {
+        const text = prev || '';
+        const { start = text.length, end = text.length } = contentSelectionRef.current || {};
+        let newText;
+        if (typeof start === 'number' && start >= 0 && start <= text.length) {
+          const before = text.slice(0, start);
+          const after = text.slice(end);
+          const spaceBefore = before.length > 0 && !/\s$/.test(before) ? ' ' : '';
+          const spaceAfter = after.length > 0 && !/^\s/.test(after) ? ' ' : '';
+          newText = before + spaceBefore + cleanText + spaceAfter + after;
+        } else {
+          const spaceBefore = text.length > 0 && !/\s$/.test(text) ? ' ' : '';
+          newText = text + spaceBefore + cleanText;
+        }
+        pushHistory(newText);
+        return newText;
+      });
+    }
+  }, [pushHistory]);
+
+  useEffect(() => {
+    if (isNoteRecording) {
+      setRecordingSeconds(0);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingSeconds((prev) => prev + 1);
+      }, 1000);
+      const loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 0.35, duration: 600, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+        ])
+      );
+      loop.start();
+      return () => {
+        loop.stop();
+        if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      };
+    } else {
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+      setRecordingSeconds(0);
+      pulseAnim.setValue(1);
+    }
+  }, [isNoteRecording]);
+
+  const formattedRecordingTime = useMemo(() => {
+    const mins = Math.floor(recordingSeconds / 60);
+    const secs = recordingSeconds % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }, [recordingSeconds]);
+
+  const currentFormattedDate = useMemo(() => {
+    const d = editingNote?.updatedAt ? new Date(editingNote.updatedAt) : new Date();
+    try {
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const year = d.getFullYear();
+      const hours = String(d.getHours()).padStart(2, '0');
+      const mins = String(d.getMinutes()).padStart(2, '0');
+      return `${month}/${day}/${year}, ${hours}:${mins}`;
+    } catch (e) {
+      return 'Today, 12:00';
+    }
+  }, [editingNote]);
 
   useEffect(() => {
     return () => {
       isRecordingActiveRef.current = false;
+      if (speechSilenceTimerRef.current) {
+        clearTimeout(speechSilenceTimerRef.current);
+        speechSilenceTimerRef.current = null;
+      }
       if (speechRecognitionRef.current) {
-        try { speechRecognitionRef.current.stop(); } catch (e) {}
+        try { speechRecognitionRef.current.abort(); } catch (e) {}
+        speechRecognitionRef.current = null;
       }
       try { voiceRecordingService.stopRecording(); } catch (e) {}
     };
@@ -1268,20 +2203,43 @@ export default function StudyScreen({
   const handleToggleNoteVoiceDictation = async () => {
     if (isNoteRecording) {
       isRecordingActiveRef.current = false;
+
+      // 1. Clear any pending speech pause timer
+      if (speechSilenceTimerRef.current) {
+        clearTimeout(speechSilenceTimerRef.current);
+        speechSilenceTimerRef.current = null;
+      }
+
+      // 2. Immediately transcribe any pending uncommitted speech upon pause
+      const pendingText = uncommittedTranscriptRef.current;
+      if (pendingText && pendingText.trim()) {
+        commitDictatedTextToNote(pendingText.trim());
+        uncommittedTranscriptRef.current = '';
+        sessionFinalTranscriptRef.current = '';
+      }
+
+      // 3. Stop speech recognition cleanly
       if (speechRecognitionRef.current) {
         try {
           speechRecognitionRef.current.stop();
         } catch (e) {}
         speechRecognitionRef.current = null;
       }
+
+      // 4. Stop hardware audio recording
       try {
         await voiceRecordingService.stopRecording();
       } catch (e) {}
+
       setIsNoteRecording(false);
+      setDictationInterimPreview('');
       return;
     }
 
     isRecordingActiveRef.current = true;
+    uncommittedTranscriptRef.current = '';
+    sessionFinalTranscriptRef.current = '';
+    setDictationInterimPreview('');
     setIsNoteRecording(true);
 
     // 1. High-fidelity audio recording capture in background
@@ -1291,7 +2249,7 @@ export default function StudyScreen({
       console.warn('[NoteVoiceDictation] Audio recording notice:', err);
     }
 
-    // 2. High-sensitivity continuous speech-to-text recognition
+    // 2. High-sensitivity continuous speech-to-text recognition with instant pause finalization
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (SpeechRecognition) {
@@ -1303,20 +2261,52 @@ export default function StudyScreen({
           recognition.lang = (typeof navigator !== 'undefined' && navigator.language) ? navigator.language : 'en-US';
 
           recognition.onresult = (event) => {
-            let finalChunk = '';
+            if (!isRecordingActiveRef.current) return;
+
+            let interim = '';
+            let newlyFinalized = '';
             for (let i = event.resultIndex; i < event.results.length; ++i) {
+              const transcript = event.results[i][0]?.transcript || '';
               if (event.results[i].isFinal) {
-                finalChunk += event.results[i][0].transcript;
+                newlyFinalized += transcript;
+              } else {
+                interim += transcript;
               }
             }
-            if (finalChunk && finalChunk.trim()) {
-              setNoteFormContent((prev) => {
-                const base = (prev || '').trim();
-                const textToAdd = finalChunk.trim();
-                const newText = base ? `${base} ${textToAdd}` : textToAdd;
-                pushHistory(newText);
-                return newText;
-              });
+
+            if (newlyFinalized) {
+              sessionFinalTranscriptRef.current = (sessionFinalTranscriptRef.current + ' ' + newlyFinalized).trim();
+            }
+
+            const currentPhrase = (sessionFinalTranscriptRef.current + ' ' + interim).trim();
+            if (currentPhrase) {
+              uncommittedTranscriptRef.current = currentPhrase;
+              setDictationInterimPreview(currentPhrase);
+            }
+
+            // Immediately transcribe after user pauses speaking (450ms silence detection)
+            if (speechSilenceTimerRef.current) {
+              clearTimeout(speechSilenceTimerRef.current);
+              speechSilenceTimerRef.current = null;
+            }
+
+            if (currentPhrase.length > 0 && isRecordingActiveRef.current) {
+              const pauseDelay = currentPhrase.length > 30 || /[.?!]$/.test(currentPhrase) ? 420 : 520;
+              speechSilenceTimerRef.current = setTimeout(() => {
+                if (!isRecordingActiveRef.current) return;
+                const textToCommit = uncommittedTranscriptRef.current;
+                if (textToCommit && textToCommit.trim()) {
+                  commitDictatedTextToNote(textToCommit.trim());
+                  uncommittedTranscriptRef.current = '';
+                  sessionFinalTranscriptRef.current = '';
+                  setDictationInterimPreview('');
+
+                  // Clean restart recognition session to eliminate repetition across turns
+                  try {
+                    recognition.abort();
+                  } catch (e) {}
+                }
+              }, pauseDelay);
             }
           };
 
@@ -1325,17 +2315,32 @@ export default function StudyScreen({
             if (event?.error === 'not-allowed') {
               isRecordingActiveRef.current = false;
               setIsNoteRecording(false);
+              setDictationInterimPreview('');
               Alert.alert('Microphone Access', 'Please allow microphone access in your browser settings.');
             }
           };
 
           recognition.onend = () => {
-            // Auto-reconnect so speech recognition never cuts out on pauses while recording is active
+            // Auto-reconnect so speech recognition never cuts out while recording is active
             if (isRecordingActiveRef.current) {
               try {
                 recognition.start();
-              } catch (e) {}
+              } catch (e) {
+                setTimeout(() => {
+                  if (isRecordingActiveRef.current && speechRecognitionRef.current) {
+                    try { speechRecognitionRef.current.start(); } catch (err) {}
+                  }
+                }, 100);
+              }
             } else {
+              // Finalize any pending transcript on end
+              const remaining = uncommittedTranscriptRef.current;
+              if (remaining && remaining.trim()) {
+                commitDictatedTextToNote(remaining.trim());
+                uncommittedTranscriptRef.current = '';
+                sessionFinalTranscriptRef.current = '';
+                setDictationInterimPreview('');
+              }
               setIsNoteRecording(false);
             }
           };
@@ -1350,11 +2355,6 @@ export default function StudyScreen({
     }
   };
 
-  // ── Note Undo / Redo History Stack ──
-  const [historyStack, setHistoryStack] = useState(() => [""]);
-  const [historyIndex, setHistoryIndex] = useState(0);
-  const isHistoryActionRef = useRef(false);
-
   const handleToggleTaskCheckbox = (lineIdx) => {
     const lines = (noteFormContent || '').split('\n');
     if (lines[lineIdx] !== undefined) {
@@ -1365,40 +2365,472 @@ export default function StudyScreen({
       }
       const updated = lines.join('\n');
       setNoteFormContent(updated);
-      pushHistory(updated);
+      pushHistory(updated, true);
     }
   };
 
-  const pushHistory = (newText) => {
-    if (isHistoryActionRef.current) {
-      isHistoryActionRef.current = false;
-      return;
-    }
-    setHistoryStack((prev) => {
-      const trimmed = prev.slice(0, historyIndex + 1);
-      if (trimmed[trimmed.length - 1] === newText) return prev;
-      return [...trimmed.slice(-25), newText];
-    });
-    setHistoryIndex((prev) => Math.min(prev + 1, 25));
-  };
+  const executeFormatCommand = (cmd, val = null) => {
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      const editor = contentEditableRef.current;
+      if (!editor) return;
 
-  const handleUndo = () => {
-    if (historyIndex > 0) {
-      const prevIndex = historyIndex - 1;
-      const prevText = historyStack[prevIndex] ?? "";
-      isHistoryActionRef.current = true;
-      setHistoryIndex(prevIndex);
-      setNoteFormContent(prevText);
-    }
-  };
+      const sel = window.getSelection();
 
-  const handleRedo = () => {
-    if (historyIndex < historyStack.length - 1) {
-      const nextIndex = historyIndex + 1;
-      const nextText = historyStack[nextIndex] ?? "";
-      isHistoryActionRef.current = true;
-      setHistoryIndex(nextIndex);
-      setNoteFormContent(nextText);
+      // Ensure styleWithCSS produces clean semantic HTML tags
+      try {
+        document.execCommand('styleWithCSS', false, false);
+      } catch (e) {}
+
+      // Clean up any stray task elements accidentally inserted outside the editor
+      try {
+        const strayItems = document.querySelectorAll('.studpal-task-item:not(.studpal-editable-preview .studpal-task-item)');
+        strayItems.forEach(item => item.remove());
+      } catch (e) {}
+
+      // Helper to verify a range is strictly inside the editor
+      const isRangeInsideEditor = (r) => {
+        if (!r || !editor) return false;
+        try {
+          const container = r.commonAncestorContainer;
+          return editor === container || editor.contains(container);
+        } catch (e) {
+          return false;
+        }
+      };
+
+      // 1. Restore the user's highlighted selection range strictly within editor
+      let activeRange = null;
+      if (savedRangeRef.current && isRangeInsideEditor(savedRangeRef.current) && !savedRangeRef.current.collapsed) {
+        try {
+          if (sel) {
+            sel.removeAllRanges();
+            sel.addRange(savedRangeRef.current);
+          }
+          activeRange = savedRangeRef.current;
+        } catch (e) {}
+      } else if (sel && sel.rangeCount > 0 && isRangeInsideEditor(sel.getRangeAt(0)) && !sel.getRangeAt(0).collapsed) {
+        activeRange = sel.getRangeAt(0);
+      } else if (savedRangeRef.current && isRangeInsideEditor(savedRangeRef.current)) {
+        try {
+          if (sel) {
+            sel.removeAllRanges();
+            sel.addRange(savedRangeRef.current);
+          }
+          activeRange = savedRangeRef.current;
+        } catch (e) {}
+      } else if (sel && sel.rangeCount > 0 && isRangeInsideEditor(sel.getRangeAt(0))) {
+        activeRange = sel.getRangeAt(0);
+      }
+
+      // If no valid activeRange inside editor, create a range at the end of editor
+      if (!activeRange || !isRangeInsideEditor(activeRange)) {
+        try {
+          editor.focus({ preventScroll: true });
+          const newRange = document.createRange();
+          if (editor.lastChild) {
+            newRange.selectNodeContents(editor.lastChild);
+            newRange.collapse(false);
+          } else {
+            newRange.selectNodeContents(editor);
+            newRange.collapse(false);
+          }
+          if (sel) {
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+          }
+          activeRange = newRange;
+        } catch (e) {}
+      }
+
+      // Check if activeRange is currently inside an existing task item
+      let activeTaskItem = null;
+      if (activeRange) {
+        let temp = activeRange.commonAncestorContainer;
+        if (temp.nodeType === 3) temp = temp.parentNode;
+        while (temp && temp !== editor) {
+          if (temp.classList && temp.classList.contains('studpal-task-item')) {
+            activeTaskItem = temp;
+            break;
+          }
+          temp = temp.parentNode;
+        }
+      }
+
+      const cleanTextForTask = (html) => {
+        let h = html || '';
+        h = h.replace(/<span[^>]*class="[^"]*studpal-task-checkbox[^"]*"[^>]*>[\s\S]*?<\/span>/gi, '');
+        h = h.replace(/<input[^>]*>/gi, '');
+        h = h.replace(/^(\s*[-*+]\s*|\s*\d+\.\s*)/, '');
+        return h.trim() || '<br>';
+      };
+
+      // Helper for block-level headings and body conversion
+      const applyBlockFormat = (tag) => {
+        // If inside a task item, seamlessly apply the heading level to the task item without removing the checklist!
+        if (activeTaskItem) {
+          const textSpan = activeTaskItem.querySelector('.studpal-task-text') || activeTaskItem;
+          const cleanHtml = textSpan.innerHTML;
+          const targetTag = (tag || '').toLowerCase();
+          const headingLevel = targetTag === 'h1' ? 1 : targetTag === 'h2' ? 2 : targetTag === 'h3' ? 3 : 0;
+
+          activeTaskItem.classList.remove('studpal-task-h1', 'studpal-task-h2', 'studpal-task-h3');
+          if (headingLevel > 0) {
+            activeTaskItem.classList.add(`studpal-task-h${headingLevel}`);
+            activeTaskItem.setAttribute('data-heading', `${headingLevel}`);
+          } else {
+            activeTaskItem.removeAttribute('data-heading');
+          }
+
+          const newTextEl = document.createElement(headingLevel > 0 ? `h${headingLevel}` : 'span');
+          newTextEl.className = 'studpal-task-text';
+          newTextEl.innerHTML = cleanHtml || '<br>';
+
+          if (textSpan && textSpan.parentNode === activeTaskItem) {
+            activeTaskItem.replaceChild(newTextEl, textSpan);
+          } else if (textSpan) {
+            textSpan.innerHTML = cleanHtml || '<br>';
+          }
+
+          const newRange = document.createRange();
+          newRange.selectNodeContents(newTextEl);
+          newRange.collapse(false);
+          if (sel) {
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+          }
+          savedRangeRef.current = newRange.cloneRange();
+          return true;
+        }
+
+        let ok = false;
+        try {
+          ok = document.execCommand('formatBlock', false, `<${tag}>`);
+        } catch (e) {}
+        if (!ok) {
+          try {
+            ok = document.execCommand('formatBlock', false, tag);
+          } catch (e) {}
+        }
+        if (!ok) {
+          try {
+            ok = document.execCommand('formatBlock', false, `<${tag.toUpperCase()}>`);
+          } catch (e) {}
+        }
+        if (!ok && activeRange) {
+          try {
+            let node = activeRange.commonAncestorContainer;
+            if (node.nodeType === 3) node = node.parentNode;
+            while (node && node !== editor && !/^(P|H[1-6]|DIV|LI|BLOCKQUOTE)$/i.test(node.tagName)) {
+              node = node.parentNode;
+            }
+            if (node && node !== editor && node.parentNode) {
+              const replacement = document.createElement(tag);
+              replacement.innerHTML = node.innerHTML;
+              node.parentNode.replaceChild(replacement, node);
+              ok = true;
+            }
+          } catch (e) {}
+        }
+        return ok;
+      };
+
+      switch (cmd) {
+        case 'h1':
+          applyBlockFormat('h1');
+          break;
+        case 'h2':
+          applyBlockFormat('h2');
+          break;
+        case 'h3':
+          applyBlockFormat('h3');
+          break;
+        case 'body':
+          applyBlockFormat('p');
+          break;
+        case 'bold':
+          editor.focus({ preventScroll: true });
+          document.execCommand('bold', false, null);
+          break;
+        case 'italic':
+          editor.focus({ preventScroll: true });
+          document.execCommand('italic', false, null);
+          break;
+        case 'underline':
+          editor.focus({ preventScroll: true });
+          document.execCommand('underline', false, null);
+          break;
+        case 'strikethrough':
+          editor.focus({ preventScroll: true });
+          document.execCommand('strikeThrough', false, null);
+          break;
+        case 'bullet':
+          if (activeTaskItem) {
+            const textSpan = activeTaskItem.querySelector('.studpal-task-text') || activeTaskItem;
+            const cleanHtml = cleanTextForTask(textSpan.innerHTML);
+            const ul = document.createElement('ul');
+            const li = document.createElement('li');
+            li.innerHTML = cleanHtml || '<br>';
+            ul.appendChild(li);
+            activeTaskItem.parentNode.replaceChild(ul, activeTaskItem);
+            const newRange = document.createRange();
+            newRange.selectNodeContents(li);
+            newRange.collapse(false);
+            if (sel) {
+              sel.removeAllRanges();
+              sel.addRange(newRange);
+            }
+            savedRangeRef.current = newRange.cloneRange();
+          } else {
+            document.execCommand('insertUnorderedList', false, null);
+          }
+          break;
+        case 'number':
+          if (activeTaskItem) {
+            const textSpan = activeTaskItem.querySelector('.studpal-task-text') || activeTaskItem;
+            const cleanHtml = cleanTextForTask(textSpan.innerHTML);
+            const ol = document.createElement('ol');
+            const li = document.createElement('li');
+            li.innerHTML = cleanHtml || '<br>';
+            ol.appendChild(li);
+            activeTaskItem.parentNode.replaceChild(ol, activeTaskItem);
+            const newRange = document.createRange();
+            newRange.selectNodeContents(li);
+            newRange.collapse(false);
+            if (sel) {
+              sel.removeAllRanges();
+              sel.addRange(newRange);
+            }
+            savedRangeRef.current = newRange.cloneRange();
+          } else {
+            document.execCommand('insertOrderedList', false, null);
+          }
+          break;
+        case 'task': {
+          if (!editor) break;
+
+          const createTaskElement = (innerHTML = '<br>', isChecked = false, headingLevel = 0) => {
+            const taskDiv = document.createElement('div');
+            const headingClass = headingLevel > 0 ? ` studpal-task-h${headingLevel}` : '';
+            taskDiv.className = 'studpal-task-item' + headingClass + (isChecked ? ' is-checked' : '');
+            taskDiv.setAttribute('data-checked', isChecked ? 'true' : 'false');
+            if (headingLevel > 0) {
+              taskDiv.setAttribute('data-heading', `${headingLevel}`);
+            }
+
+            const checkbox = document.createElement('span');
+            checkbox.className = 'studpal-task-checkbox';
+            checkbox.setAttribute('contenteditable', 'false');
+            taskDiv.appendChild(checkbox);
+
+            const textEl = document.createElement(headingLevel > 0 ? `h${headingLevel}` : 'span');
+            textEl.className = 'studpal-task-text';
+            textEl.innerHTML = innerHTML || '<br>';
+            taskDiv.appendChild(textEl);
+
+            return taskDiv;
+          };
+
+          // 1. If selection is inside an existing task item -> toggle it back to paragraph or heading preserving level
+          if (activeTaskItem) {
+            const textSpan = activeTaskItem.querySelector('.studpal-task-text') || activeTaskItem;
+            const isH1 = activeTaskItem.classList.contains('studpal-task-h1') || activeTaskItem.getAttribute('data-heading') === '1' || (textSpan.tagName && textSpan.tagName.toUpperCase() === 'H1');
+            const isH2 = activeTaskItem.classList.contains('studpal-task-h2') || activeTaskItem.getAttribute('data-heading') === '2' || (textSpan.tagName && textSpan.tagName.toUpperCase() === 'H2');
+            const isH3 = activeTaskItem.classList.contains('studpal-task-h3') || activeTaskItem.getAttribute('data-heading') === '3' || (textSpan.tagName && textSpan.tagName.toUpperCase() === 'H3');
+
+            const targetTag = isH1 ? 'h1' : isH2 ? 'h2' : isH3 ? 'h3' : 'p';
+            const replacement = document.createElement(targetTag);
+            replacement.innerHTML = textSpan.innerHTML || '<br>';
+            activeTaskItem.parentNode.replaceChild(replacement, activeTaskItem);
+
+            const newRange = document.createRange();
+            newRange.selectNodeContents(replacement);
+            newRange.collapse(false);
+            if (sel) {
+              sel.removeAllRanges();
+              sel.addRange(newRange);
+            }
+            savedRangeRef.current = newRange.cloneRange();
+            break;
+          }
+
+          // 2. If inside a list item <li> -> convert that <li> into a task item IN PLACE without changing its position
+          let startNode = activeRange ? activeRange.startContainer : null;
+          if (startNode && startNode.nodeType === 3) startNode = startNode.parentNode;
+          let liNode = startNode;
+          while (liNode && liNode !== editor && liNode.tagName !== 'LI') {
+            liNode = liNode.parentNode;
+          }
+          if (liNode && liNode.tagName === 'LI') {
+            const taskDiv = createTaskElement(cleanTextForTask(liNode.innerHTML), false, 0);
+            const listParent = liNode.parentNode;
+            if (!listParent || listParent.children.length <= 1) {
+              if (listParent && listParent.parentNode) {
+                listParent.parentNode.replaceChild(taskDiv, listParent);
+              }
+            } else if (liNode === listParent.firstElementChild) {
+              listParent.parentNode.insertBefore(taskDiv, listParent);
+              liNode.remove();
+            } else if (liNode === listParent.lastElementChild) {
+              listParent.parentNode.insertBefore(taskDiv, listParent.nextSibling);
+              liNode.remove();
+            } else {
+              // Split listParent so preceding items stay in place, taskDiv is in middle, subsequent items follow
+              const afterList = document.createElement(listParent.tagName);
+              let next = liNode.nextSibling;
+              while (next) {
+                const toMove = next;
+                next = next.nextSibling;
+                afterList.appendChild(toMove);
+              }
+              listParent.parentNode.insertBefore(taskDiv, listParent.nextSibling);
+              if (afterList.children.length > 0) {
+                listParent.parentNode.insertBefore(afterList, taskDiv.nextSibling);
+              }
+              liNode.remove();
+            }
+            const textEl = taskDiv.querySelector('.studpal-task-text');
+            const newRange = document.createRange();
+            newRange.selectNodeContents(textEl);
+            newRange.collapse(false);
+            if (sel) {
+              sel.removeAllRanges();
+              sel.addRange(newRange);
+            }
+            savedRangeRef.current = newRange.cloneRange();
+            break;
+          }
+
+          // 3. Find top-level direct child block of editor containing activeRange
+          const getEditorDirectChild = (node) => {
+            let curr = node;
+            if (curr && curr.nodeType === 3) curr = curr.parentNode;
+            while (curr && curr.parentNode !== editor) {
+              if (curr === editor) return null;
+              curr = curr.parentNode;
+            }
+            return curr && curr.parentNode === editor ? curr : null;
+          };
+
+          let startBlock = activeRange ? getEditorDirectChild(activeRange.startContainer) : null;
+          let endBlock = activeRange ? getEditorDirectChild(activeRange.endContainer) : null;
+
+          if (!startBlock && activeRange && activeRange.startContainer === editor) {
+            const idx = activeRange.startOffset;
+            startBlock = (editor.children && editor.children[idx]) || editor.childNodes[idx] || null;
+          }
+          if (!endBlock && activeRange && activeRange.endContainer === editor) {
+            const idx = Math.max(0, activeRange.endOffset - 1);
+            endBlock = (editor.children && editor.children[idx]) || editor.childNodes[idx] || null;
+          }
+
+          // Empty editor fallback
+          if (!startBlock) {
+            const taskDiv = createTaskElement('<br>', false, 0);
+            editor.appendChild(taskDiv);
+            const textEl = taskDiv.querySelector('.studpal-task-text');
+            const newRange = document.createRange();
+            newRange.selectNodeContents(textEl);
+            newRange.collapse(false);
+            if (sel) {
+              sel.removeAllRanges();
+              sel.addRange(newRange);
+            }
+            savedRangeRef.current = newRange.cloneRange();
+            break;
+          }
+
+          // If single block: convert IN PLACE without changing position
+          if (!endBlock || startBlock === endBlock) {
+            const tag = (startBlock.tagName || '').toUpperCase();
+            const headingLevel = tag === 'H1' ? 1 : tag === 'H2' ? 2 : tag === 'H3' ? 3 : 0;
+            const taskDiv = createTaskElement(cleanTextForTask(startBlock.innerHTML || startBlock.textContent), false, headingLevel);
+            startBlock.parentNode.replaceChild(taskDiv, startBlock);
+
+            const textEl = taskDiv.querySelector('.studpal-task-text');
+            const newRange = document.createRange();
+            newRange.selectNodeContents(textEl);
+            newRange.collapse(false);
+            if (sel) {
+              sel.removeAllRanges();
+              sel.addRange(newRange);
+            }
+            savedRangeRef.current = newRange.cloneRange();
+            break;
+          }
+
+          // If multiple blocks selected: convert each block in place from startBlock to endBlock
+          let curr = startBlock;
+          const blocksToConvert = [];
+          while (curr) {
+            blocksToConvert.push(curr);
+            if (curr === endBlock) break;
+            curr = curr.nextSibling;
+          }
+
+          let lastTaskEl = null;
+          blocksToConvert.forEach((b) => {
+            if (b.classList && b.classList.contains('studpal-task-item')) {
+              lastTaskEl = b;
+              return;
+            }
+            const tag = (b.tagName || '').toUpperCase();
+            const headingLevel = tag === 'H1' ? 1 : tag === 'H2' ? 2 : tag === 'H3' ? 3 : 0;
+            const taskDiv = createTaskElement(cleanTextForTask(b.innerHTML || b.textContent), false, headingLevel);
+            b.parentNode.replaceChild(taskDiv, b);
+            lastTaskEl = taskDiv;
+          });
+
+          if (lastTaskEl) {
+            const textEl = lastTaskEl.querySelector('.studpal-task-text') || lastTaskEl;
+            const newRange = document.createRange();
+            newRange.selectNodeContents(textEl);
+            newRange.collapse(false);
+            if (sel) {
+              sel.removeAllRanges();
+              sel.addRange(newRange);
+            }
+            savedRangeRef.current = newRange.cloneRange();
+          }
+          break;
+        }
+        case 'formula': {
+          if (activeRange && isRangeInsideEditor(activeRange)) {
+            const rawText = activeRange.toString().trim() || 'f(x) = x^2';
+            const cleanFormula = rawText.replace(/^\$+\s*|\s*\$+$/g, '').trim() || 'f(x) = x^2';
+            const fSpan = document.createElement('span');
+            fSpan.className = 'studpal-formula';
+            fSpan.textContent = `$ ${cleanFormula} $`;
+            activeRange.deleteContents();
+            activeRange.insertNode(fSpan);
+            const newRange = document.createRange();
+            newRange.setStartAfter(fSpan);
+            newRange.collapse(true);
+            if (sel) {
+              sel.removeAllRanges();
+              sel.addRange(newRange);
+            }
+            savedRangeRef.current = newRange.cloneRange();
+          }
+          break;
+        }
+        default:
+          break;
+      }
+
+      // Re-save new selection after command
+      if (sel && sel.rangeCount > 0) {
+        try {
+          savedRangeRef.current = sel.getRangeAt(0).cloneRange();
+        } catch (e) {}
+      }
+
+      if (editor) {
+        const md = htmlToMarkdown(editor.innerHTML);
+        setNoteFormContent(md);
+        pushHistory(md, true);
+      }
+    } else {
+      applyFormatting(cmd);
     }
   };
 
@@ -1430,24 +2862,66 @@ export default function StudyScreen({
     switch (type) {
       // ── Headings (Smart line-level switch/toggle)
       case 'h1': {
-        const cleanLine = currentLine.replace(/^#{1,6}\s*/, '');
-        const newLine = currentLine.startsWith('# ') ? cleanLine : `# ${cleanLine}`;
-        newText = text.slice(0, lineStart) + newLine + text.slice(lineEnd);
-        newCursorPos = lineStart + newLine.length;
+        const taskMatch = currentLine.match(/^([-*+]\s*\[[ xX]\]\s*)(.*)$/);
+        if (taskMatch) {
+          const checkPrefix = taskMatch[1];
+          const rest = taskMatch[2].replace(/^#{1,6}\s*/, '');
+          const newLine = taskMatch[2].startsWith('# ') ? `${checkPrefix}${rest}` : `${checkPrefix}# ${rest}`;
+          newText = text.slice(0, lineStart) + newLine + text.slice(lineEnd);
+          newCursorPos = lineStart + newLine.length;
+        } else {
+          const cleanLine = currentLine.replace(/^#{1,6}\s*/, '');
+          const newLine = currentLine.startsWith('# ') ? cleanLine : `# ${cleanLine}`;
+          newText = text.slice(0, lineStart) + newLine + text.slice(lineEnd);
+          newCursorPos = lineStart + newLine.length;
+        }
         break;
       }
       case 'h2': {
-        const cleanLine = currentLine.replace(/^#{1,6}\s*/, '');
-        const newLine = currentLine.startsWith('## ') ? cleanLine : `## ${cleanLine}`;
-        newText = text.slice(0, lineStart) + newLine + text.slice(lineEnd);
-        newCursorPos = lineStart + newLine.length;
+        const taskMatch = currentLine.match(/^([-*+]\s*\[[ xX]\]\s*)(.*)$/);
+        if (taskMatch) {
+          const checkPrefix = taskMatch[1];
+          const rest = taskMatch[2].replace(/^#{1,6}\s*/, '');
+          const newLine = taskMatch[2].startsWith('## ') ? `${checkPrefix}${rest}` : `${checkPrefix}## ${rest}`;
+          newText = text.slice(0, lineStart) + newLine + text.slice(lineEnd);
+          newCursorPos = lineStart + newLine.length;
+        } else {
+          const cleanLine = currentLine.replace(/^#{1,6}\s*/, '');
+          const newLine = currentLine.startsWith('## ') ? cleanLine : `## ${cleanLine}`;
+          newText = text.slice(0, lineStart) + newLine + text.slice(lineEnd);
+          newCursorPos = lineStart + newLine.length;
+        }
         break;
       }
       case 'h3': {
-        const cleanLine = currentLine.replace(/^#{1,6}\s*/, '');
-        const newLine = currentLine.startsWith('### ') ? cleanLine : `### ${cleanLine}`;
-        newText = text.slice(0, lineStart) + newLine + text.slice(lineEnd);
-        newCursorPos = lineStart + newLine.length;
+        const taskMatch = currentLine.match(/^([-*+]\s*\[[ xX]\]\s*)(.*)$/);
+        if (taskMatch) {
+          const checkPrefix = taskMatch[1];
+          const rest = taskMatch[2].replace(/^#{1,6}\s*/, '');
+          const newLine = taskMatch[2].startsWith('### ') ? `${checkPrefix}${rest}` : `${checkPrefix}### ${rest}`;
+          newText = text.slice(0, lineStart) + newLine + text.slice(lineEnd);
+          newCursorPos = lineStart + newLine.length;
+        } else {
+          const cleanLine = currentLine.replace(/^#{1,6}\s*/, '');
+          const newLine = currentLine.startsWith('### ') ? cleanLine : `### ${cleanLine}`;
+          newText = text.slice(0, lineStart) + newLine + text.slice(lineEnd);
+          newCursorPos = lineStart + newLine.length;
+        }
+        break;
+      }
+      case 'body': {
+        const taskMatch = currentLine.match(/^([-*+]\s*\[[ xX]\]\s*)(.*)$/);
+        if (taskMatch) {
+          const checkPrefix = taskMatch[1];
+          const cleanRest = taskMatch[2].replace(/^#{1,6}\s*|^([-*+]\s*|\d+\.\s*)|^>\s*/, '');
+          const newLine = `${checkPrefix}${cleanRest}`;
+          newText = text.slice(0, lineStart) + newLine + text.slice(lineEnd);
+          newCursorPos = lineStart + newLine.length;
+        } else {
+          const cleanLine = currentLine.replace(/^#{1,6}\s*|^([-*+]\s*|\d+\.\s*|\[[ xX]\]\s*)|^>\s*/, '');
+          newText = text.slice(0, lineStart) + cleanLine + text.slice(lineEnd);
+          newCursorPos = lineStart + cleanLine.length;
+        }
         break;
       }
 
@@ -1467,10 +2941,17 @@ export default function StudyScreen({
         break;
       }
       case 'task': {
-        const cleanLine = currentLine.replace(/^([-*+]\s*\[[ xX]\]\s*|[-*+]\s*|\d+\.\s*)/, '');
-        const newLine = currentLine.startsWith('- [ ] ') ? cleanLine : `- [ ] ${cleanLine}`;
-        newText = text.slice(0, lineStart) + newLine + text.slice(lineEnd);
-        newCursorPos = lineStart + newLine.length;
+        const taskMatch = currentLine.match(/^[-*+]\s*\[[ xX]\]\s*(.*)$/);
+        if (taskMatch) {
+          const rest = taskMatch[1];
+          newText = text.slice(0, lineStart) + rest + text.slice(lineEnd);
+          newCursorPos = lineStart + rest.length;
+        } else {
+          const content = currentLine.replace(/^([-*+]\s*|\d+\.\s*)/, '');
+          const newLine = `- [ ] ${content}`;
+          newText = text.slice(0, lineStart) + newLine + text.slice(lineEnd);
+          newCursorPos = lineStart + newLine.length;
+        }
         break;
       }
       case 'quote': {
@@ -1521,6 +3002,20 @@ export default function StudyScreen({
         } else {
           newText = text.slice(0, start) + `~~strikethrough~~` + text.slice(start);
           newCursorPos = start + 2;
+        }
+        break;
+      }
+      case 'underline': {
+        if (selectedText.startsWith('<u>') && selectedText.endsWith('</u>') && selectedText.length >= 7) {
+          const unwrapped = selectedText.slice(3, -4);
+          newText = text.slice(0, start) + unwrapped + text.slice(end);
+          newCursorPos = start + unwrapped.length;
+        } else if (start !== end) {
+          newText = text.slice(0, start) + `<u>${selectedText}</u>` + text.slice(end);
+          newCursorPos = start + selectedText.length + 7;
+        } else {
+          newText = text.slice(0, start) + `<u>underlined text</u>` + text.slice(start);
+          newCursorPos = start + 3;
         }
         break;
       }
@@ -1603,22 +3098,43 @@ export default function StudyScreen({
     const subjObj = studyService.subjects.find((s) => s.id === sId) || studyService.subjects[0];
     const tId = topId || selectedTopicId || (subjObj && subjObj.topics && subjObj.topics[0] && subjObj.topics[0].id) || "m1";
 
+    loadedNoteKeyRef.current = null;
     setEditingNote(null);
     setNoteFormTitle("");
     setNoteFormSubjectId(sId);
     setNoteFormTopicId(tId);
     setNoteFormContent("");
     setNoteEditorMode('edit');
+    setIsFormatTrayOpen(false);
+    if (typingHistoryTimerRef.current) {
+      clearTimeout(typingHistoryTimerRef.current);
+      typingHistoryTimerRef.current = null;
+    }
+    historyStackRef.current = [""];
+    historyIndexRef.current = 0;
+    setHistoryStack([""]);
+    setHistoryIndex(0);
     setIsClassificationModalOpen(true);
   };
 
   const handleEditNoteModal = (note) => {
+    loadedNoteKeyRef.current = null;
     setEditingNote(note);
     setNoteFormTitle(note.title);
     setNoteFormSubjectId(note.subjectId);
     setNoteFormTopicId(note.topicId);
     setNoteFormContent(note.content);
     setNoteEditorMode('edit');
+    setIsFormatTrayOpen(false);
+    const initialText = note.content || "";
+    if (typingHistoryTimerRef.current) {
+      clearTimeout(typingHistoryTimerRef.current);
+      typingHistoryTimerRef.current = null;
+    }
+    historyStackRef.current = [initialText];
+    historyIndexRef.current = 0;
+    setHistoryStack([initialText]);
+    setHistoryIndex(0);
     setViewState("note-editor");
   };
 
@@ -1651,15 +3167,22 @@ export default function StudyScreen({
 
     setIsSavingSuccess(true);
 
+    let finalContent = noteFormContent;
+    if (Platform.OS === 'web' && contentEditableRef.current) {
+      finalContent = htmlToMarkdown(contentEditableRef.current.innerHTML);
+      setNoteFormContent(finalContent);
+    }
+
     studyService.saveNote({
       id: (editingNote && editingNote.id),
       title: noteFormTitle,
       subjectId: noteFormSubjectId,
       topicId: noteFormTopicId,
-      content: noteFormContent,
+      content: finalContent,
     });
 
     setTimeout(() => {
+      loadedNoteKeyRef.current = null;
       setIsSavingSuccess(false);
       setViewState("notes");
       refreshData();
@@ -1670,8 +3193,15 @@ export default function StudyScreen({
     setNoteFormContent((prev) => `${prev}${prefix}${suffix}`);
   };
 
-  const wordCount = noteFormContent.trim() ? noteFormContent.trim().split(/\s+/).length : 0;
-  const charCount = noteFormContent.length;
+  const wordCount = useMemo(() => {
+    const plain = (noteFormContent || '').replace(/[#*`_~=\[\]\(\)>-]+/g, ' ').trim();
+    return plain ? plain.split(/\s+/).filter(Boolean).length : 0;
+  }, [noteFormContent]);
+
+  const charCount = useMemo(() => {
+    const plain = (noteFormContent || '').replace(/[#*`_~=\[\]\(\)>-]+/g, '').trim();
+    return plain.length;
+  }, [noteFormContent]);
 
   const handleDeleteNote = (target) => {
     if (!target) return;
@@ -1725,6 +3255,7 @@ export default function StudyScreen({
                   if (viewState === "quiz" && quizSubState === "active") {
                     setQuizSubState("select");
                   } else if (viewState === "note-editor") {
+                    loadedNoteKeyRef.current = null;
                     setViewState("notes");
                   } else {
                     setViewState("overview");
@@ -1735,53 +3266,76 @@ export default function StudyScreen({
             </TooltipTouchable>
           )}
 
-          <View style={{ flex: 1 }}>
-            <Text
-              style={[
-                styles.headerTitle,
-                viewState === "review" && styles.calmHeaderTitle,
-                viewState === "note-editor" && { fontSize: 26, fontWeight: "800", letterSpacing: -0.6 },
-              ]}
-              numberOfLines={1}
-            >
-              {viewState === "overview" && (t("study.hubTitle") || "Study Hub")}
-              {viewState === "review" && (t("study.flashcardReview") || "Flashcard Review")}
-              {viewState === "quiz" && (t("study.quiz") || "Quiz")}
-              {viewState === "notes" && (t("study.notesLibrary") || "Notes Library")}
-              {viewState === "note-editor" && (editingNote ? (t("study.editNote") || "Edit Note") : (t("study.newNote") || "New Note"))}
-            </Text>
-            {viewState !== "note-editor" && (
+          {viewState === "note-editor" ? (
+            <View style={styles.nativeHeaderCenterContainer}>
+              <TouchableOpacity
+                style={[styles.nativeHeaderTopicPill, isDark && { backgroundColor: '#1E293B', borderColor: '#334155' }]}
+                onPress={() => setIsClassificationModalOpen(true)}
+                activeOpacity={0.75}
+              >
+                <Text style={styles.nativeHeaderTopicEmoji}>{activeFormSubject?.iconEmoji || "📝"}</Text>
+                <Text style={[styles.nativeHeaderTopicText, isDark && { color: '#F1F5F9' }]} numberOfLines={1}>
+                  {activeFormSubject?.name || 'General'} • {activeFormTopic?.name || 'Topic'}
+                </Text>
+                <ChevronDownIcon size={12} color={isDark ? '#94A3B8' : '#64748B'} />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={{ flex: 1 }}>
+              <Text
+                style={[
+                  styles.headerTitle,
+                  viewState === "review" && styles.calmHeaderTitle,
+                ]}
+                numberOfLines={1}
+              >
+                {viewState === "overview" && (t("study.hubTitle") || "Study Hub")}
+                {viewState === "review" && (t("study.flashcardReview") || "Flashcard Review")}
+                {viewState === "quiz" && (t("study.quiz") || "Quiz")}
+                {viewState === "notes" && (t("study.notesLibrary") || "Notes Library")}
+              </Text>
               <Text style={[styles.headerSubtitle, viewState === "review" && styles.calmHeaderSubtitle]} numberOfLines={1}>
                 {viewState === "overview" && (t("study.hubSubtitle") || "Review, test yourself, and master every topic.")}
                 {viewState === "review" && ((currentCard && currentCard.category) || "Organic Chemistry I")}
                 {viewState === "quiz" && (t("study.practiceTests") || "Topic-based testing connected to SRS")}
                 {viewState === "notes" && (t("study.subjectOrganized") || "Organized by Subject & Topic")}
               </Text>
-            )}
-          </View>
+            </View>
+          )}
         </View>
 
-        {/* Header Right Action: Save Note Button or None */}
+        {/* Header Right Action: Note Editor Actions (Undo, Redo, Save) or None */}
         {viewState === "note-editor" ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={styles.nativeHeaderRightActions}>
+            <TouchableOpacity
+              onPress={handleUndo}
+              disabled={historyIndex <= 0}
+              style={[styles.nativeHeaderIconBtn, historyIndex <= 0 && { opacity: 0.35 }]}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <UndoIcon size={18} color={isDark ? '#E2E8F0' : '#334155'} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleRedo}
+              disabled={historyIndex >= historyStack.length - 1}
+              style={[styles.nativeHeaderIconBtn, historyIndex >= historyStack.length - 1 && { opacity: 0.35 }]}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <RedoIcon size={18} color={isDark ? '#E2E8F0' : '#334155'} />
+            </TouchableOpacity>
             <Animated.View style={{ transform: [{ scale: saveBtnScale }] }}>
-              <TooltipTouchable
-                tooltip="Save Note"
+              <TouchableOpacity
                 style={[
-                  styles.headerSaveNoteBtn,
-                  {
-                    backgroundColor: isSavingSuccess ? "#10B981" : accentColor,
-                    shadowColor: isSavingSuccess ? "#10B981" : accentColor,
-                  },
+                  styles.nativeHeaderSaveBtn,
+                  { backgroundColor: isSavingSuccess ? '#10B981' : (accentColor || '#2D62FF') }
                 ]}
                 onPress={handleSaveNote}
-                activeOpacity={0.85}
+                activeOpacity={0.8}
               >
-                <CheckIcon size={15} color="#FFFFFF" />
-                <Text style={styles.headerSaveNoteBtnText}>
-                  {isSavingSuccess ? (t("study.saved") || "Saved!") : (t("common.save") || "Save")}
-                </Text>
-              </TooltipTouchable>
+                <CheckIcon size={16} color="#FFFFFF" />
+              </TouchableOpacity>
             </Animated.View>
           </View>
         ) : null}
@@ -1794,86 +3348,136 @@ export default function StudyScreen({
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, 24) + 140 }]}
         >
-          {/* Active Subject Workspace Quick Selector */}
-          <View style={styles.subjectFilterBar}>
-            <View style={styles.subjectFilterHeader}>
+          {/* Active Subject Workspace Quick Bar */}
+          <TouchableOpacity
+            style={styles.subjectFilterBar}
+            onPress={() => (onNavigate ? onNavigate("subjects") : onSelectTab("subjects"))}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.subjectFilterHeader, { marginBottom: 0 }]}>
               <View style={styles.subjectFilterTitleGroup}>
-                <FolderIcon size={16} color="#6236FF" />
-                <Text style={styles.subjectFilterTitle}>{t("study.subjectWorkspaces") || "Subject Workspaces"}</Text>
-              </View>
-              <TouchableOpacity
-                style={styles.manageSubjectsLink}
-                onPress={() => (onNavigate ? onNavigate("subjects") : onSelectTab("subjects"))}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.manageSubjectsLinkText}>{t("study.manageAll") || "Manage All"}</Text>
-                <ChevronRightIcon size={14} color="#6236FF" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.subjectChipsRow}
-            >
-              <TouchableOpacity
-                style={[
-                  styles.subjectChip,
-                  selectedSubjectId === null && styles.subjectChipActive,
-                ]}
-                onPress={() => {
-                  setSelectedSubjectId(null);
-                  setSelectedTopicId(null);
-                }}
-                activeOpacity={0.75}
-              >
-                <Text
-                  style={[
-                    styles.subjectChipText,
-                    selectedSubjectId === null && styles.subjectChipTextActive,
-                  ]}
-                >
-                  {t("study.allSubjects") || "✨ All Subjects"}
+                <FolderIcon size={16} color={accentColor || "#6236FF"} />
+                <Text style={styles.subjectFilterTitle}>
+                  {t("study.subjectWorkspaces") || "Subject Workspaces"}
                 </Text>
-              </TouchableOpacity>
+              </View>
+              <View style={styles.manageSubjectsLink}>
+                <Text style={[styles.manageSubjectsLinkText, { color: accentColor || "#6236FF" }]}>
+                  {t("study.manageAll") || "Manage All"}
+                </Text>
+                <ChevronRightIcon size={14} color={accentColor || "#6236FF"} />
+              </View>
+            </View>
+          </TouchableOpacity>
 
-              {studyService.subjects.map((subj) => {
-                const isSelected = selectedSubjectId === subj.id;
-                return (
-                  <TouchableOpacity
-                    key={subj.id}
-                    style={[
-                      styles.subjectChip,
-                      isSelected && [
-                        styles.subjectChipActive,
-                        { backgroundColor: subj.color || "#6236FF", borderColor: subj.color || "#6236FF" },
-                      ],
-                    ]}
-                    onPress={() => {
-                      if (isSelected) {
-                        setSelectedSubjectId(null);
-                        setSelectedTopicId(null);
-                      } else {
-                        setSelectedSubjectId(subj.id);
-                        setSelectedTopicId(null);
-                      }
-                    }}
-                    activeOpacity={0.75}
-                  >
-                    <Text style={styles.subjectChipEmoji}>{subj.iconEmoji}</Text>
-                    <Text
-                      style={[
-                        styles.subjectChipText,
-                        isSelected && styles.subjectChipTextActive,
-                      ]}
-                    >
-                      {subj.name}
+          {/* ── UNIFIED KNOWLEDGE INTELLIGENCE CARD (Flashcards & Quiz Thinking as One) ── */}
+          {(() => {
+            const syncSummary = studyService.getKnowledgeSyncSummary();
+            return (
+              <View style={[styles.syncCard, isDark && { backgroundColor: '#1E293B', borderColor: '#334155' }]}>
+                {/* Header Row */}
+                <View style={styles.syncCardHeader}>
+                  <View style={styles.syncCardTitleGroup}>
+                    <View style={[styles.syncBrainIconCircle, { backgroundColor: isDark ? "rgba(98, 54, 255, 0.2)" : "rgba(98, 54, 255, 0.1)" }]}>
+                      <BrainIcon size={20} color={accentColor} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.syncCardTitle, isDark && { color: '#F8FAFC' }]}>
+                        {t("study.connectedBrainTitle") || "Connected Learning Intelligence"}
+                      </Text>
+                      <Text style={[styles.syncCardSubtitle, isDark && { color: '#94A3B8' }]}>
+                        {t("study.connectedBrainSubtitle") || "Flashcards & Quizzes think as one unified brain"}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={[styles.syncLiveBadge, { backgroundColor: isDark ? "rgba(16, 185, 129, 0.15)" : "#ECFDF5", borderColor: isDark ? "rgba(16, 185, 129, 0.3)" : "#A7F3D0" }]}>
+                    <View style={styles.syncLivePulseDot} />
+                    <Text style={styles.syncLiveBadgeText}>
+                      {t("study.syncLive") || "SYNCED"}
                     </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </View>
+                  </View>
+                </View>
+
+                {/* 2-Column Cross-Pollination Metrics */}
+                <View style={styles.syncMetricsRow}>
+                  {/* Metric 1: Quiz -> Flashcard */}
+                  <View style={[styles.syncMetricCard, isDark && { backgroundColor: '#0F172A', borderColor: '#334155' }]}>
+                    <View style={styles.syncMetricHeader}>
+                      <TargetIcon size={14} color="#EF4444" />
+                      <Text style={[styles.syncMetricLabel, isDark && { color: '#94A3B8' }]}>
+                        {t("study.quizToCards") || "Quiz Mistakes in Cards"}
+                      </Text>
+                    </View>
+                    <View style={styles.syncMetricValueRow}>
+                      <Text style={[styles.syncMetricValue, { color: syncSummary.quizMissedPrioritized > 0 ? "#EF4444" : "#10B981" }]}>
+                        {syncSummary.quizMissedPrioritized}
+                      </Text>
+                      <Text style={[styles.syncMetricUnit, isDark && { color: '#94A3B8' }]}>
+                        {syncSummary.quizMissedPrioritized === 1 ? "card prioritized" : "cards prioritized"}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Metric 2: Flashcard -> Quiz */}
+                  <View style={[styles.syncMetricCard, isDark && { backgroundColor: '#0F172A', borderColor: '#334155' }]}>
+                    <View style={styles.syncMetricHeader}>
+                      <BrainIcon size={14} color={accentColor} />
+                      <Text style={[styles.syncMetricLabel, isDark && { color: '#94A3B8' }]}>
+                        {t("study.cardsToQuiz") || "Card Struggles in Quiz"}
+                      </Text>
+                    </View>
+                    <View style={styles.syncMetricValueRow}>
+                      <Text style={[styles.syncMetricValue, { color: accentColor }]}>
+                        {syncSummary.flashcardStrugglesQueued}
+                      </Text>
+                      <Text style={[styles.syncMetricUnit, isDark && { color: '#94A3B8' }]}>
+                        {syncSummary.flashcardStrugglesQueued === 1 ? "concept queued" : "concepts queued"}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Active Actionable Bridge Callout (if active bridge exists) */}
+                {syncSummary.activeBridge && (
+                  <View style={[styles.syncActionBanner, isDark && { backgroundColor: '#0F172A', borderColor: '#334155' }]}>
+                    <View style={{ flex: 1, marginRight: 10 }}>
+                      <Text style={[styles.syncActionBannerTitle, isDark && { color: '#F8FAFC' }]} numberOfLines={1}>
+                        {syncSummary.activeBridge.title}
+                      </Text>
+                      <Text style={[styles.syncActionBannerSubtitle, isDark && { color: '#94A3B8' }]} numberOfLines={2}>
+                        {syncSummary.activeBridge.subtitle}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.syncActionBtn, { backgroundColor: accentColor }]}
+                      onPress={() => {
+                        if (syncSummary.activeBridge.type === "quiz_to_flashcard") {
+                          handleStartReviewSession(
+                            syncSummary.activeBridge.subjectId,
+                            syncSummary.activeBridge.topicId,
+                            0,
+                            true
+                          );
+                        } else {
+                          handleStartQuiz(
+                            syncSummary.activeBridge.subjectId,
+                            syncSummary.activeBridge.topicId
+                          );
+                        }
+                      }}
+                      activeOpacity={0.88}
+                    >
+                      <Text style={styles.syncActionBtnText}>
+                        {syncSummary.activeBridge.actionText}
+                      </Text>
+                      <ChevronRightIcon size={12} color="#FFFFFF" />
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            );
+          })()}
+
           {/* 3 Prominent Feature Hub Cards */}
           <View style={styles.hubCardsGrid}>
             {/* 1. NOTES CARD */}
@@ -1979,6 +3583,46 @@ export default function StudyScreen({
             </TouchableOpacity>
 
           </View>
+
+          {/* ── SMART RECOMMENDATIONS (Connected Next Steps) ── */}
+          {recommendations.length > 0 && (
+            <View style={styles.recommendationsSection}>
+              <View style={styles.sectionHeaderRow}>
+                <SparkleIcon size={18} color={accentColor} />
+                <Text style={[styles.sectionTitle, isDark && { color: '#F8FAFC' }]}>
+                  {t("study.recommendedNextSteps") || "Recommended Next Steps"}
+                </Text>
+              </View>
+
+              {recommendations.map((rec) => (
+                <View
+                  key={rec.id}
+                  style={[styles.recommendationCard, isDark && { backgroundColor: '#1E293B', borderColor: '#334155' }]}
+                >
+                  <View style={styles.recTextGroup}>
+                    <Text style={[styles.recTitle, isDark && { color: '#F8FAFC' }]}>{rec.title}</Text>
+                    <Text style={[styles.recReason, isDark && { color: '#94A3B8' }]}>{rec.reason}</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.recActionBtn, { backgroundColor: accentColor }]}
+                    onPress={() => {
+                      if (rec.targetView === "review") {
+                        handleStartReviewSession(rec.subjectId || null, rec.topicId || null, 0, rec.filterQuizMissedOnly);
+                      } else if (rec.targetView === "quiz") {
+                        handleStartQuiz(rec.subjectId || null, rec.topicId || null);
+                      } else if (rec.targetView === "notes") {
+                        handleOpenNotes(rec.subjectId || null, rec.topicId || null);
+                      }
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.recActionBtnText}>{rec.actionText}</Text>
+                    <ChevronRightIcon size={12} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
         </ScrollView>
       )}
 
@@ -2070,6 +3714,16 @@ export default function StudyScreen({
                       </View>
                     </View>
 
+                    {/* Quiz Bridge Front Indicator */}
+                    {currentCard && currentCard.quizBridge && !currentCard.quizBridge.resolved && (
+                      <View style={styles.quizBridgeFrontPill}>
+                        <TargetIcon size={12} color="#EF4444" />
+                        <Text style={styles.quizBridgeFrontPillText} numberOfLines={1}>
+                          {t("study.quizFollowUp") || `Quiz Follow-up • ${currentCard.quizBridge.quizTitle || "Missed in Practice Quiz"}`}
+                        </Text>
+                      </View>
+                    )}
+
                     {/* Card Body */}
                     <View style={styles.calmCardBody}>
                       <View style={styles.calmCardContentCenter}>
@@ -2153,6 +3807,36 @@ export default function StudyScreen({
                           <View style={styles.calmTakeawayBox}>
                             <Text style={styles.calmTakeawayCode}>
                               {currentCard.takeaway}
+                            </Text>
+                          </View>
+                        )}
+
+                        {/* Quiz Bridge Detail Box (Back Face) */}
+                        {currentCard && currentCard.quizBridge && (
+                          <View style={styles.quizBridgeDetailBox}>
+                            <View style={styles.quizBridgeDetailHeader}>
+                              <TargetIcon size={13} color="#EF4444" />
+                              <Text style={styles.quizBridgeDetailTitle}>
+                                {t("study.quizMistakeContext") || `Targeted from Quiz Mistake (${currentCard.quizBridge.quizTitle || "Quiz"})`}
+                              </Text>
+                            </View>
+                            <Text style={styles.quizBridgeDetailQuestion}>
+                              "{currentCard.quizBridge.missedQuestion}"
+                            </Text>
+                            {currentCard.quizBridge.userChoice && (
+                              <Text style={styles.quizBridgeDetailAnswer}>
+                                <Text style={{ color: "#EF4444", fontWeight: "700" }}>
+                                  {t("study.youAnswered") || "You answered:"} {currentCard.quizBridge.userChoice}
+                                </Text>
+                                {currentCard.quizBridge.correctAnswer && (
+                                  <Text style={{ color: "#10B981", fontWeight: "700" }}>
+                                    {" • "}{t("study.correct") || "Correct:"} {currentCard.quizBridge.correctAnswer}
+                                  </Text>
+                                )}
+                              </Text>
+                            )}
+                            <Text style={styles.quizBridgeDetailTakeaway}>
+                              💡 {t("study.quizRemediationNote") || "Reviewing this flashcard reinforces the core rule to guarantee recall on your next quiz."}
                             </Text>
                           </View>
                         )}
@@ -2268,6 +3952,14 @@ export default function StudyScreen({
                 </View>
               </View>
 
+              {/* Knowledge Sync Notice */}
+              <View style={styles.syncCompleteNotice}>
+                <SparkleIcon size={14} color="#6236FF" />
+                <Text style={styles.syncCompleteNoticeText}>
+                  {t("study.sessionSyncedNotice") || "Knowledge Synced: Your card responses have calibrated your next Practice Quiz."}
+                </Text>
+              </View>
+
               {/* 3 CONNECTED ACTION BUTTONS */}
               <View style={styles.connectedActionsContainer}>
                 <TooltipTouchable
@@ -2288,7 +3980,7 @@ export default function StudyScreen({
                 >
                   <TargetIcon size={18} color="#059669" />
                   <Text style={[styles.secondaryActionBtnText, { color: "#059669" }]}>
-                    {t("study.takeQuizTopic") || "Take a Quiz on this Topic"}
+                    {t("study.takeAdaptiveQuizTopic") || "Test What You Reviewed in a Quiz"}
                   </Text>
                 </TooltipTouchable>
 
@@ -2371,8 +4063,31 @@ export default function StudyScreen({
                       <View style={styles.quizCardTopRow}>
                         <View style={[styles.quizTopicBadge, { backgroundColor: isDark ? "rgba(45, 98, 255, 0.15)" : "rgba(45, 98, 255, 0.08)", borderColor: isDark ? "rgba(45, 98, 255, 0.3)" : "rgba(45, 98, 255, 0.2)" }]}>
                           <SparkleIcon size={11} color={accentColor} />
-                          <Text style={[styles.quizTopicBadgeText, { color: accentColor }]} numberOfLines={1}>{quiz.topicName}</Text>
+                          <Text style={[styles.quizTopicBadgeText, { color: accentColor }]} numberOfLines={1} ellipsizeMode="tail">{quiz.topicName}</Text>
                         </View>
+                        {quiz.flashcardBridgeCount > 0 && (
+                          <View
+                            style={[
+                              styles.quizCardBridgeBadge,
+                              isDark && {
+                                backgroundColor: "rgba(98, 54, 255, 0.16)",
+                                borderColor: "rgba(139, 92, 246, 0.35)",
+                              },
+                            ]}
+                          >
+                            <BrainIcon size={11} color={isDark ? "#A78BFA" : "#6236FF"} />
+                            <Text
+                              style={[styles.quizCardBridgeBadgeText, isDark && { color: "#C4B5FD" }]}
+                              numberOfLines={1}
+                              ellipsizeMode="tail"
+                            >
+                              {quiz.flashcardBridgeCount === 1
+                                ? (t("study.flashcardStruggleTargeted", { count: 1 }) || "Targets 1 Card Struggle")
+                                : (t("study.flashcardStrugglesTargeted", { count: quiz.flashcardBridgeCount }) ||
+                                    `Targets ${quiz.flashcardBridgeCount} Card Struggles`)}
+                            </Text>
+                          </View>
+                        )}
                       </View>
 
                       <Text style={[styles.quizCardTitle, isDark && { color: '#F8FAFC' }]}>{quiz.title}</Text>
@@ -2409,6 +4124,29 @@ export default function StudyScreen({
                       <Text style={[styles.quizTagPillText, { color: accentColor }]}>{activeQuiz.topicName}</Text>
                     </View>
                   </View>
+
+                  {/* Connected to Flashcard Struggle Pill */}
+                  {currentQ.flashcardBridge && (
+                    <View
+                      style={[
+                        styles.quizActiveBridgePill,
+                        isDark && {
+                          backgroundColor: "rgba(98, 54, 255, 0.16)",
+                          borderColor: "rgba(139, 92, 246, 0.35)",
+                        },
+                      ]}
+                    >
+                      <BrainIcon size={12} color={isDark ? "#A78BFA" : "#6236FF"} />
+                      <Text
+                        style={[styles.quizActiveBridgePillText, isDark && { color: "#C4B5FD" }]}
+                        numberOfLines={1}
+                        ellipsizeMode="tail"
+                      >
+                        {t("study.reinforcingCard", { topic: currentQ.flashcardBridge.cardCategory || "Flashcard" }) ||
+                          `Reinforcing Card Recall: ${currentQ.flashcardBridge.cardCategory || "Flashcard"}`}
+                      </Text>
+                    </View>
+                  )}
 
                   {/* Question Box */}
                   <View style={[styles.quizQuestionCard, isDark && { backgroundColor: '#1E293B', borderColor: '#334155' }]}>
@@ -2503,6 +4241,22 @@ export default function StudyScreen({
                       {currentQ.explanation ? (
                         <Text style={[styles.quizFeedbackText, isDark && { color: '#E2E8F0' }]}>{currentQ.explanation}</Text>
                       ) : null}
+                      {isUserCorrect && currentQ.flashcardBridge && (
+                        <View style={styles.quizBridgeResolvedBanner}>
+                          <SparkleIcon size={14} color="#10B981" />
+                          <Text style={styles.quizBridgeResolvedText}>
+                            {t("study.struggleOvercome") || "Concept mastered! You successfully applied the rule you struggled with on flashcards."}
+                          </Text>
+                        </View>
+                      )}
+                      {!isUserCorrect && (
+                        <View style={styles.quizBridgeWrongNotice}>
+                          <BrainIcon size={14} color="#EF4444" />
+                          <Text style={styles.quizBridgeWrongNoticeText}>
+                            {t("study.quizMistakeQueuedNotice") || "StudPal Spaced Repetition has queued a prioritized flashcard to reinforce this rule."}
+                          </Text>
+                        </View>
+                      )}
                     </View>
                   )}
 
@@ -2708,7 +4462,7 @@ export default function StudyScreen({
         </ScrollView>
       )}
 
-      {/* ── VIEW 5: DEDICATED FULL-SCREEN NOTE EDITOR ────────────────────── */}
+      {/* ── VIEW 5: DEDICATED FULL-SCREEN NOTE EDITOR (Native Apple/Samsung Notes Inspired) ── */}
       {viewState === "note-editor" && (
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -2716,81 +4470,355 @@ export default function StudyScreen({
         >
           <ScrollView
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, 12) + 110 }]}
+            contentContainerStyle={[styles.nativeEditorScrollContent, { paddingBottom: Math.max(insets.bottom, 12) + 120 }]}
           >
-            <View style={styles.editorContainer}>
-              {/* Main Note Canvas Paper */}
-              <View style={styles.editorCanvasCard}>
-                {/* Category Badge & Topic Selector Button */}
-                <TouchableOpacity
-                  style={styles.editorCanvasCategoryBadgeRow}
-                  onPress={() => setIsClassificationModalOpen(true)}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.noteTopicBadge, { backgroundColor: (accentColor || '#2D62FF') + '15' }]}>
-                    <Text style={styles.noteTopicBadgeEmoji}>{activeFormSubject?.iconEmoji || "📝"}</Text>
-                    <Text style={[styles.noteTopicBadgeText, { color: accentColor }]}>
-                      {activeFormSubject?.name || 'General'} • {activeFormTopic?.name || 'Topic'}
-                    </Text>
-                  </View>
+            <View style={styles.nativeEditorContainer}>
+              <View style={[styles.nativeEditorPaper, isDark && styles.nativeEditorPaperDark]}>
+                {/* 1. Date/Time Stamp */}
+                <Text style={[styles.nativeEditorTimestamp, isDark && { color: '#64748B' }]}>
+                  {currentFormattedDate}
+                </Text>
 
-                  <View style={[styles.changeTopicPill, isDark && { backgroundColor: '#1E293B', borderColor: '#334155' }]}>
-                    <EditIcon size={12} color={accentColor} />
-                    <Text style={[styles.changeTopicPillText, { color: accentColor }]}>Change</Text>
-                  </View>
-                </TouchableOpacity>
-
-                {/* Note Title Input */}
+                {/* 2. Clean Large Title Input */}
                 <TextInput
-                  style={[styles.editorTitleInput, isDark && { color: '#F8FAFC' }]}
+                  style={[styles.nativeEditorTitleInput, isDark && { color: '#F8FAFC' }]}
                   placeholder="Title"
                   placeholderTextColor={isDark ? '#475569' : '#94A3B8'}
                   underlineColorAndroid="transparent"
                   value={noteFormTitle}
                   onChangeText={setNoteFormTitle}
+                  returnKeyType="next"
+                  onSubmitEditing={() => contentInputRef.current?.focus()}
                 />
 
-                {/* Stats & Preview Toggle Bar */}
-                <View style={[styles.editorToolbarRow, { justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4, marginVertical: 4 }]}>
-                  <Text style={[styles.editorWordStats, isDark && { color: '#64748B' }]}>
-                    {wordCount} words • {charCount} chars
-                  </Text>
-                  <View style={[styles.editorSegmentedBar, isDark && { backgroundColor: 'rgba(255, 255, 255, 0.06)', borderColor: 'rgba(255, 255, 255, 0.12)' }]}>
-                    <TouchableOpacity
-                      style={[
-                        styles.editorSegmentBtn,
-                        noteEditorMode === 'edit' && { backgroundColor: accentColor || '#2D62FF', shadowColor: accentColor || '#2D62FF', shadowOpacity: 0.3, shadowRadius: 4 }
-                      ]}
-                      onPress={() => setNoteEditorMode('edit')}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={[styles.editorSegmentBtnText, noteEditorMode === 'edit' ? { color: '#FFFFFF', fontWeight: '700' } : (isDark ? { color: '#94A3B8' } : { color: '#64748B' })]}>
-                        ✏️ Edit
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.editorSegmentBtn,
-                        noteEditorMode === 'preview' && { backgroundColor: accentColor || '#2D62FF', shadowColor: accentColor || '#2D62FF', shadowOpacity: 0.3, shadowRadius: 4 }
-                      ]}
-                      onPress={() => setNoteEditorMode('preview')}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={[styles.editorSegmentBtnText, noteEditorMode === 'preview' ? { color: '#FFFFFF', fontWeight: '700' } : (isDark ? { color: '#94A3B8' } : { color: '#64748B' })]}>
-                        👁️ Preview
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
+                {/* 3. Word Stats */}
+                <Text style={[styles.nativeEditorWordStats, isDark && { color: '#64748B' }]}>
+                  {wordCount} words • {charCount} characters
+                </Text>
 
-                {/* Main Content Area: Edit Mode or Formatted Preview Mode */}
-                {noteEditorMode === 'edit' ? (
+                {/* 4. Directly Editable Formatted Preview (One Full Chunk) */}
+                {Platform.OS === 'web' ? (
+                  <View style={{ flex: 1, minHeight: Math.max(340, SCREEN_HEIGHT - 320) }}>
+                    <style>{`
+                      .studpal-editable-preview {
+                        outline: none;
+                        border: none;
+                        cursor: text;
+                        width: 100%;
+                      }
+                      .studpal-editable-preview:empty::before {
+                        content: attr(data-placeholder);
+                        color: ${isDark ? '#475569' : '#94A3B8'};
+                        font-style: normal;
+                        pointer-events: none;
+                      }
+                      .studpal-editable-preview h1 {
+                        font-size: 24px;
+                        font-weight: 800;
+                        margin-top: 14px;
+                        margin-bottom: 6px;
+                        color: ${isDark ? '#F8FAFC' : '#0F172A'};
+                        letter-spacing: -0.4px;
+                        line-height: 1.3;
+                      }
+                      .studpal-editable-preview h2 {
+                        font-size: 19px;
+                        font-weight: 800;
+                        margin-top: 12px;
+                        margin-bottom: 6px;
+                        color: ${isDark ? '#F8FAFC' : '#0F172A'};
+                        letter-spacing: -0.3px;
+                        line-height: 1.35;
+                      }
+                      .studpal-editable-preview h3 {
+                        font-size: 16px;
+                        font-weight: 700;
+                        margin-top: 10px;
+                        margin-bottom: 4px;
+                        color: ${isDark ? '#E2E8F0' : '#1E293B'};
+                        line-height: 1.4;
+                      }
+                      .studpal-editable-preview p, .studpal-editable-preview div {
+                        margin-top: 2px;
+                        margin-bottom: 6px;
+                        font-size: 15.5px;
+                        line-height: 25px;
+                        color: ${isDark ? '#E2E8F0' : '#334155'};
+                      }
+                      .studpal-editable-preview ol, .studpal-editable-preview ul {
+                        margin-left: 24px;
+                        margin-top: 4px;
+                        margin-bottom: 8px;
+                        padding-left: 0;
+                      }
+                      .studpal-editable-preview li {
+                        margin-bottom: 4px;
+                        font-size: 15.5px;
+                        line-height: 25px;
+                        color: ${isDark ? '#E2E8F0' : '#334155'};
+                      }
+                      .studpal-editable-preview blockquote {
+                        border-left: 3px solid ${accentColor || '#2D62FF'};
+                        background: ${(accentColor || '#2D62FF') + (isDark ? '18' : '0F')};
+                        padding: 8px 12px;
+                        border-radius: 6px;
+                        margin: 8px 0;
+                        font-style: italic;
+                        color: ${isDark ? '#E2E8F0' : '#334155'};
+                      }
+                      .studpal-editable-preview code {
+                        font-family: monospace;
+                        font-size: 13.5px;
+                        background: ${isDark ? '#1E293B' : '#F1F5F9'};
+                        padding: 2px 6px;
+                        border-radius: 4px;
+                        color: ${isDark ? '#38BDF8' : '#0284C7'};
+                      }
+                      .studpal-editable-preview mark {
+                        background: ${isDark ? '#78350F' : '#FEF08A'};
+                        color: ${isDark ? '#FEF08A' : '#854D0E'};
+                        padding: 1px 4px;
+                        border-radius: 3px;
+                      }
+                      .studpal-editable-preview .studpal-formula {
+                        font-family: monospace;
+                        background: ${(accentColor || '#2D62FF') + '15'};
+                        color: ${accentColor || '#2D62FF'};
+                        padding: 2px 6px;
+                        border-radius: 4px;
+                        font-weight: 600;
+                      }
+                      .studpal-editable-preview .studpal-task-item {
+                        display: flex !important;
+                        flex-direction: row !important;
+                        align-items: flex-start !important;
+                        gap: 10px !important;
+                        margin-top: 2px !important;
+                        margin-bottom: 6px !important;
+                        line-height: 25px !important;
+                        width: 100% !important;
+                        box-sizing: border-box !important;
+                      }
+                      .studpal-editable-preview .studpal-task-checkbox,
+                      .studpal-editable-preview .studpal-task-item input[type="checkbox"] {
+                        appearance: none !important;
+                        -webkit-appearance: none !important;
+                        width: 18px !important;
+                        height: 18px !important;
+                        min-width: 18px !important;
+                        max-width: 18px !important;
+                        min-height: 18px !important;
+                        max-height: 18px !important;
+                        flex: 0 0 18px !important;
+                        flex-shrink: 0 !important;
+                        flex-grow: 0 !important;
+                        aspect-ratio: 1 / 1 !important;
+                        border-radius: 50% !important;
+                        border: 1.8px solid ${isDark ? '#64748B' : '#94A3B8'} !important;
+                        background-color: transparent !important;
+                        cursor: pointer !important;
+                        outline: none !important;
+                        margin: 3px 0 0 0 !important;
+                        padding: 0 !important;
+                        display: inline-flex !important;
+                        align-items: center !important;
+                        justify-content: center !important;
+                        transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease !important;
+                        position: relative !important;
+                        user-select: none !important;
+                        -webkit-user-select: none !important;
+                        box-sizing: border-box !important;
+                      }
+                      .studpal-editable-preview .studpal-task-checkbox:hover,
+                      .studpal-editable-preview .studpal-task-item input[type="checkbox"]:hover {
+                        border-color: ${accentColor || '#F59E0B'} !important;
+                        transform: scale(1.08);
+                      }
+                      .studpal-editable-preview .studpal-task-item.is-checked .studpal-task-checkbox,
+                      .studpal-editable-preview .studpal-task-item[data-checked="true"] .studpal-task-checkbox,
+                      .studpal-editable-preview .studpal-task-item input[type="checkbox"]:checked {
+                        background-color: ${accentColor || '#F59E0B'} !important;
+                        border-color: ${accentColor || '#F59E0B'} !important;
+                        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'%3E%3C/polyline%3E%3C/svg%3E") !important;
+                        background-size: 11px 11px !important;
+                        background-position: center center !important;
+                        background-repeat: no-repeat !important;
+                      }
+                      .studpal-editable-preview .studpal-task-item.is-checked .studpal-task-checkbox::after,
+                      .studpal-editable-preview .studpal-task-item[data-checked="true"] .studpal-task-checkbox::after,
+                      .studpal-editable-preview .studpal-task-item input[type="checkbox"]:checked::after {
+                        display: none !important;
+                      }
+                      .studpal-editable-preview .studpal-task-item > .studpal-task-text,
+                      .studpal-editable-preview .studpal-task-item > span:not(.studpal-task-checkbox) {
+                        flex: 1 1 auto !important;
+                        min-width: 0 !important;
+                        outline: none !important;
+                        font-size: 15.5px !important;
+                        line-height: 25px !important;
+                        color: ${isDark ? '#E2E8F0' : '#334155'};
+                        word-break: break-word !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        transition: opacity 0.15s ease, text-decoration 0.15s ease, color 0.15s ease !important;
+                      }
+
+                      /* Headings inside task items */
+                      .studpal-editable-preview .studpal-task-item.studpal-task-h1 {
+                        margin-top: 14px !important;
+                        margin-bottom: 6px !important;
+                      }
+                      .studpal-editable-preview .studpal-task-item.studpal-task-h1 > .studpal-task-text,
+                      .studpal-editable-preview .studpal-task-item[data-heading="1"] > .studpal-task-text,
+                      .studpal-editable-preview .studpal-task-item > h1.studpal-task-text {
+                        font-size: 24px !important;
+                        font-weight: 800 !important;
+                        line-height: 32px !important;
+                        color: ${isDark ? '#FFFFFF' : '#0F172A'} !important;
+                        letter-spacing: -0.5px !important;
+                        margin: 0 !important;
+                      }
+                      .studpal-editable-preview .studpal-task-item.studpal-task-h1 .studpal-task-checkbox,
+                      .studpal-editable-preview .studpal-task-item[data-heading="1"] .studpal-task-checkbox,
+                      .studpal-editable-preview .studpal-task-item:has(> h1) .studpal-task-checkbox {
+                        margin-top: 6px !important;
+                      }
+
+                      .studpal-editable-preview .studpal-task-item.studpal-task-h2 {
+                        margin-top: 12px !important;
+                        margin-bottom: 6px !important;
+                      }
+                      .studpal-editable-preview .studpal-task-item.studpal-task-h2 > .studpal-task-text,
+                      .studpal-editable-preview .studpal-task-item[data-heading="2"] > .studpal-task-text,
+                      .studpal-editable-preview .studpal-task-item > h2.studpal-task-text {
+                        font-size: 20px !important;
+                        font-weight: 700 !important;
+                        line-height: 28px !important;
+                        color: ${isDark ? '#F1F5F9' : '#1E293B'} !important;
+                        letter-spacing: -0.3px !important;
+                        margin: 0 !important;
+                      }
+                      .studpal-editable-preview .studpal-task-item.studpal-task-h2 .studpal-task-checkbox,
+                      .studpal-editable-preview .studpal-task-item[data-heading="2"] .studpal-task-checkbox,
+                      .studpal-editable-preview .studpal-task-item:has(> h2) .studpal-task-checkbox {
+                        margin-top: 5px !important;
+                      }
+
+                      .studpal-editable-preview .studpal-task-item.studpal-task-h3 {
+                        margin-top: 10px !important;
+                        margin-bottom: 4px !important;
+                      }
+                      .studpal-editable-preview .studpal-task-item.studpal-task-h3 > .studpal-task-text,
+                      .studpal-editable-preview .studpal-task-item[data-heading="3"] > .studpal-task-text,
+                      .studpal-editable-preview .studpal-task-item > h3.studpal-task-text {
+                        font-size: 17px !important;
+                        font-weight: 700 !important;
+                        line-height: 24px !important;
+                        color: ${isDark ? '#E2E8F0' : '#334155'} !important;
+                        margin: 0 !important;
+                      }
+                      .studpal-editable-preview .studpal-task-item.studpal-task-h3 .studpal-task-checkbox,
+                      .studpal-editable-preview .studpal-task-item[data-heading="3"] .studpal-task-checkbox,
+                      .studpal-editable-preview .studpal-task-item:has(> h3) .studpal-task-checkbox {
+                        margin-top: 3px !important;
+                      }
+
+                      .studpal-editable-preview .studpal-task-item.is-checked > .studpal-task-text,
+                      .studpal-editable-preview .studpal-task-item[data-checked="true"] > .studpal-task-text,
+                      .studpal-editable-preview .studpal-task-item.is-checked > span:not(.studpal-task-checkbox),
+                      .studpal-editable-preview .studpal-task-item[data-checked="true"] > span:not(.studpal-task-checkbox),
+                      .studpal-editable-preview .studpal-task-item input[type="checkbox"]:checked ~ span,
+                      .studpal-editable-preview .studpal-task-item input[type="checkbox"]:checked + span,
+                      .studpal-editable-preview .studpal-task-item:has(input[type="checkbox"]:checked) > span:not(.studpal-task-checkbox) {
+                        text-decoration: line-through !important;
+                        opacity: 0.55 !important;
+                        color: ${isDark ? '#64748B' : '#94A3B8'} !important;
+                      }
+                      /* Explicitly protect and preserve all other formatting effects inside checklist items */
+                      .studpal-editable-preview .studpal-task-item strong,
+                      .studpal-editable-preview .studpal-task-item b,
+                      .studpal-editable-preview .studpal-task-item [style*="font-weight: bold"],
+                      .studpal-editable-preview .studpal-task-item [style*="font-weight: 700"],
+                      .studpal-editable-preview .studpal-task-item [style*="font-weight: 800"] {
+                        font-weight: 800 !important;
+                      }
+                      .studpal-editable-preview .studpal-task-item em,
+                      .studpal-editable-preview .studpal-task-item i,
+                      .studpal-editable-preview .studpal-task-item [style*="font-style: italic"] {
+                        font-style: italic !important;
+                      }
+                      .studpal-editable-preview .studpal-task-item u,
+                      .studpal-editable-preview .studpal-task-item [style*="text-decoration: underline"] {
+                        text-decoration: underline !important;
+                      }
+                      .studpal-editable-preview .studpal-task-item del,
+                      .studpal-editable-preview .studpal-task-item s,
+                      .studpal-editable-preview .studpal-task-item strike,
+                      .studpal-editable-preview .studpal-task-item [style*="text-decoration: line-through"] {
+                        text-decoration: line-through !important;
+                      }
+                      .studpal-editable-preview .studpal-task-item .studpal-formula {
+                        font-family: monospace !important;
+                        background: ${(accentColor || '#2D62FF') + '18'} !important;
+                        color: ${accentColor || '#2D62FF'} !important;
+                        padding: 2px 6px !important;
+                        border-radius: 4px !important;
+                        font-weight: 600 !important;
+                        display: inline-block !important;
+                        flex: none !important;
+                        font-size: 14.5px !important;
+                        line-height: normal !important;
+                        text-decoration: none !important;
+                        opacity: 1 !important;
+                      }
+                      .studpal-editable-preview .studpal-task-item code {
+                        font-family: monospace !important;
+                        background: ${isDark ? '#1E293B' : '#F1F5F9'} !important;
+                        color: ${isDark ? '#38BDF8' : '#0284C7'} !important;
+                        padding: 2px 6px !important;
+                        border-radius: 4px !important;
+                        font-size: 13.5px !important;
+                      }
+                      .studpal-editable-preview .studpal-task-item mark {
+                        background: ${isDark ? '#78350F' : '#FEF08A'} !important;
+                        color: ${isDark ? '#FEF08A' : '#854D0E'} !important;
+                        padding: 1px 4px !important;
+                        border-radius: 3px !important;
+                      }
+                    `}</style>
+                    <div
+                      ref={setEditorRef}
+                      className="studpal-editable-preview"
+                      contentEditable
+                      suppressContentEditableWarning
+                      onInput={handleContentInput}
+                      onClick={handleEditorClick}
+                      onPointerDown={handleEditorPointerDown}
+                      onKeyDown={handleEditorKeyDown}
+                      onBeforeInput={handleBeforeInput}
+                      onMouseUp={handleSelectChange}
+                      onKeyUp={handleSelectChange}
+                      onSelect={handleSelectChange}
+                      data-placeholder="Start typing your study notes..."
+                      style={{
+                        outline: 'none',
+                        border: 'none',
+                        minHeight: Math.max(340, SCREEN_HEIGHT - 320),
+                        fontSize: '15.5px',
+                        lineHeight: '1.65',
+                        color: isDark ? '#E2E8F0' : '#1E293B',
+                        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif',
+                        wordBreak: 'break-word',
+                        paddingBottom: 80,
+                      }}
+                    />
+                  </View>
+                ) : (
                   <TextInput
                     ref={contentInputRef}
                     style={[
-                      styles.editorContentInput,
-                      isDark && { color: '#F8FAFC' },
-                      Platform.OS === 'web' && { outlineStyle: 'none', borderWidth: 0, outline: 'none' }
+                      styles.nativeEditorBodyInput,
+                      isDark && { color: '#F1F5F9' },
                     ]}
                     placeholder="Start typing your study notes..."
                     placeholderTextColor={isDark ? '#475569' : '#94A3B8'}
@@ -2799,46 +4827,235 @@ export default function StudyScreen({
                     textAlignVertical="top"
                     underlineColorAndroid="transparent"
                     value={noteFormContent}
-                    onChangeText={setNoteFormContent}
-                    onSelectionChange={(e) => setContentSelection(e.nativeEvent.selection)}
+                    onChangeText={(val) => {
+                      const prev = noteFormContent || '';
+                      if (val.length === prev.length + 1 && val.endsWith('\n')) {
+                        const lines = prev.split('\n');
+                        const lastLine = lines[lines.length - 1];
+                        if (lastLine.trim() === '- [ ]' || lastLine.trim() === '- [x]') {
+                          // Exit task item on empty enter
+                          lines[lines.length - 1] = '';
+                          const updated = lines.join('\n') + '\n';
+                          setNoteFormContent(updated);
+                          pushHistory(updated);
+                          return;
+                        } else if (lastLine.startsWith('- [ ] ') || lastLine.startsWith('- [x] ')) {
+                          // Auto-continue checklist on native!
+                          const updated = val + '- [ ] ';
+                          setNoteFormContent(updated);
+                          pushHistory(updated);
+                          return;
+                        }
+                      }
+                      setNoteFormContent(val);
+                      pushHistory(val);
+                    }}
+                    onSelectionChange={(e) => {
+                      setContentSelection(e.nativeEvent.selection);
+                      contentSelectionRef.current = e.nativeEvent.selection;
+                    }}
                   />
-                ) : (
-                  <View style={{ minHeight: 220, paddingVertical: 8 }}>
-                    <FormattedMarkdownView
-                      content={noteFormContent}
-                      isDark={isDark}
-                      accentColor={accentColor}
-                      onToggleTask={handleToggleTaskCheckbox}
-                    />
-                  </View>
                 )}
               </View>
             </View>
           </ScrollView>
 
-          {/* ── NOTE EDITOR ACTION BAR: CENTERED RED MICROPHONE / STOP BUTTON ── */}
+          {/* ── NATIVE BOTTOM FORMATTING & VOICE DOCK ── */}
           <View
             style={[
-              styles.noteEditorActionBar,
-              {
-                paddingBottom: Math.max(insets.bottom, 12) + 8,
-              },
+              styles.nativeBottomDockContainer,
+              isDark && { backgroundColor: '#0B0F19', borderTopColor: '#1E293B' },
+              { paddingBottom: Math.max(insets.bottom, 10) + 4 }
             ]}
-            pointerEvents="box-none"
           >
-            <View style={styles.noteEditorCenterActionRow} pointerEvents="box-none">
-              <TooltipTouchable
-                style={styles.noteEditorRedMicBtn}
-                onPress={handleToggleNoteVoiceDictation}
-                activeScale={0.88}
-                disableTooltip
-              >
-                {isNoteRecording ? (
-                  <StopSquareIcon size={22} color="#FFFFFF" />
-                ) : (
-                  <MicIcon size={28} color="#FFFFFF" />
-                )}
-              </TooltipTouchable>
+            {/* Format Tray (when Aa is toggled open) */}
+            {isFormatTrayOpen && (
+              <Animated.View style={[styles.nativeFormatTray, isDark && { backgroundColor: '#1E293B', borderColor: '#334155' }]}>
+                {/* Row 1: Headings / Body */}
+                <View style={styles.nativeFormatTrayRow}>
+                  <TouchableOpacity
+                    style={[styles.nativeFormatOptionBtn, isDark && { backgroundColor: '#0F172A', borderColor: '#334155' }]}
+                    onPress={() => executeFormatCommand('h1')}
+                    onPointerDown={(e) => { if (Platform.OS === 'web' && e?.preventDefault) e.preventDefault(); }}
+                    onMouseDown={(e) => { if (Platform.OS === 'web' && e?.preventDefault) e.preventDefault(); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.nativeFormatOptionH1Text, isDark && { color: '#F1F5F9' }]}>H1</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.nativeFormatOptionBtn, isDark && { backgroundColor: '#0F172A', borderColor: '#334155' }]}
+                    onPress={() => executeFormatCommand('h2')}
+                    onPointerDown={(e) => { if (Platform.OS === 'web' && e?.preventDefault) e.preventDefault(); }}
+                    onMouseDown={(e) => { if (Platform.OS === 'web' && e?.preventDefault) e.preventDefault(); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.nativeFormatOptionH2Text, isDark && { color: '#F1F5F9' }]}>H2</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.nativeFormatOptionBtn, isDark && { backgroundColor: '#0F172A', borderColor: '#334155' }]}
+                    onPress={() => executeFormatCommand('h3')}
+                    onPointerDown={(e) => { if (Platform.OS === 'web' && e?.preventDefault) e.preventDefault(); }}
+                    onMouseDown={(e) => { if (Platform.OS === 'web' && e?.preventDefault) e.preventDefault(); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.nativeFormatOptionH3Text, isDark && { color: '#F1F5F9' }]}>H3</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.nativeFormatOptionBtn, isDark && { backgroundColor: '#0F172A', borderColor: '#334155' }]}
+                    onPress={() => executeFormatCommand('body')}
+                    onPointerDown={(e) => { if (Platform.OS === 'web' && e?.preventDefault) e.preventDefault(); }}
+                    onMouseDown={(e) => { if (Platform.OS === 'web' && e?.preventDefault) e.preventDefault(); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.nativeFormatOptionBodyText, isDark && { color: '#94A3B8' }]}>Body</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Row 2: Inline Styles */}
+                <View style={styles.nativeFormatTrayRow}>
+                  <TouchableOpacity
+                    style={[styles.nativeFormatOptionBtn, isDark && { backgroundColor: '#0F172A', borderColor: '#334155' }]}
+                    onPress={() => executeFormatCommand('bold')}
+                    onPointerDown={(e) => { if (Platform.OS === 'web' && e?.preventDefault) e.preventDefault(); }}
+                    onMouseDown={(e) => { if (Platform.OS === 'web' && e?.preventDefault) e.preventDefault(); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.nativeFormatInlineText, { fontWeight: '800' }, isDark && { color: '#F1F5F9' }]}>B</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.nativeFormatOptionBtn, isDark && { backgroundColor: '#0F172A', borderColor: '#334155' }]}
+                    onPress={() => executeFormatCommand('italic')}
+                    onPointerDown={(e) => { if (Platform.OS === 'web' && e?.preventDefault) e.preventDefault(); }}
+                    onMouseDown={(e) => { if (Platform.OS === 'web' && e?.preventDefault) e.preventDefault(); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.nativeFormatInlineText, { fontStyle: 'italic', fontFamily: 'serif' }, isDark && { color: '#F1F5F9' }]}>I</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.nativeFormatOptionBtn, isDark && { backgroundColor: '#0F172A', borderColor: '#334155' }]}
+                    onPress={() => executeFormatCommand('underline')}
+                    onPointerDown={(e) => { if (Platform.OS === 'web' && e?.preventDefault) e.preventDefault(); }}
+                    onMouseDown={(e) => { if (Platform.OS === 'web' && e?.preventDefault) e.preventDefault(); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.nativeFormatInlineText, { textDecorationLine: 'underline' }, isDark && { color: '#F1F5F9' }]}>U</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.nativeFormatOptionBtn, isDark && { backgroundColor: '#0F172A', borderColor: '#334155' }]}
+                    onPress={() => executeFormatCommand('strikethrough')}
+                    onPointerDown={(e) => { if (Platform.OS === 'web' && e?.preventDefault) e.preventDefault(); }}
+                    onMouseDown={(e) => { if (Platform.OS === 'web' && e?.preventDefault) e.preventDefault(); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.nativeFormatInlineText, { textDecorationLine: 'line-through' }, isDark && { color: '#F1F5F9' }]}>S</Text>
+                  </TouchableOpacity>
+                </View>
+              </Animated.View>
+            )}
+
+            {/* Live Dictation Interim Subtitle Preview */}
+            {isNoteRecording && !!dictationInterimPreview && (
+              <View style={[styles.dictationLivePreviewContainer, isDark && styles.dictationLivePreviewContainerDark]}>
+                <View style={styles.dictationLivePreviewDot} />
+                <Text style={styles.dictationLivePreviewLabel}>Listening:</Text>
+                <Text style={[styles.dictationLivePreviewText, isDark && { color: '#E2E8F0' }]} numberOfLines={2}>
+                  “{dictationInterimPreview}”
+                </Text>
+              </View>
+            )}
+
+            {/* Main Dock Row */}
+            <View style={styles.nativeDockMainRow}>
+              {/* Left format tools */}
+              <View style={styles.nativeDockToolsRow}>
+                {/* Aa Toggle Button */}
+                <TouchableOpacity
+                  style={[
+                    styles.nativeDockToolBtn,
+                    isFormatTrayOpen && { backgroundColor: (accentColor || '#2D62FF') + '20', borderColor: accentColor || '#2D62FF' },
+                    isDark && !isFormatTrayOpen && { backgroundColor: '#1E293B', borderColor: '#334155' }
+                  ]}
+                  onPress={() => setIsFormatTrayOpen((prev) => !prev)}
+                  onPointerDown={(e) => { if (Platform.OS === 'web' && e?.preventDefault) e.preventDefault(); }}
+                  onMouseDown={(e) => { if (Platform.OS === 'web' && e?.preventDefault) e.preventDefault(); }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.nativeDockAaText, isFormatTrayOpen ? { color: accentColor || '#2D62FF', fontWeight: '800' } : (isDark ? { color: '#F1F5F9' } : { color: '#1E293B' })]}>
+                    Aa
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Bullet List */}
+                <TouchableOpacity
+                  style={[styles.nativeDockToolBtn, isDark && { backgroundColor: '#1E293B', borderColor: '#334155' }]}
+                  onPress={() => executeFormatCommand('bullet')}
+                  onPointerDown={(e) => { if (Platform.OS === 'web' && e?.preventDefault) e.preventDefault(); }}
+                  onMouseDown={(e) => { if (Platform.OS === 'web' && e?.preventDefault) e.preventDefault(); }}
+                  activeOpacity={0.7}
+                >
+                  <BulletListIcon size={17} color={isDark ? '#E2E8F0' : '#334155'} />
+                </TouchableOpacity>
+
+                {/* Number List */}
+                <TouchableOpacity
+                  style={[styles.nativeDockToolBtn, isDark && { backgroundColor: '#1E293B', borderColor: '#334155' }]}
+                  onPress={() => executeFormatCommand('number')}
+                  onPointerDown={(e) => { if (Platform.OS === 'web' && e?.preventDefault) e.preventDefault(); }}
+                  onMouseDown={(e) => { if (Platform.OS === 'web' && e?.preventDefault) e.preventDefault(); }}
+                  activeOpacity={0.7}
+                >
+                  <NumberListIcon size={17} color={isDark ? '#E2E8F0' : '#334155'} />
+                </TouchableOpacity>
+
+                {/* Checklist */}
+                <TouchableOpacity
+                  style={[styles.nativeDockToolBtn, isDark && { backgroundColor: '#1E293B', borderColor: '#334155' }]}
+                  onPress={() => executeFormatCommand('task')}
+                  onPointerDown={(e) => { if (Platform.OS === 'web' && e?.preventDefault) e.preventDefault(); }}
+                  onMouseDown={(e) => { if (Platform.OS === 'web' && e?.preventDefault) e.preventDefault(); }}
+                  activeOpacity={0.7}
+                >
+                  <ChecklistIcon size={17} color={isDark ? '#E2E8F0' : '#334155'} />
+                </TouchableOpacity>
+
+                {/* Formula */}
+                <TouchableOpacity
+                  style={[styles.nativeDockToolBtn, isDark && { backgroundColor: '#1E293B', borderColor: '#334155' }]}
+                  onPress={() => executeFormatCommand('formula')}
+                  onPointerDown={(e) => { if (Platform.OS === 'web' && e?.preventDefault) e.preventDefault(); }}
+                  onMouseDown={(e) => { if (Platform.OS === 'web' && e?.preventDefault) e.preventDefault(); }}
+                  activeOpacity={0.7}
+                >
+                  <FormulaIcon size={17} color={isDark ? '#E2E8F0' : '#334155'} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Right: Signature Voice Dictation Red Mic Feature */}
+              {isNoteRecording ? (
+                <TouchableOpacity
+                  style={styles.nativeVoiceRecordingPill}
+                  onPress={handleToggleNoteVoiceDictation}
+                  onPointerDown={(e) => { if (Platform.OS === 'web' && e?.preventDefault) e.preventDefault(); }}
+                  onMouseDown={(e) => { if (Platform.OS === 'web' && e?.preventDefault) e.preventDefault(); }}
+                  activeOpacity={0.85}
+                  accessibilityLabel="Pause voice dictation and transcribe"
+                >
+                  <Animated.View style={[styles.nativeVoicePulseDot, { opacity: pulseAnim }]} />
+                  <Text style={styles.nativeVoiceTimerText}>{formattedRecordingTime}</Text>
+                  <PauseIcon size={16} color="#FFFFFF" />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={styles.nativeVoiceMicBtn}
+                  onPress={handleToggleNoteVoiceDictation}
+                  onPointerDown={(e) => { if (Platform.OS === 'web' && e?.preventDefault) e.preventDefault(); }}
+                  onMouseDown={(e) => { if (Platform.OS === 'web' && e?.preventDefault) e.preventDefault(); }}
+                  activeOpacity={0.85}
+                  accessibilityLabel="Start voice dictation"
+                >
+                  <MicIcon size={22} color="#FFFFFF" />
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         </KeyboardAvoidingView>
@@ -3363,6 +5580,291 @@ const baseStudyStyles = StyleSheet.create({
     color: "#475569",
     marginTop: 2,
     fontWeight: "700",
+  },
+
+  // ── UNIFIED KNOWLEDGE INTELLIGENCE CARD (Connected Learning Brain)
+  syncCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+    marginBottom: 16,
+    gap: 14,
+  },
+  syncCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  syncCardTitleGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+  },
+  syncBrainIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  syncCardTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  syncCardSubtitle: {
+    fontSize: 12,
+    color: "#64748B",
+    fontWeight: "500",
+    marginTop: 2,
+  },
+  syncLiveBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  syncLivePulseDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#10B981",
+  },
+  syncLiveBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#059669",
+    letterSpacing: 0.5,
+  },
+  syncMetricsRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  syncMetricCard: {
+    flex: 1,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    gap: 4,
+  },
+  syncMetricHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  syncMetricLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#64748B",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  syncMetricValueRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 6,
+    marginTop: 2,
+  },
+  syncMetricValue: {
+    fontSize: 22,
+    fontWeight: "900",
+  },
+  syncMetricUnit: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#64748B",
+    flexShrink: 1,
+  },
+  syncActionBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#F8FAFC",
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  syncActionBannerTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#0F172A",
+  },
+  syncActionBannerSubtitle: {
+    fontSize: 11,
+    fontWeight: "500",
+    color: "#64748B",
+    marginTop: 2,
+  },
+  syncActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+  },
+  syncActionBtnText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+
+  // ── FLASHCARD & QUIZ CROSS-TALK BRIDGE STYLES
+  quizBridgeFrontPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(239, 68, 68, 0.08)",
+    borderColor: "rgba(239, 68, 68, 0.25)",
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+    marginBottom: 8,
+    alignSelf: "flex-start",
+  },
+  quizBridgeFrontPillText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#EF4444",
+  },
+  quizBridgeDetailBox: {
+    backgroundColor: "rgba(239, 68, 68, 0.05)",
+    borderColor: "rgba(239, 68, 68, 0.2)",
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 10,
+    gap: 5,
+    width: "100%",
+  },
+  quizBridgeDetailHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  quizBridgeDetailTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#EF4444",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  quizBridgeDetailQuestion: {
+    fontSize: 12,
+    fontStyle: "italic",
+    color: "#334155",
+    lineHeight: 16,
+  },
+  quizBridgeDetailAnswer: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  quizBridgeDetailTakeaway: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#64748B",
+    marginTop: 2,
+  },
+  syncCompleteNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(98, 54, 255, 0.08)",
+    borderColor: "rgba(98, 54, 255, 0.2)",
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginTop: 14,
+  },
+  syncCompleteNoticeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#6236FF",
+    flex: 1,
+  },
+  quizCardBridgeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4.5,
+    backgroundColor: "rgba(98, 54, 255, 0.08)",
+    borderColor: "rgba(98, 54, 255, 0.2)",
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4.5,
+    maxWidth: "100%",
+  },
+  quizCardBridgeBadgeText: {
+    fontSize: 10.5,
+    fontWeight: "700",
+    color: "#6236FF",
+    flexShrink: 1,
+  },
+  quizActiveBridgePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(98, 54, 255, 0.08)",
+    borderColor: "rgba(98, 54, 255, 0.2)",
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+    marginBottom: 10,
+    alignSelf: "flex-start",
+    maxWidth: "100%",
+  },
+  quizActiveBridgePillText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#6236FF",
+    flexShrink: 1,
+  },
+  quizBridgeResolvedBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    borderRadius: 10,
+    padding: 8,
+    marginTop: 8,
+  },
+  quizBridgeResolvedText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#059669",
+    flex: 1,
+  },
+  quizBridgeWrongNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+    borderRadius: 10,
+    padding: 8,
+    marginTop: 8,
+  },
+  quizBridgeWrongNoticeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#DC2626",
+    flex: 1,
   },
 
   // ── RECOMMENDATIONS SECTION
@@ -3897,25 +6399,28 @@ const baseStudyStyles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 8,
     marginBottom: 10,
   },
   quizTopicBadge: {
     backgroundColor: "#ECFDF5",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 4.5,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#A7F3D0",
-    alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
+    maxWidth: "100%",
   },
   quizTopicBadgeText: {
     fontSize: 11.5,
     fontWeight: "800",
     color: "#059669",
     letterSpacing: 0.2,
+    flexShrink: 1,
   },
   quizCardTitle: {
     fontSize: 16.5,
@@ -5258,6 +7763,272 @@ const baseStudyStyles = StyleSheet.create({
     fontWeight: '600',
     color: '#64748B',
   },
+
+  // ── Native Note Editor Styles (Apple/Samsung Notes Inspired)
+  nativeHeaderCenterContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  nativeHeaderTopicPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    maxWidth: '92%',
+  },
+  nativeHeaderTopicEmoji: {
+    fontSize: 13,
+  },
+  nativeHeaderTopicText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E293B',
+    maxWidth: 150,
+  },
+  nativeHeaderRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  nativeHeaderIconBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nativeHeaderSaveBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#2D62FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#2D62FF',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  nativeEditorScrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+  nativeEditorContainer: {
+    flex: 1,
+  },
+  nativeEditorPaper: {
+    backgroundColor: 'transparent',
+    flex: 1,
+  },
+  nativeEditorPaperDark: {
+    backgroundColor: 'transparent',
+  },
+  nativeEditorTimestamp: {
+    fontSize: 12.5,
+    fontWeight: '500',
+    color: '#94A3B8',
+    marginBottom: 6,
+    letterSpacing: 0.2,
+  },
+  nativeEditorTitleInput: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#0F172A',
+    paddingVertical: 6,
+    borderWidth: 0,
+    outlineWidth: 0,
+    outlineColor: 'transparent',
+    letterSpacing: -0.5,
+  },
+  nativeEditorWordStats: {
+    fontSize: 12,
+    color: '#94A3B8',
+    fontWeight: '500',
+    marginTop: 2,
+    marginBottom: 16,
+  },
+  nativeEditorBodyInput: {
+    fontSize: 16,
+    color: '#1E293B',
+    lineHeight: 26,
+    flex: 1,
+    minHeight: SCREEN_HEIGHT - 320,
+    textAlignVertical: 'top',
+    borderWidth: 0,
+    paddingTop: 0,
+    paddingBottom: 60,
+    outlineWidth: 0,
+    outlineColor: 'transparent',
+  },
+  nativeBottomDockContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    paddingTop: 8,
+    paddingHorizontal: 16,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  nativeFormatTray: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 8,
+    gap: 8,
+  },
+  nativeFormatTrayRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  nativeFormatOptionBtn: {
+    flex: 1,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nativeFormatOptionH1Text: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  nativeFormatOptionH2Text: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  nativeFormatOptionH3Text: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  nativeFormatOptionBodyText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  nativeFormatInlineText: {
+    fontSize: 14,
+    color: '#0F172A',
+  },
+  nativeDockMainRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  nativeDockToolsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  nativeDockToolBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nativeDockAaText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  nativeVoiceMicBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#EF4444',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  nativeVoiceRecordingPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#DC2626',
+    shadowColor: '#DC2626',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.45,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  nativeVoicePulseDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#FFFFFF',
+  },
+  nativeVoiceTimerText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  dictationLivePreviewContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.22)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginBottom: 8,
+  },
+  dictationLivePreviewContainerDark: {
+    backgroundColor: 'rgba(239, 68, 68, 0.16)',
+    borderColor: 'rgba(239, 68, 68, 0.35)',
+  },
+  dictationLivePreviewDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#EF4444',
+  },
+  dictationLivePreviewLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#EF4444',
+  },
+  dictationLivePreviewText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#475569',
+    fontStyle: 'italic',
+  },
 });
 
 const getStudyStyles = (isDark, activeAccentColor) => {
@@ -5709,6 +8480,70 @@ const getStudyStyles = (isDark, activeAccentColor) => {
     ],
     noteEditorRedMicBtn: [
       baseStudyStyles.noteEditorRedMicBtn,
+    ],
+    nativeHeaderTopicPill: [
+      baseStudyStyles.nativeHeaderTopicPill,
+      isDark && { backgroundColor: '#1E293B', borderColor: '#334155' },
+    ],
+    nativeHeaderTopicText: [
+      baseStudyStyles.nativeHeaderTopicText,
+      isDark && { color: '#F1F5F9' },
+    ],
+    nativeEditorTimestamp: [
+      baseStudyStyles.nativeEditorTimestamp,
+      isDark && { color: '#64748B' },
+    ],
+    nativeEditorTitleInput: [
+      baseStudyStyles.nativeEditorTitleInput,
+      isDark && { color: '#F8FAFC' },
+    ],
+    nativeEditorWordStats: [
+      baseStudyStyles.nativeEditorWordStats,
+      isDark && { color: '#64748B' },
+    ],
+    nativeEditorBodyInput: [
+      baseStudyStyles.nativeEditorBodyInput,
+      isDark && { color: '#F1F5F9' },
+    ],
+    nativeBottomDockContainer: [
+      baseStudyStyles.nativeBottomDockContainer,
+      isDark && { backgroundColor: '#0B0F19', borderTopColor: '#1E293B' },
+    ],
+    nativeFormatTray: [
+      baseStudyStyles.nativeFormatTray,
+      isDark && { backgroundColor: '#1E293B', borderColor: '#334155' },
+    ],
+    nativeFormatOptionBtn: [
+      baseStudyStyles.nativeFormatOptionBtn,
+      isDark && { backgroundColor: '#0F172A', borderColor: '#334155' },
+    ],
+    nativeFormatOptionH1Text: [
+      baseStudyStyles.nativeFormatOptionH1Text,
+      isDark && { color: '#F1F5F9' },
+    ],
+    nativeFormatOptionH2Text: [
+      baseStudyStyles.nativeFormatOptionH2Text,
+      isDark && { color: '#F1F5F9' },
+    ],
+    nativeFormatOptionH3Text: [
+      baseStudyStyles.nativeFormatOptionH3Text,
+      isDark && { color: '#F1F5F9' },
+    ],
+    nativeFormatOptionBodyText: [
+      baseStudyStyles.nativeFormatOptionBodyText,
+      isDark && { color: '#94A3B8' },
+    ],
+    nativeFormatInlineText: [
+      baseStudyStyles.nativeFormatInlineText,
+      isDark && { color: '#F1F5F9' },
+    ],
+    nativeDockToolBtn: [
+      baseStudyStyles.nativeDockToolBtn,
+      isDark && { backgroundColor: '#1E293B', borderColor: '#334155' },
+    ],
+    nativeDockAaText: [
+      baseStudyStyles.nativeDockAaText,
+      isDark && { color: '#F1F5F9' },
     ],
   };
 };

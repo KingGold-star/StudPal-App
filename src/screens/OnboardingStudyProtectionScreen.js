@@ -53,7 +53,9 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
   }
 }
 
-function LockedAppsPadlockGraphic({ size = 305, floatAnim }) {
+function LockedAppsPadlockGraphic({ size = 305, floatAnim, isDark: isDarkProp }) {
+  const { isDark: themeIsDark } = useTheme();
+  const isDark = isDarkProp !== undefined ? isDarkProp : themeIsDark;
   const translateY = floatAnim.interpolate({
     inputRange: [0, 0.5, 1],
     outputRange: [0, -8, 0],
@@ -66,9 +68,9 @@ function LockedAppsPadlockGraphic({ size = 305, floatAnim }) {
       <Defs>
         {/* Soft Background Security Aura */}
         <RadialGradient id="auraGlow" cx="50%" cy="50%" r="50%">
-          <Stop offset="0%" stopColor="#3B82F6" stopOpacity="0.22" />
-          <Stop offset="65%" stopColor="#60A5FA" stopOpacity="0.06" />
-          <Stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
+          <Stop offset="0%" stopColor="#3B82F6" stopOpacity={isDark ? "0.32" : "0.22"} />
+          <Stop offset="65%" stopColor="#60A5FA" stopOpacity={isDark ? "0.1" : "0.06"} />
+          <Stop offset="100%" stopColor={isDark ? "#080C14" : "#FFFFFF"} stopOpacity="0" />
         </RadialGradient>
 
         {/* Shackle Chrome Gradient */}
@@ -167,9 +169,9 @@ function LockedAppsPadlockGraphic({ size = 305, floatAnim }) {
 
         {/* Ground Shadow */}
         <RadialGradient id="groundShadow" cx="50%" cy="50%" r="50%">
-          <Stop offset="0%" stopColor="#0F172A" stopOpacity="0.16" />
+          <Stop offset="0%" stopColor="#0F172A" stopOpacity={isDark ? "0.35" : "0.16"} />
           <Stop offset="70%" stopColor="#1E293B" stopOpacity="0.03" />
-          <Stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
+          <Stop offset="100%" stopColor={isDark ? "#080C14" : "#FFFFFF"} stopOpacity="0" />
         </RadialGradient>
 
         {/* Snapchat Squircle Clip */}
@@ -184,8 +186,8 @@ function LockedAppsPadlockGraphic({ size = 305, floatAnim }) {
       </Defs>
 
       {/* 1. Background Aura Field */}
-      <Circle cx="200" cy="200" r="180" stroke="#DBEAFE" strokeWidth="1.2" strokeDasharray="6,7" strokeOpacity="0.75" />
-      <Circle cx="200" cy="200" r="150" stroke="#BFDBFE" strokeWidth="1" strokeOpacity="0.5" />
+      <Circle cx="200" cy="200" r="180" stroke={isDark ? 'rgba(59, 130, 246, 0.22)' : '#DBEAFE'} strokeWidth="1.2" strokeDasharray="6,7" strokeOpacity={isDark ? 0.6 : 0.75} />
+      <Circle cx="200" cy="200" r="150" stroke={isDark ? 'rgba(59, 130, 246, 0.16)' : '#BFDBFE'} strokeWidth="1" strokeOpacity={isDark ? 0.4 : 0.5} />
       <Circle cx="200" cy="200" r="125" fill="url(#auraGlow)" />
 
       {/* 2. REAL OFFICIAL SOCIAL MEDIA APP TILES (Positioned Under the Padlock) */}
@@ -308,21 +310,21 @@ function LockedAppsPadlockGraphic({ size = 305, floatAnim }) {
       <Rect x="102" y="164" width="196" height="152" rx="38" fill="url(#padlockCastShadow)" />
       <Path
         d="M 144 174 L 144 102 C 144 50 168 28 200 28 C 232 28 256 50 256 102 L 256 174 Z"
-        fill="#0F172A"
-        fillOpacity="0.15"
+        fill={isDark ? "#020617" : "#0F172A"}
+        fillOpacity={isDark ? 0.35 : 0.15}
       />
 
       {/* 4. Solid Clean Shackle Loop Backing */}
       <Path
         d="M 174 174 L 174 102 C 174 68 184 56 200 56 C 216 56 226 68 226 102 L 226 174 Z"
-        fill="#FFFFFF"
+        fill={isDark ? '#080C14' : '#FFFFFF'}
       />
       <Path
         d="M 174 102 C 174 68 184 56 200 56 C 216 56 226 68 226 102"
-        stroke="#CBD5E1"
+        stroke={isDark ? 'rgba(255, 255, 255, 0.14)' : '#CBD5E1'}
         strokeWidth="3.5"
         fill="none"
-        strokeOpacity="0.45"
+        strokeOpacity={isDark ? 0.5 : 0.45}
       />
 
       {/* 5. Bottom Ground Contact Shadow */}
@@ -542,13 +544,13 @@ export default function OnboardingStudyProtectionScreen({
 
           {/* Center 3D Luxury Padlock Hero with Real Social Media Logos Underneath */}
           <View style={styles.graphicSection}>
-            <LockedAppsPadlockGraphic size={305} floatAnim={floatAnim} />
+            <LockedAppsPadlockGraphic size={305} floatAnim={floatAnim} isDark={isDark} />
           </View>
 
           {/* Bottom Actions */}
           <View style={styles.actionsContainer}>
             <TouchableOpacity
-              style={styles.primaryButton}
+              style={[styles.primaryButton, isDark && { backgroundColor: '#2563EB', shadowColor: '#2563EB' }]}
               onPress={handleSetup}
               activeOpacity={0.85}
             >

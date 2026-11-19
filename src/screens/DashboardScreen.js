@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -35,6 +35,8 @@ import { notificationService } from '../services/notifications/notificationServi
 import GoalCompletionDonut from '../components/charts/GoalCompletionDonut';
 import { getDailyAdaptivePills } from '../services/adaptiveTopicsService';
 import { useTranslation } from '../services/i18n/i18nService';
+import { useNetworkStatus } from '../services/networkService';
+import AiOfflineModal from '../components/AiOfflineModal';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const CIRCUMFERENCE = 2 * Math.PI * 104; // ~653.45
@@ -356,6 +358,8 @@ export default function DashboardScreen({ user = { name: 'Alex' }, onSelectTab, 
   const [goalMetrics, setGoalMetrics] = useState(goalMetricsService.getAllState());
   const [gamificationData, setGamificationData] = useState(gamificationService.getState());
   const [searchQuery, setSearchQuery] = useState('');
+  const { isOffline } = useNetworkStatus();
+  const [offlineModalVisible, setOfflineModalVisible] = useState(false);
   const mainScrollViewRef = useRef(null);
 
   // Dynamic Subjects & Study Plan derivation based on User's Enrolled Subjects
@@ -785,6 +789,10 @@ export default function DashboardScreen({ user = { name: 'Alex' }, onSelectTab, 
   const dailyPills = getDailyAdaptivePills(user);
 
   const handleOpenAiTopic = (topicOrPill, attachedFile = null) => {
+    if (isOffline) {
+      setOfflineModalVisible(true);
+      return;
+    }
     let promptQuery = 'General Study';
     if (typeof topicOrPill === 'string') {
       promptQuery = topicOrPill;
@@ -816,6 +824,10 @@ export default function DashboardScreen({ user = { name: 'Alex' }, onSelectTab, 
       if (onNavigate) onNavigate('community');
       else if (onSelectTab) onSelectTab('community');
     } else if (tab === 'aicoach') {
+      if (isOffline) {
+        setOfflineModalVisible(true);
+        return;
+      }
       if (onNavigate) onNavigate('aicoach');
       else if (onSelectTab) onSelectTab('aicoach');
       else setAiCoachVisible(true);
@@ -1030,7 +1042,7 @@ export default function DashboardScreen({ user = { name: 'Alex' }, onSelectTab, 
           >
             <View style={styles.progressCircleWrapper}>
               <Svg width={44} height={44} viewBox="0 0 44 44">
-                <G rotation="-90" origin="22, 22">
+                <G transform="rotate(-90 22 22)">
                   <Circle
                     cx="22"
                     cy="22"
@@ -1045,7 +1057,7 @@ export default function DashboardScreen({ user = { name: 'Alex' }, onSelectTab, 
                     r="17"
                     stroke="#F59E0B"
                     strokeWidth="4"
-                    strokeDasharray={2 * Math.PI * 17}
+                    strokeDasharray={[2 * Math.PI * 17, 2 * Math.PI * 17]}
                     strokeDashoffset={2 * Math.PI * 17 * (1 - (progressPercent || 75) / 100)}
                     strokeLinecap="round"
                     fill="none"
@@ -1477,7 +1489,7 @@ export default function DashboardScreen({ user = { name: 'Alex' }, onSelectTab, 
                   {/* Background track */}
                   <Circle cx="140" cy="140" r={112} stroke="#FFFFFF" strokeWidth={18} strokeOpacity={0.08} fill="none" />
                   {/* Active progress arc */}
-                  <G rotation="-90" origin="140, 140">
+                  <G transform="rotate(-90 140 140)">
                     <AnimatedCircle
                       cx="140" cy="140" r={112}
                       stroke="url(#premiumArcGrad)"
@@ -2064,7 +2076,7 @@ export default function DashboardScreen({ user = { name: 'Alex' }, onSelectTab, 
             <View style={styles.modalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Text style={{ fontSize: 20 }}>✨</Text>
-                <Text style={styles.modalSheetTitle}>Branco</Text>
+                <Text style={styles.modalSheetTitle}>Nia</Text>
               </View>
               <TouchableOpacity onPress={() => setAiCoachVisible(false)}>
                 <Text style={styles.modalCloseBtn}>✕</Text>
@@ -2074,7 +2086,7 @@ export default function DashboardScreen({ user = { name: 'Alex' }, onSelectTab, 
             <ScrollView showsVerticalScrollIndicator={false} style={{ marginVertical: 12 }}>
               <View style={styles.chatBubbleAi}>
                 <Text style={styles.chatTextAi}>
-                  Hello {user.name || 'Alex'}! 👋 I'm Branco, your study companion. What would you like to master today?
+                  Hello {user.name || 'Alex'}! 👋 I'm Nia, your study companion. What would you like to master today?
                 </Text>
               </View>
 
@@ -2105,6 +2117,15 @@ export default function DashboardScreen({ user = { name: 'Alex' }, onSelectTab, 
         </View>
       </Modal>
 
+      <AiOfflineModal
+        visible={offlineModalVisible}
+        onClose={() => setOfflineModalVisible(false)}
+        onGoToOfflineStudy={() => {
+          setOfflineModalVisible(false);
+          if (onNavigate) onNavigate('study');
+          else if (onSelectTab) onSelectTab('study');
+        }}
+      />
     </SafeAreaView>
   );
 }

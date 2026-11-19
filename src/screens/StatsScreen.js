@@ -1,7 +1,7 @@
 // src/screens/StatsScreen.js
 // StudPal Full-Screen Personal Study Analytics Dashboard (Stats Tab)
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,9 @@ import {
   StyleSheet,
   Share,
   Image,
+  Animated,
+  Easing,
+  Dimensions,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
@@ -78,6 +81,82 @@ export default function StatsScreen({ user, settings, onSelectTab, onNavigate })
   const { daily, weekly, monthly, consistency, subjectMetrics, insights } = metricsState;
   const studyTime = goalMetricsService.getStudyTimeMetrics(selectedPeriod);
   const barChartData = goalMetricsService.getBreakdownDataForPeriod(selectedPeriod);
+
+  // Viewport & Scroll Tracking for All Charts and Metrics Cards
+  const [visibleSections, setVisibleSections] = useState({
+    todayProgress: true,
+    weeklyActivity: false,
+    progressTrend: false,
+    subjectPerformance: false,
+    goalBreakdown: false,
+    consistency: false,
+    examReadiness: false,
+    nextMilestone: false,
+  });
+  const sectionLayoutsRef = useRef({});
+  const viewportHeightRef = useRef(Dimensions.get("window").height);
+  const lastScrollYRef = useRef(0);
+
+  const checkSectionsVisibility = (scrollY = lastScrollYRef.current, vpHeight = viewportHeightRef.current) => {
+    const screenTop = scrollY;
+    const screenBottom = scrollY + vpHeight;
+    const layouts = sectionLayoutsRef.current;
+
+    setVisibleSections((prev) => {
+      let changed = false;
+      const next = { ...prev };
+
+      for (const key of Object.keys(layouts)) {
+        const layout = layouts[key];
+        if (!layout || layout.height <= 0) continue;
+
+        const itemTop = layout.y;
+        const itemBottom = layout.y + layout.height;
+        // In view when at least 45px has entered from bottom and hasn't completely scrolled off top
+        const inView = (screenBottom >= itemTop + 45) && (screenTop <= itemBottom - 20);
+
+        if (next[key] !== inView) {
+          next[key] = inView;
+          changed = true;
+        }
+      }
+
+      return changed ? next : prev;
+    });
+  };
+
+  const registerSectionLayout = (key, event) => {
+    const { y, height } = event.nativeEvent.layout;
+    sectionLayoutsRef.current[key] = { y, height };
+    checkSectionsVisibility(lastScrollYRef.current);
+  };
+
+  const isWeeklyChartVisible = !!visibleSections.weeklyActivity;
+
+  // Synchronized weekly summary progress bar animation
+  const summaryWidthAnim = useRef(new Animated.Value(0)).current;
+  const targetSummaryPct =
+    selectedPeriod === "Month"
+      ? 82
+      : selectedPeriod === "3 Months"
+      ? 79
+      : weekly.completionPercentage || 0;
+
+  useEffect(() => {
+    if (!isWeeklyChartVisible) {
+      summaryWidthAnim.stopAnimation();
+      summaryWidthAnim.setValue(0);
+      return;
+    }
+    summaryWidthAnim.setValue(0);
+    Animated.timing(summaryWidthAnim, {
+      toValue: targetSummaryPct,
+      duration: 1100,
+      delay: 200,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [isWeeklyChartVisible, targetSummaryPct]);
 
   const handleNavSelect = (tab) => {
     if (tab === "home") {
@@ -180,6 +259,21 @@ export default function StatsScreen({ user, settings, onSelectTab, onNavigate })
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           bounces
+          scrollEventThrottle={16}
+          onLayout={(e) => {
+            const h = e.nativeEvent.layout.height;
+            if (h > 0) {
+              viewportHeightRef.current = h;
+              checkSectionsVisibility(lastScrollYRef.current, h);
+            }
+          }}
+          onScroll={(e) => {
+            const currentY = e.nativeEvent.contentOffset.y;
+            const vpHeight = e.nativeEvent.layoutMeasurement.height || viewportHeightRef.current;
+            viewportHeightRef.current = vpHeight;
+            lastScrollYRef.current = currentY;
+            checkSectionsVisibility(currentY, vpHeight);
+          }}
         >
 
           {/* ── Total Study Time Card (Ultra-Premium Active Study Time) ── */}
@@ -301,7 +395,10 @@ export default function StatsScreen({ user, settings, onSelectTab, onNavigate })
           </View>
 
           {/* Section 1: Today's Progress */}
-          <View style={[styles.sectionCard, { backgroundColor: C.card, borderColor: C.border }]}>
+          <View
+            onLayout={(e) => registerSectionLayout("todayProgress", e)}
+            style={[styles.sectionCard, { backgroundColor: C.card, borderColor: C.border }]}
+          >
             <View style={styles.sectionHeaderRow}>
               <View>
                 <Text style={styles.sectionPretitle}>{t("stats.dailyAnalytics", "DAILY ANALYTICS")}</Text>
@@ -321,11 +418,12 @@ export default function StatsScreen({ user, settings, onSelectTab, onNavigate })
               remainingCount={daily.remainingGoals}
               hasGoals={daily.hasGoals}
               size={210}
+              isVisible={visibleSections.todayProgress}
             />
           </View>
 
           {/* Section 2: Timeframe Breakdown (Week / Month / 3 Months) */}
-          <View style={[styles.sectionCard, { backgroundColor: C.card, borderColor: C.border }]}>
+          <View onLayout={(e) => registerSectionLayout("weeklyActivity", e)} style={[styles.sectionCard, { backgroundColor: C.card, borderColor: C.border }]}>
             <View style={styles.sectionHeaderRow}>
               <View>
                 <Text style={styles.sectionPretitle}>
@@ -344,7 +442,7 @@ export default function StatsScreen({ user, settings, onSelectTab, onNavigate })
               </View>
             </View>
 
-            <WeeklyGoalBarChart dailyData={barChartData} height={190} />
+            <WeeklyGoalBarChart dailyData={barChartData} height={190} isVisible={visibleSections.weeklyActivity} />
 
             <View style={[styles.weeklySummaryBox, { backgroundColor: isDark ? "#111827" : "#F8FAFC", borderColor: C.border }]}>
               <View style={styles.summaryHeader}>
@@ -356,7 +454,7 @@ export default function StatsScreen({ user, settings, onSelectTab, onNavigate })
                 </Text>
               </View>
               <View style={styles.summaryTrackBg}>
-                <View style={[styles.summaryTrackFill, { width: selectedPeriod === "Month" ? "82%" : selectedPeriod === "3 Months" ? "79%" : `${weekly.completionPercentage}%` }]} />
+                <Animated.View style={[styles.summaryTrackFill, { width: summaryWidthAnim.interpolate({ inputRange: [0, 100], outputRange: ["0%", "100%"] }) }]} />
               </View>
               <Text style={[styles.summarySubtext, { color: C.textSecondary }]}>
                 {selectedPeriod === "Month" ? `${studyTime.goalsCount} goals completed this month` : selectedPeriod === "3 Months" ? `${studyTime.goalsCount} goals completed over 3 months` : `${weekly.totalCompleted} / ${weekly.totalPlanned} goals completed`}
@@ -365,7 +463,10 @@ export default function StatsScreen({ user, settings, onSelectTab, onNavigate })
           </View>
 
           {/* Section 3: Progress Trend */}
-          <View style={[styles.sectionCard, { backgroundColor: C.card, borderColor: C.border }]}>
+          <View
+            onLayout={(e) => registerSectionLayout("progressTrend", e)}
+            style={[styles.sectionCard, { backgroundColor: C.card, borderColor: C.border }]}
+          >
             <View style={styles.sectionHeaderRow}>
               <View>
                 <Text style={styles.sectionPretitle}>LONG TERM TREND</Text>
@@ -373,11 +474,14 @@ export default function StatsScreen({ user, settings, onSelectTab, onNavigate })
                 <Text style={[styles.sectionSubtitle, { color: C.textSecondary }]}>Your goal completion over time.</Text>
               </View>
             </View>
-            <ProgressTrendChart period={selectedPeriod} height={175} />
+            <ProgressTrendChart period={selectedPeriod} height={175} isVisible={visibleSections.progressTrend} />
           </View>
 
           {/* Section 4: Subject Performance */}
-          <View style={[styles.sectionCard, { backgroundColor: C.card, borderColor: C.border }]}>
+          <View
+            onLayout={(e) => registerSectionLayout("subjectPerformance", e)}
+            style={[styles.sectionCard, { backgroundColor: C.card, borderColor: C.border }]}
+          >
             <View style={styles.sectionHeaderRow}>
               <View>
                 <Text style={styles.sectionPretitle}>SUBJECT ANALYTICS</Text>
@@ -385,11 +489,18 @@ export default function StatsScreen({ user, settings, onSelectTab, onNavigate })
                 <Text style={[styles.sectionSubtitle, { color: C.textSecondary }]}>Tap a subject for detailed analytics.</Text>
               </View>
             </View>
-            <SubjectPerformanceChart subjectsData={subjectMetrics} onSelectSubject={handleOpenSubjectModal} />
+            <SubjectPerformanceChart
+              subjectsData={subjectMetrics}
+              onSelectSubject={handleOpenSubjectModal}
+              isVisible={visibleSections.subjectPerformance}
+            />
           </View>
 
           {/* Section 5: Goal Composition Breakdown */}
-          <View style={[styles.sectionCard, { backgroundColor: C.card, borderColor: C.border }]}>
+          <View
+            onLayout={(e) => registerSectionLayout("goalBreakdown", e)}
+            style={[styles.sectionCard, { backgroundColor: C.card, borderColor: C.border }]}
+          >
             <Text style={styles.sectionPretitle}>COMPOSITION</Text>
             <Text style={[styles.sectionTitle, { color: C.textPrimary }]}>Goal Breakdown</Text>
             <GoalBreakdownDonut
@@ -398,11 +509,15 @@ export default function StatsScreen({ user, settings, onSelectTab, onNavigate })
               total={monthly.totalPlanned}
               percentage={monthly.completionPercentage}
               size={160}
+              isVisible={visibleSections.goalBreakdown}
             />
           </View>
 
           {/* Section 6: Study Consistency */}
-          <View style={[styles.sectionCard, { backgroundColor: C.card, borderColor: C.border }]}>
+          <View
+            onLayout={(e) => registerSectionLayout("consistency", e)}
+            style={[styles.sectionCard, { backgroundColor: C.card, borderColor: C.border }]}
+          >
             <Text style={styles.sectionPretitle}>RELIABILITY</Text>
             <Text style={[styles.sectionTitle, { color: C.textPrimary }]}>Study Consistency</Text>
             <ConsistencyRing
@@ -410,6 +525,7 @@ export default function StatsScreen({ user, settings, onSelectTab, onNavigate })
               successfulDays={consistency.successfulDays}
               activeDays={consistency.activeDays}
               size={150}
+              isVisible={visibleSections.consistency}
             />
           </View>
 
@@ -421,14 +537,30 @@ export default function StatsScreen({ user, settings, onSelectTab, onNavigate })
           </View>
 
           {/* Section 8: Exam Readiness */}
-          <View style={[styles.sectionCard, { backgroundColor: C.card, borderColor: C.border }]}>
+          <View
+            onLayout={(e) => registerSectionLayout("examReadiness", e)}
+            style={[styles.sectionCard, { backgroundColor: C.card, borderColor: C.border }]}
+          >
             <Text style={styles.sectionPretitle}>PREPARATION INDEX</Text>
             <Text style={[styles.sectionTitle, { color: C.textPrimary }]}>Exam Readiness</Text>
-            <ExamReadinessCard overallScore={72} masteryPct={70} goalPct={80} revisionPct={65} />
+            <ExamReadinessCard
+              overallScore={72}
+              masteryPct={70}
+              goalPct={80}
+              revisionPct={65}
+              isVisible={visibleSections.examReadiness}
+            />
           </View>
 
           {/* Section 9: Next Milestone */}
-          <NextMilestoneCard title="100 Goals Completed" currentCount={monthly.totalCompleted} targetCount={100} />
+          <View onLayout={(e) => registerSectionLayout("nextMilestone", e)}>
+            <NextMilestoneCard
+              title="100 Goals Completed"
+              currentCount={monthly.totalCompleted}
+              targetCount={100}
+              isVisible={visibleSections.nextMilestone}
+            />
+          </View>
 
           {/* Share Action Button */}
           <TouchableOpacity style={styles.shareBtn} onPress={handleShare} activeOpacity={0.88}>

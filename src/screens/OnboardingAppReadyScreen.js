@@ -260,14 +260,14 @@ export default function OnboardingAppReadyScreen({
               </View>
 
               {/* 1. Overall Progress Section */}
-              <View style={[styles.overallProgressBox, { backgroundColor: isDark ? '#1E293B' : '#FAFCFF', borderColor: theme.border }]}>
+              <View style={[styles.overallProgressBox, { backgroundColor: isDark ? '#141C2E' : '#FAFCFF', borderColor: theme.border }]}>
                 <Text style={[styles.sectionHeaderTitle, { color: theme.textPrimary }]}>Overall Progress</Text>
                 <View style={styles.progressRow}>
                   <MiniProgressDonut percent={68} size={46} />
                   <View style={styles.progressRightCol}>
                     <Text style={[styles.progressSubjectCount, { color: theme.textPrimary }]}>3 of 5 subjects</Text>
                     {/* Linear Bar */}
-                    <View style={[styles.progressBarTrack, { backgroundColor: isDark ? '#334155' : '#E2E8F0' }]}>
+                    <View style={[styles.progressBarTrack, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : '#E2E8F0' }]}>
                       <View style={[styles.progressBarFill, { width: '68%' }]} />
                     </View>
                     <View style={styles.statusRow}>
@@ -286,7 +286,7 @@ export default function OnboardingAppReadyScreen({
                 </View>
                 <View style={styles.subjectsGrid}>
                   {displaySubjects.map((subj, idx) => (
-                    <View key={idx} style={[styles.subjectTile, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF', borderColor: theme.border }]}>
+                    <View key={idx} style={[styles.subjectTile, { backgroundColor: isDark ? '#141C2E' : '#FFFFFF', borderColor: theme.border }]}>
                       <View style={[styles.subjectIconBox, { backgroundColor: subj.iconBg }]}>
                         <Text style={{ fontSize: 11 }}>{subj.emoji}</Text>
                       </View>
@@ -308,9 +308,9 @@ export default function OnboardingAppReadyScreen({
                   <Text style={styles.viewAllText}>View all</Text>
                 </View>
 
-                <View style={[styles.sessionItem, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}>
+                <View style={[styles.sessionItem, { backgroundColor: isDark ? '#141C2E' : '#FFFFFF' }]}>
                   <Text style={[styles.sessionTime, { color: theme.textSecondary }]}>10:00 AM</Text>
-                  <View style={[styles.sessionIconBox, { backgroundColor: '#EFF6FF' }]}>
+                  <View style={[styles.sessionIconBox, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#EFF6FF' }]}>
                     <Text style={{ fontSize: 10 }}>📐</Text>
                   </View>
                   <View style={{ flex: 1 }}>
@@ -320,9 +320,9 @@ export default function OnboardingAppReadyScreen({
                   <ChevronRight size={12} color={theme.textSecondary} />
                 </View>
 
-                <View style={[styles.sessionItem, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}>
+                <View style={[styles.sessionItem, { backgroundColor: isDark ? '#141C2E' : '#FFFFFF' }]}>
                   <Text style={[styles.sessionTime, { color: theme.textSecondary }]}>2:00 PM</Text>
-                  <View style={[styles.sessionIconBox, { backgroundColor: '#F5F3FF' }]}>
+                  <View style={[styles.sessionIconBox, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#F5F3FF' }]}>
                     <Text style={{ fontSize: 10 }}>⚛️</Text>
                   </View>
                   <View style={{ flex: 1 }}>
@@ -332,9 +332,9 @@ export default function OnboardingAppReadyScreen({
                   <ChevronRight size={12} color={theme.textSecondary} />
                 </View>
 
-                <View style={[styles.sessionItem, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}>
+                <View style={[styles.sessionItem, { backgroundColor: isDark ? '#141C2E' : '#FFFFFF' }]}>
                   <Text style={[styles.sessionTime, { color: theme.textSecondary }]}>6:00 PM</Text>
-                  <View style={[styles.sessionIconBox, { backgroundColor: '#F0FDF4' }]}>
+                  <View style={[styles.sessionIconBox, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#F0FDF4' }]}>
                     <Text style={{ fontSize: 10 }}>🧪</Text>
                   </View>
                   <View style={{ flex: 1 }}>
@@ -346,14 +346,14 @@ export default function OnboardingAppReadyScreen({
               </View>
 
               {/* 4. Goal Progress Card */}
-              <View style={[styles.goalProgressCard, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC', borderColor: theme.border }]}>
+              <View style={[styles.goalProgressCard, { backgroundColor: isDark ? '#141C2E' : '#F8FAFC', borderColor: theme.border }]}>
                 <View style={styles.goalIconCircle}>
                   <TargetIcon size={14} color="#2563EB" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.goalTitle, { color: theme.textPrimary }]}>Goal Progress</Text>
                   <Text style={[styles.goalSub, { color: theme.textSecondary }]}>A+ in all subjects</Text>
-                  <View style={[styles.goalBarTrack, { backgroundColor: isDark ? '#334155' : '#E2E8F0' }]}>
+                  <View style={[styles.goalBarTrack, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : '#E2E8F0' }]}>
                     <View style={[styles.goalBarFill, { width: '60%' }]} />
                   </View>
                 </View>

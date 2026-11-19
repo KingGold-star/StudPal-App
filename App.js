@@ -1,46 +1,24 @@
 import React, { useState, useEffect, Component } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, StatusBar, Platform, ScrollView, BackHandler } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, StatusBar, Platform, ScrollView, BackHandler, Alert, Linking } from 'react-native';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 
-import OnboardingScreen from './src/screens/OnboardingScreen';
 import OnboardingQuestionsScreen from './src/screens/OnboardingQuestionsScreen';
 import OnboardingValueScreen from './src/screens/OnboardingValueScreen';
 import AppLockPreviewScreen from './src/screens/AppLockPreviewScreen';
-import OnboardingPartnerScreen from './src/screens/OnboardingPartnerScreen';
-import OnboardingNameScreen from './src/screens/OnboardingNameScreen';
 import OnboardingGoalScreen from './src/screens/OnboardingGoalScreen';
-import OnboardingConsiderScreen from './src/screens/OnboardingConsiderScreen';
-import OnboardingPhoneTimeScreen from './src/screens/OnboardingPhoneTimeScreen';
-import OnboardingTargetScreen from './src/screens/OnboardingTargetScreen';
-import OnboardingCalculationScreen from './src/screens/OnboardingCalculationScreen';
-import OnboardingPlanOfferScreen from './src/screens/OnboardingPlanOfferScreen';
 import OnboardingSubjectsScreen from './src/screens/OnboardingSubjectsScreen';
-import OnboardingConfidenceScreen from './src/screens/OnboardingConfidenceScreen';
-import OnboardingDailyStudyTimeScreen from './src/screens/OnboardingDailyStudyTimeScreen';
-import OnboardingStudyDaysScreen from './src/screens/OnboardingStudyDaysScreen';
-import OnboardingSessionLengthScreen from './src/screens/OnboardingSessionLengthScreen';
-import OnboardingStudyTimeOfDayScreen from './src/screens/OnboardingStudyTimeOfDayScreen';
-import OnboardingPlanSummaryScreen from './src/screens/OnboardingPlanSummaryScreen';
+import OnboardingStudyRoutineScreen from './src/screens/OnboardingStudyRoutineScreen';
+import OnboardingTargetScreen from './src/screens/OnboardingTargetScreen';
+import OnboardingPomodoroScreen from './src/screens/OnboardingPomodoroScreen';
 import OnboardingSystemBuildingScreen from './src/screens/OnboardingSystemBuildingScreen';
-import OnboardingFirstSessionIntroScreen from './src/screens/OnboardingFirstSessionIntroScreen';
-import OnboardingFirstSessionQuizScreen from './src/screens/OnboardingFirstSessionQuizScreen';
-import OnboardingFirstSessionMetricsScreen from './src/screens/OnboardingFirstSessionMetricsScreen';
-import OnboardingFirstSessionRewardScreen from './src/screens/OnboardingFirstSessionRewardScreen';
-import OnboardingSessionFeedbackScreen from './src/screens/OnboardingSessionFeedbackScreen';
 import OnboardingStudyPlanDetailsScreen from './src/screens/OnboardingStudyPlanDetailsScreen';
-import OnboardingFirstMilestoneScreen from './src/screens/OnboardingFirstMilestoneScreen';
-import OnboardingBuiltSummaryScreen from './src/screens/OnboardingBuiltSummaryScreen';
-import OnboardingSeriousnessLevelScreen from './src/screens/OnboardingSeriousnessLevelScreen';
 import OnboardingMakeItRealScreen from './src/screens/OnboardingMakeItRealScreen';
-import OnboardingReminderPermissionScreen from './src/screens/OnboardingReminderPermissionScreen';
 import OnboardingHearAboutUsScreen from './src/screens/OnboardingHearAboutUsScreen';
 import OnboardingStudyProtectionScreen from './src/screens/OnboardingStudyProtectionScreen';
 import OnboardingPowerBuiltScreen from './src/screens/OnboardingPowerBuiltScreen';
-import OnboardingSevenDayRoadmapScreen from './src/screens/OnboardingSevenDayRoadmapScreen';
 import OnboardingTrialReminderScreen from './src/screens/OnboardingTrialReminderScreen';
 import OnboardingPaywallScreen from './src/screens/OnboardingPaywallScreen';
-import OnboardingSaveAccountScreen from './src/screens/OnboardingSaveAccountScreen';
 import OnboardingCreateAccountScreen from './src/screens/OnboardingCreateAccountScreen';
 import OnboardingAppReadyScreen from './src/screens/OnboardingAppReadyScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
@@ -61,12 +39,23 @@ import { Colors } from './src/theme/colors';
 import { gamificationService } from './src/services/gamification/gamificationService';
 import { settingsService } from './src/services/settings/settingsService';
 import { studyService } from './src/services/studyService';
+import { timetableService } from './src/services/timetable';
 import LevelUpModal from './src/components/LevelUpModal';
 import BottomNavBar from './src/components/BottomNavBar';
 import { ipLocationService } from './src/services/ipLocationService';
 import { ThemeProvider, useTheme } from './src/theme/themeContext';
 import { TooltipProvider } from './src/context/TooltipContext';
 import TooltipTouchable from './src/components/TooltipTouchable';
+import {
+  authService,
+  profileService,
+  gamificationSupabaseService,
+  studySupabaseService,
+  settingsSupabaseService,
+  isSupabaseConfigured,
+} from './src/services/supabase';
+import { offlineSyncService } from './src/services/offlineSyncService';
+import { networkService } from './src/services/networkService';
 
 // Hide all web scrollbars globally and ensure full-height container with universal button bounce
 if (Platform.OS === 'web' && typeof document !== 'undefined') {
@@ -98,6 +87,21 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
         outline: none !important;
         border-style: none !important;
         border-width: 0px !important;
+        background-color: transparent !important;
+      }
+      /* Clean universal autofill override to eliminate abnormal browser blue/yellow boxes */
+      input:-webkit-autofill,
+      input:-webkit-autofill:hover,
+      input:-webkit-autofill:focus,
+      input:-webkit-autofill:active,
+      textarea:-webkit-autofill,
+      textarea:-webkit-autofill:hover,
+      textarea:-webkit-autofill:focus,
+      textarea:-webkit-autofill:active {
+        -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+        box-shadow: 0 0 0 1000px #ffffff inset !important;
+        -webkit-text-fill-color: #0F172A !important;
+        transition: background-color 5000000s ease-in-out 0s !important;
       }
 
       /* Screen backgrounds and full layout containers MUST NEVER bounce or scale */
@@ -220,10 +224,10 @@ class ErrorBoundary extends Component {
 function AppContent() {
   const { isDark, colors, settings: appSettings } = useTheme();
 
-  // Navigation State: 'onboarding', 'dashboard', 'subjects', 'aicoach', etc.
-  const [currentRoute, setCurrentRoute] = useState('onboarding');
+  // Navigation State: 'onboarding-problem', 'dashboard', 'subjects', 'aicoach', etc.
+  const [currentRoute, setCurrentRoute] = useState('onboarding-problem');
   const [onboardingData, setOnboardingData] = useState({
-    name: '',
+    name: 'Alex',
     goal: null,
     phoneTime: '4–5 hours',
     targetData: { label: 'In 3 months', days: 90 },
@@ -231,9 +235,19 @@ function AppContent() {
     focusSubject: 'Mathematics',
     confidence: 'I understand the basics',
     dailyStudyTime: '1–2 hours',
-    studyDays: ['mon', 'wed', 'fri', 'sat'],
+    studyDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
     sessionLength: '45 min',
-    studyTimeOfDay: 'afternoon',
+    studyTime: 'night',
+    studyTimeOfDay: 'night',
+    usePomodoro: true,
+    learningPreferences: {
+      personalizedStudyPlans: true,
+      advancedSpacedRepetition: true,
+      aiStudyCompanion: true,
+      practiceQuizzes: true,
+      studyCommunity: true,
+      progressInsights: true,
+    },
   });
   const [user, setUser] = useState({
     name: 'Alex',
@@ -273,13 +287,178 @@ function AppContent() {
     };
   }, []);
 
+  // Supabase Auth and Session Synchronization
+  useEffect(() => {
+    let mounted = true;
+
+    async function checkInitialSupabaseSession() {
+      try {
+        // 1. Immediately hydrate local cached profile and onboarding if available (100% offline-ready)
+        const cachedProfile = await offlineSyncService.getCachedLocalProfile();
+        if (cachedProfile && mounted) {
+          setUser((prev) => ({
+            ...prev,
+            ...cachedProfile,
+          }));
+          setCurrentRoute('dashboard');
+          setNavHistory(['dashboard']);
+        }
+
+        const cachedOnboarding = await offlineSyncService.getCachedLocalOnboarding();
+        if (cachedOnboarding && mounted) {
+          setOnboardingData((prev) => ({
+            ...prev,
+            ...cachedOnboarding,
+          }));
+        }
+
+        // 2. If offline, don't stall on network requests
+        if (!networkService.isOnline()) {
+          console.log('[App] Operating offline, initialized from local cache.');
+          return;
+        }
+
+        // 3. Online: sync session and profile from Supabase
+        const { data } = await authService.getSession();
+        const session = data?.session;
+        if (session?.user && mounted) {
+          const profile = await profileService.getProfile(session.user.id);
+          const updatedUser = {
+            id: session.user.id,
+            name: profile?.full_name || profile?.username || session.user.user_metadata?.full_name || session.user.user_metadata?.username || (cachedProfile?.name || 'Alex'),
+            email: session.user.email || cachedProfile?.email || '',
+            avatarUri: profile?.avatar_url || cachedProfile?.avatarUri || null,
+            avatarEmoji: profile?.avatar_emoji || cachedProfile?.avatarEmoji || '👨‍🎓',
+            country: profile?.country || cachedProfile?.country || 'Nigeria',
+            countryCode: profile?.country_code || cachedProfile?.countryCode || 'NG',
+            subjects: profile?.subjects || cachedProfile?.subjects || ['Mathematics', 'Economics', 'Computer Science'],
+            enrolledSubjectIds: profile?.subjects || cachedProfile?.enrolledSubjectIds || ['Mathematics', 'Economics', 'Computer Science'],
+          };
+          setUser((prev) => ({
+            ...prev,
+            ...updatedUser,
+          }));
+          await offlineSyncService.cacheLocalProfile(updatedUser);
+
+          const remoteOnboarding = await profileService.getOnboardingData(session.user.id);
+          if (remoteOnboarding && mounted) {
+            const updatedOnboarding = {
+              name: remoteOnboarding.name || cachedOnboarding?.name || 'Alex',
+              goal: remoteOnboarding.goal || cachedOnboarding?.goal || '',
+              subjects: remoteOnboarding.subjects || cachedOnboarding?.subjects || ['Mathematics', 'Economics', 'Computer Science'],
+            };
+            setOnboardingData((prev) => ({
+              ...prev,
+              ...updatedOnboarding,
+            }));
+            await offlineSyncService.cacheLocalOnboarding(updatedOnboarding);
+          }
+
+          const remoteSettings = await settingsSupabaseService.getUserSettings(session.user.id);
+          if (remoteSettings) {
+            settingsService.updateSettings(remoteSettings);
+          }
+
+          // Trigger queue processing for any pending offline actions
+          offlineSyncService.processQueue().catch(() => {});
+
+          setCurrentRoute('dashboard');
+          setNavHistory(['dashboard']);
+        }
+      } catch (err) {
+        console.warn('[App] Supabase session check notice:', err);
+      }
+    }
+
+    checkInitialSupabaseSession();
+
+    const { data: authSub } = authService.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_OUT' && mounted) {
+        setUser({
+          name: 'Alex',
+          email: '',
+          avatarUri: null,
+          avatarEmoji: '👨‍🎓',
+          country: 'Nigeria',
+          countryCode: ipLocationService.getCountryCode() || 'NG',
+          subjects: ['Mathematics', 'Economics', 'Computer Science'],
+          enrolledSubjectIds: ['Mathematics', 'Economics', 'Computer Science'],
+        });
+        setCurrentRoute('onboarding-create-account');
+        setCreateAccountMode('login');
+      } else if (event === 'SIGNED_IN' && session?.user && mounted) {
+        const profile = await profileService.getProfile(session.user.id);
+        const signedInUser = {
+          id: session.user.id,
+          name: profile?.full_name || profile?.username || session.user.user_metadata?.full_name || 'Alex',
+          email: session.user.email || '',
+          avatarUri: profile?.avatar_url || null,
+          avatarEmoji: profile?.avatar_emoji || '👨‍🎓',
+          country: profile?.country || 'Nigeria',
+          countryCode: profile?.country_code || 'NG',
+        };
+        setUser((prev) => ({
+          ...prev,
+          ...signedInUser,
+        }));
+        await offlineSyncService.cacheLocalProfile(signedInUser);
+        offlineSyncService.processQueue().catch(() => {});
+        setCurrentRoute('dashboard');
+        setNavHistory(['dashboard']);
+      }
+    });
+
+    // Deep linking for mobile OAuth redirect callbacks
+    let linkingSub = null;
+    if (Platform.OS !== 'web') {
+      Linking.getInitialURL().then((url) => {
+        if (url) authService.handleOpenUrl(url);
+      }).catch(() => {});
+      linkingSub = Linking.addEventListener('url', ({ url }) => {
+        if (url) authService.handleOpenUrl(url);
+      });
+    }
+
+    return () => {
+      mounted = false;
+      if (authSub?.subscription?.unsubscribe) {
+        authSub.subscription.unsubscribe();
+      }
+      if (linkingSub?.remove) {
+        linkingSub.remove();
+      }
+    };
+  }, []);
+
   const handleCloseLevelUpModal = () => {
     setPendingLevelUp(null);
     gamificationService.clearPendingLevelUp();
   };
 
   const handleUpdateUser = (updatedFields) => {
-    setUser((prev) => ({ ...prev, ...updatedFields }));
+    setUser((prev) => {
+      const next = { ...prev, ...updatedFields };
+      // Cache locally immediately (100% offline)
+      offlineSyncService.cacheLocalProfile(next);
+
+      if (next.id) {
+        const profilePayload = {
+          full_name: next.name,
+          avatar_url: next.avatarUri,
+          avatar_emoji: next.avatarEmoji,
+          country: next.country,
+          country_code: next.countryCode,
+        };
+
+        if (networkService.isOnline()) {
+          profileService.updateProfile(next.id, profilePayload);
+        } else {
+          // Enqueue for background sync when connection is restored
+          offlineSyncService.enqueueAction('PROFILE_UPDATE', profilePayload);
+        }
+      }
+      return next;
+    });
   };
 
   const [aiInitialPrompt, setAiInitialPrompt] = useState(null);
@@ -288,8 +467,12 @@ function AppContent() {
   const [aiCoachShowHistory, setAiCoachShowHistory] = useState(false);
   const [studyViewState, setStudyViewState] = useState('overview');
 
-
   const handleNavigate = (route, params = null) => {
+    if (route === 'auth') {
+      setCreateAccountMode('login');
+      setCurrentRoute('onboarding-create-account');
+      return;
+    }
     if (route === 'aicoach' && params) {
       setAiInitialPrompt(params);
     }
@@ -356,151 +539,55 @@ function AppContent() {
       }
 
       // 4. Handle onboarding sequence back steps
-      if (currentRoute === 'onboarding-app-ready') {
-        setCurrentRoute('onboarding-create-account');
-        return true;
-      }
-      if (currentRoute === 'onboarding-create-account') {
-        setCurrentRoute('onboarding-save-account');
-        return true;
-      }
-      if (currentRoute === 'onboarding-save-account') {
-        setCurrentRoute('onboarding-paywall');
-        return true;
-      }
       if (currentRoute === 'onboarding-paywall') {
         setCurrentRoute('onboarding-trial-reminder');
         return true;
       }
       if (currentRoute === 'onboarding-trial-reminder') {
-        setCurrentRoute('onboarding-7day-roadmap');
-        return true;
-      }
-      if (currentRoute === 'onboarding-7day-roadmap') {
-        setCurrentRoute('onboarding-power-built');
-        return true;
-      }
-      if (currentRoute === 'onboarding-power-built') {
         setCurrentRoute('onboarding-study-protection');
         return true;
       }
       if (currentRoute === 'onboarding-study-protection') {
-        setCurrentRoute('onboarding-reminder-permission');
-        return true;
-      }
-      if (currentRoute === 'onboarding-reminder-permission') {
         setCurrentRoute('onboarding-make-it-real');
         return true;
       }
       if (currentRoute === 'onboarding-make-it-real') {
-        setCurrentRoute('onboarding-seriousness-level');
-        return true;
-      }
-      if (currentRoute === 'onboarding-seriousness-level') {
-        setCurrentRoute('onboarding-built-summary');
-        return true;
-      }
-      if (currentRoute === 'onboarding-built-summary') {
-        setCurrentRoute('onboarding-first-milestone');
-        return true;
-      }
-      if (currentRoute === 'onboarding-first-milestone') {
-        setCurrentRoute('onboarding-study-plan-details');
-        return true;
-      }
-      if (currentRoute === 'onboarding-study-plan-details') {
-        setCurrentRoute('onboarding-session-feedback');
-        return true;
-      }
-      if (currentRoute === 'onboarding-session-feedback') {
-        setCurrentRoute('onboarding-first-session-reward');
-        return true;
-      }
-      if (currentRoute === 'onboarding-first-session-reward') {
-        setCurrentRoute('onboarding-first-session-metrics');
-        return true;
-      }
-      if (currentRoute === 'onboarding-first-session-metrics') {
-        setCurrentRoute('onboarding-first-session-quiz');
-        return true;
-      }
-      if (currentRoute === 'onboarding-first-session-quiz') {
-        setCurrentRoute('onboarding-first-session-intro');
-        return true;
-      }
-      if (currentRoute === 'onboarding-first-session-intro') {
         setCurrentRoute('onboarding-system-building');
         return true;
       }
       if (currentRoute === 'onboarding-system-building') {
-        setCurrentRoute('onboarding-plan-summary');
+        setCurrentRoute('onboarding-pomodoro');
         return true;
       }
-      if (currentRoute === 'onboarding-plan-summary') {
-        setCurrentRoute('onboarding-study-time-of-day');
-        return true;
-      }
-      if (currentRoute === 'onboarding-study-time-of-day') {
-        setCurrentRoute('onboarding-session-length');
-        return true;
-      }
-      if (currentRoute === 'onboarding-session-length') {
-        setCurrentRoute('onboarding-study-days');
-        return true;
-      }
-      if (currentRoute === 'onboarding-study-days') {
-        setCurrentRoute('onboarding-daily-study-time');
-        return true;
-      }
-      if (currentRoute === 'onboarding-daily-study-time') {
-        setCurrentRoute('onboarding-confidence');
-        return true;
-      }
-      if (currentRoute === 'onboarding-confidence') {
-        setCurrentRoute('onboarding-subjects');
-        return true;
-      }
-      if (currentRoute === 'onboarding-subjects') {
-        setCurrentRoute('onboarding-plan-offer');
-        return true;
-      }
-      if (currentRoute === 'onboarding-plan-offer') {
-        setCurrentRoute('onboarding-calculation');
-        return true;
-      }
-      if (currentRoute === 'onboarding-calculation') {
+      if (currentRoute === 'onboarding-pomodoro') {
         setCurrentRoute('onboarding-target');
         return true;
       }
       if (currentRoute === 'onboarding-target') {
-        setCurrentRoute('onboarding-phone-time');
+        setCurrentRoute('onboarding-study-routine');
         return true;
       }
-      if (currentRoute === 'onboarding-phone-time') {
-        setCurrentRoute('onboarding-consider');
+      if (currentRoute === 'onboarding-study-routine') {
+        setCurrentRoute('onboarding-subjects');
         return true;
       }
-      if (currentRoute === 'onboarding-consider') {
+      if (currentRoute === 'onboarding-subjects') {
         setCurrentRoute('onboarding-goal');
         return true;
       }
       if (currentRoute === 'onboarding-goal') {
-        setCurrentRoute('onboarding-name');
-        return true;
-      }
-      if (currentRoute === 'onboarding-name') {
-        setCurrentRoute('onboarding-partner');
-        return true;
-      }
-      if (currentRoute === 'onboarding-partner') {
-        setCurrentRoute('onboarding-lock');
-        return true;
-      }
-      if (currentRoute === 'onboarding-lock') {
         setCurrentRoute('onboarding-hear-about-us');
         return true;
       }
       if (currentRoute === 'onboarding-hear-about-us') {
+        setCurrentRoute('onboarding-create-account');
+        return true;
+      }
+      if (currentRoute === 'onboarding-create-account') {
+        setCurrentRoute('onboarding-lock');
+        return true;
+      }
+      if (currentRoute === 'onboarding-lock') {
         setCurrentRoute('onboarding-solution');
         return true;
       }
@@ -508,9 +595,8 @@ function AppContent() {
         setCurrentRoute('onboarding-problem');
         return true;
       }
-      if (currentRoute === 'onboarding-problem') {
-        setCurrentRoute('onboarding');
-        return true;
+      if (currentRoute === 'onboarding-problem' || currentRoute === 'onboarding') {
+        return false;
       }
 
       // 5. Navigate back in history stack if more than one screen visited
@@ -520,7 +606,7 @@ function AppContent() {
       }
 
       // 6. If on any non-dashboard screen (and not onboarding), return to dashboard
-      if (currentRoute !== 'dashboard' && currentRoute !== 'onboarding') {
+      if (currentRoute !== 'dashboard' && currentRoute !== 'onboarding' && currentRoute !== 'onboarding-problem') {
         setCurrentRoute('dashboard');
         setNavHistory(['dashboard']);
         return true;
@@ -564,13 +650,6 @@ function AppContent() {
   const renderScreen = () => {
     switch (currentRoute) {
       case 'onboarding':
-        return (
-          <OnboardingScreen
-            onContinue={() => {
-              setCurrentRoute('onboarding-problem');
-            }}
-          />
-        );
       case 'onboarding-problem':
         return (
           <OnboardingQuestionsScreen
@@ -583,8 +662,177 @@ function AppContent() {
         return (
           <OnboardingValueScreen
             onContinue={() => {
-              setCurrentRoute('onboarding-hear-about-us');
+              setCurrentRoute('onboarding-lock');
             }}
+          />
+        );
+      case 'onboarding-lock':
+        return (
+          <AppLockPreviewScreen
+            onContinue={() => {
+              setCurrentRoute('onboarding-create-account');
+            }}
+            onBack={() => setCurrentRoute('onboarding-solution')}
+          />
+        );
+      case 'onboarding-save-account':
+      case 'onboarding-create-account':
+        return (
+          <OnboardingCreateAccountScreen
+            initialMode={createAccountMode}
+            defaultFirstName={user.firstName || ''}
+            defaultLastName={user.lastName || ''}
+            defaultPhoneNumber={user.phoneNumber || ''}
+            defaultUsername={onboardingData.name || (user.name !== 'Alex' ? user.name : '')}
+            defaultEmail={user.email || ''}
+            onContinue={async (accData) => {
+              if (accData?.mode === 'signup') {
+                const preferredName = accData.firstName || accData.username || onboardingData.name || user.name;
+                const computedFullName = accData.fullName || (accData.firstName && accData.lastName ? `${accData.firstName} ${accData.lastName}` : (accData.username || onboardingData.name));
+                const signUpResult = await authService.signUp({
+                  email: accData.email,
+                  password: accData.password,
+                  username: accData.username,
+                  fullName: computedFullName,
+                  metadata: {
+                    firstName: accData.firstName,
+                    lastName: accData.lastName,
+                    fullName: computedFullName,
+                    phoneNumber: accData.phoneNumber,
+                    country: accData.countryCode || user.country,
+                    countryCode: accData.countryCode || user.countryCode,
+                  },
+                });
+
+                if (signUpResult.error && !accData?.forceOffline) {
+                  return { error: signUpResult.error };
+                }
+
+                const data = signUpResult.data;
+                const userId = data?.user?.id || 'local_user_' + Date.now();
+                const newUser = {
+                  ...user,
+                  id: userId,
+                  name: preferredName,
+                  firstName: accData?.firstName || user.firstName,
+                  lastName: accData?.lastName || user.lastName,
+                  phoneNumber: accData?.phoneNumber || user.phoneNumber,
+                  countryCode: accData?.countryCode || user.countryCode,
+                  username: accData?.username || user.username,
+                  email: accData?.email || user.email,
+                };
+                setUser(newUser);
+                await offlineSyncService.cacheLocalProfile(newUser);
+                await offlineSyncService.cacheLocalOnboarding({
+                  ...onboardingData,
+                  name: preferredName,
+                  firstName: accData.firstName,
+                  lastName: accData.lastName,
+                  phoneNumber: accData.phoneNumber,
+                  countryCode: accData.countryCode || user.countryCode,
+                });
+
+                if (userId && data?.session) {
+                  await profileService.saveOnboardingData(userId, {
+                    ...onboardingData,
+                    name: preferredName,
+                    firstName: accData.firstName,
+                    lastName: accData.lastName,
+                    phoneNumber: accData.phoneNumber,
+                  });
+                  await studySupabaseService.syncUserSubjects(
+                    userId,
+                    onboardingData.subjects || user.subjects
+                  );
+                  await gamificationSupabaseService.syncProgress(
+                    userId,
+                    gamificationService.getState()
+                  );
+                } else {
+                  // Enqueue sync for when the session is confirmed or back online
+                  offlineSyncService.enqueueAction('USER_SUBJECTS', onboardingData.subjects || user.subjects);
+                }
+
+                setCurrentRoute('onboarding-hear-about-us');
+                return {
+                  success: true,
+                  emailConfirmationPending: signUpResult.emailConfirmationPending,
+                  isLocalFallback: signUpResult.isLocalFallback,
+                };
+              } else {
+                // Login mode
+                const loginResult = await authService.signIn({
+                  email: accData.email,
+                  password: accData.password,
+                });
+
+                if (loginResult.error) {
+                  return { error: loginResult.error, isEmailNotConfirmed: loginResult.isEmailNotConfirmed };
+                }
+
+                const data = loginResult.data;
+                const userId = data?.user?.id;
+                if (userId) {
+                  let profile = null;
+                  if (data?.session) {
+                    profile = await profileService.getProfile(userId);
+                  }
+                  const loggedInUser = {
+                    ...user,
+                    id: userId,
+                    name: profile?.full_name || profile?.username || data.user.user_metadata?.full_name || data.user.user_metadata?.username || user.name,
+                    email: data.user.email || user.email,
+                    avatarUri: profile?.avatar_url || user.avatarUri,
+                    country: profile?.country || user.country,
+                  };
+                  setUser(loggedInUser);
+                  await offlineSyncService.cacheLocalProfile(loggedInUser);
+                  if (data?.session) {
+                    const remoteSettings = await settingsSupabaseService.getUserSettings(userId);
+                    if (remoteSettings) {
+                      settingsService.updateSettings(remoteSettings);
+                    }
+                  }
+                }
+
+                setCurrentRoute('dashboard');
+                setNavHistory(['dashboard']);
+                return { success: true };
+              }
+            }}
+            onGoogleSignIn={async () => {
+              const res = await authService.signInWithGoogle();
+              if (res?.error) {
+                const msg = res.error.message || 'Unable to start Google sign in.';
+                if (msg.includes('Unsupported provider') || msg.includes('not enabled')) {
+                  Alert.alert(
+                    'Google Sign-In',
+                    'Google sign-in is not yet enabled in your Supabase project.\n\nPlease enable the Google provider in your Supabase Dashboard:\nAuthentication → Providers → Google'
+                  );
+                } else {
+                  Alert.alert('Google Sign-In', msg);
+                }
+              } else {
+                setCurrentRoute('onboarding-hear-about-us');
+              }
+            }}
+            onAppleSignIn={async () => {
+              const res = await authService.signInWithApple();
+              if (res?.error) {
+                const msg = res.error.message || 'Unable to start Apple sign in.';
+                if (msg.includes('Unsupported provider') || msg.includes('not enabled')) {
+                  Alert.alert(
+                    'Apple Sign-In',
+                    'Apple sign-in is not yet enabled in your Supabase project.\n\nPlease enable the Apple provider in your Supabase Dashboard:\nAuthentication → Providers → Apple'
+                  );
+                } else {
+                  Alert.alert('Apple Sign-In', msg);
+                }
+              } else {
+                setCurrentRoute('onboarding-hear-about-us');
+              }
+            }}
+            onBack={() => setCurrentRoute('onboarding-lock')}
           />
         );
       case 'onboarding-hear-about-us':
@@ -593,496 +841,151 @@ function AppContent() {
             initialSelection={onboardingData.referralSource || 'youtube'}
             onContinue={(source) => {
               setOnboardingData((prev) => ({ ...prev, referralSource: source }));
-              setCurrentRoute('onboarding-lock');
+              setCurrentRoute('onboarding-goal');
             }}
-            onBack={() => setCurrentRoute('onboarding-solution')}
-          />
-        );
-      case 'onboarding-lock':
-        return (
-          <AppLockPreviewScreen
-            onContinue={() => {
-              setCurrentRoute('onboarding-partner');
-            }}
-            onBack={() => setCurrentRoute('onboarding-hear-about-us')}
+            onBack={() => setCurrentRoute('onboarding-create-account')}
           />
         );
       case 'onboarding-partner':
-        return (
-          <OnboardingPartnerScreen
-            onContinue={() => {
-              setCurrentRoute('onboarding-name');
-            }}
-            onBack={() => setCurrentRoute('onboarding-lock')}
-          />
-        );
       case 'onboarding-name':
-        return (
-          <OnboardingNameScreen
-            initialName={onboardingData.name || (user.name !== 'Alex' ? user.name : '')}
-            onContinue={(enteredName) => {
-              const cleanName = enteredName || 'friend';
-              setOnboardingData((prev) => ({ ...prev, name: cleanName }));
-              setUser((prev) => ({ ...prev, name: cleanName }));
-              setCurrentRoute('onboarding-goal');
-            }}
-            onBack={() => setCurrentRoute('onboarding-partner')}
-          />
-        );
       case 'onboarding-goal':
         return (
           <OnboardingGoalScreen
             onContinue={(goalData) => {
               setOnboardingData((prev) => ({ ...prev, goal: goalData }));
-              setCurrentRoute('onboarding-consider');
-            }}
-            onBack={() => setCurrentRoute('onboarding-name')}
-          />
-        );
-      case 'onboarding-consider':
-        return (
-          <OnboardingConsiderScreen
-            userName={onboardingData.name || user.name}
-            onContinue={() => {
-              setCurrentRoute('onboarding-phone-time');
-            }}
-            onBack={() => setCurrentRoute('onboarding-goal')}
-          />
-        );
-      case 'onboarding-phone-time':
-        return (
-          <OnboardingPhoneTimeScreen
-            initialValue={onboardingData.phoneTime || '4–5 hours'}
-            onContinue={(time) => {
-              setOnboardingData((prev) => ({ ...prev, phoneTime: time }));
-              setCurrentRoute('onboarding-target');
-            }}
-            onBack={() => setCurrentRoute('onboarding-consider')}
-          />
-        );
-      case 'onboarding-target':
-        return (
-          <OnboardingTargetScreen
-            initialValue={onboardingData.targetData?.label || 'In 3 months'}
-            onContinue={(targetObj) => {
-              setOnboardingData((prev) => ({ ...prev, targetData: targetObj }));
-              setCurrentRoute('onboarding-calculation');
-            }}
-            onBack={() => setCurrentRoute('onboarding-phone-time')}
-          />
-        );
-      case 'onboarding-calculation':
-        return (
-          <OnboardingCalculationScreen
-            userName={onboardingData.name || user.name}
-            phoneTime={onboardingData.phoneTime || '4–5 hours'}
-            targetData={onboardingData.targetData || { label: 'In 3 months', days: 90 }}
-            goal={onboardingData.goal}
-            onContinue={() => {
-              setCurrentRoute('onboarding-plan-offer');
-            }}
-            onBack={() => setCurrentRoute('onboarding-target')}
-          />
-        );
-      case 'onboarding-plan-offer':
-        return (
-          <OnboardingPlanOfferScreen
-            onContinue={() => {
               setCurrentRoute('onboarding-subjects');
             }}
-            onBack={() => setCurrentRoute('onboarding-calculation')}
+            onBack={() => setCurrentRoute('onboarding-hear-about-us')}
           />
         );
       case 'onboarding-subjects':
         return (
           <OnboardingSubjectsScreen
-            initialSelected={onboardingData.subjects}
-            onContinue={(selected) => {
-              const cleanSelected = Array.isArray(selected) && selected.length > 0 ? selected : ['Mathematics', 'Economics', 'Computer Science'];
+            initialSelected={onboardingData.subjects || ['Mathematics', 'English', 'Science']}
+            onContinue={(selectedSubjects) => {
               setOnboardingData((prev) => ({
                 ...prev,
-                subjects: cleanSelected,
-                focusSubject: cleanSelected[0],
+                subjects: selectedSubjects,
+                focusSubject: selectedSubjects[0] || 'Mathematics',
               }));
-              setUser((prev) => ({
-                ...prev,
-                subjects: cleanSelected,
-                enrolledSubjectIds: cleanSelected,
-              }));
-              studyService.syncUserSubjects(cleanSelected);
-              setCurrentRoute('onboarding-confidence');
+              studyService.syncUserSubjects(selectedSubjects);
+              setCurrentRoute('onboarding-study-routine');
             }}
-            onBack={() => setCurrentRoute('onboarding-plan-offer')}
+            onBack={() => setCurrentRoute('onboarding-goal')}
           />
         );
-      case 'onboarding-confidence': {
-        const currentSubject =
-          Array.isArray(onboardingData.subjects) && onboardingData.subjects.length > 0
-            ? onboardingData.subjects[0]
-            : 'Mathematics';
+      case 'onboarding-study-days':
+      case 'onboarding-study-time-of-day':
+      case 'onboarding-study-routine':
         return (
-          <OnboardingConfidenceScreen
-            subject={currentSubject}
-            initialConfidence={onboardingData.confidence}
-            onContinue={(conf) => {
+          <OnboardingStudyRoutineScreen
+            initialTime={onboardingData.studyTime || 'night'}
+            initialDays={onboardingData.studyDays || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']}
+            onContinue={(routineData) => {
               setOnboardingData((prev) => ({
                 ...prev,
-                confidence: conf,
-                focusSubject: currentSubject,
+                studyTime: routineData.availableTime,
+                studyDays: routineData.studyDays,
               }));
-              setCurrentRoute('onboarding-daily-study-time');
+              setCurrentRoute('onboarding-target');
             }}
             onBack={() => setCurrentRoute('onboarding-subjects')}
           />
         );
-      }
-      case 'onboarding-daily-study-time':
+      case 'onboarding-target':
         return (
-          <OnboardingDailyStudyTimeScreen
-            initialTime={onboardingData.dailyStudyTime}
-            onContinue={(time) => {
-              setOnboardingData((prev) => ({ ...prev, dailyStudyTime: time }));
-              setCurrentRoute('onboarding-study-days');
-            }}
-            onBack={() => setCurrentRoute('onboarding-confidence')}
-          />
-        );
-      case 'onboarding-study-days':
-        return (
-          <OnboardingStudyDaysScreen
-            initialDays={onboardingData.studyDays}
-            onContinue={(days) => {
-              setOnboardingData((prev) => ({ ...prev, studyDays: days }));
-              setCurrentRoute('onboarding-session-length');
-            }}
-            onBack={() => setCurrentRoute('onboarding-daily-study-time')}
-          />
-        );
-      case 'onboarding-session-length':
-        return (
-          <OnboardingSessionLengthScreen
-            initialLength={onboardingData.sessionLength}
-            onContinue={(length) => {
-              setOnboardingData((prev) => ({ ...prev, sessionLength: length }));
-              setCurrentRoute('onboarding-study-time-of-day');
-            }}
-            onBack={() => setCurrentRoute('onboarding-study-days')}
-          />
-        );
-      case 'onboarding-study-time-of-day':
-        return (
-          <OnboardingStudyTimeOfDayScreen
-            initialTimeOfDay={onboardingData.studyTimeOfDay}
-            onContinue={(timeOfDay) => {
-              setOnboardingData((prev) => ({ ...prev, studyTimeOfDay: timeOfDay }));
-              setCurrentRoute('onboarding-plan-summary');
-            }}
-            onBack={() => setCurrentRoute('onboarding-session-length')}
-          />
-        );
-      case 'onboarding-plan-summary':
-        return (
-          <OnboardingPlanSummaryScreen
-            userName={onboardingData.name || user.name}
-            targetData={onboardingData.targetData}
-            focusSubject={
-              onboardingData.focusSubject ||
-              (Array.isArray(onboardingData.subjects) && onboardingData.subjects.length > 0
-                ? onboardingData.subjects[0]
-                : 'Mathematics')
+          <OnboardingTargetScreen
+            initialValue={
+              typeof onboardingData.targetData === 'string'
+                ? onboardingData.targetData
+                : onboardingData.targetData?.label || 'In 3 months'
             }
-            subjects={onboardingData.subjects}
-            confidence={onboardingData.confidence}
-            dailyStudyTime={onboardingData.dailyStudyTime}
-            studyTimeOfDay={onboardingData.studyTimeOfDay}
-            onContinue={() => {
+            onContinue={(targetObj) => {
+              setOnboardingData((prev) => ({
+                ...prev,
+                targetData: targetObj,
+              }));
+              setCurrentRoute('onboarding-pomodoro');
+            }}
+            onBack={() => setCurrentRoute('onboarding-study-routine')}
+          />
+        );
+      case 'onboarding-pomodoro':
+        return (
+          <OnboardingPomodoroScreen
+            initialValue={onboardingData.usePomodoro ?? true}
+            onContinue={(usePomodoro, optionObj) => {
+              setOnboardingData((prev) => ({
+                ...prev,
+                usePomodoro,
+                sessionLength: usePomodoro ? '25 min' : '45 min',
+              }));
               setCurrentRoute('onboarding-system-building');
             }}
-            onBack={() => setCurrentRoute('onboarding-study-time-of-day')}
+            onBack={() => setCurrentRoute('onboarding-target')}
           />
         );
+      case 'onboarding-confidence':
+      case 'onboarding-daily-study-time':
+      case 'onboarding-session-length':
+      case 'onboarding-plan-summary':
       case 'onboarding-system-building':
         return (
           <OnboardingSystemBuildingScreen
             userName={onboardingData.name || user.name}
             onboardingData={onboardingData}
             onContinue={() => {
-              setCurrentRoute('onboarding-first-session-intro');
-            }}
-            onBack={() => setCurrentRoute('onboarding-plan-summary')}
-          />
-        );
-      case 'onboarding-first-session-intro': {
-        const currentSubject =
-          onboardingData.focusSubject ||
-          (Array.isArray(onboardingData.subjects) && onboardingData.subjects.length > 0
-            ? onboardingData.subjects[0]
-            : 'Mathematics');
-        return (
-          <OnboardingFirstSessionIntroScreen
-            subject={currentSubject}
-            onContinue={() => setCurrentRoute('onboarding-first-session-quiz')}
-            onBack={() => setCurrentRoute('onboarding-system-building')}
-          />
-        );
-      }
-      case 'onboarding-first-session-quiz': {
-        const currentSubject =
-          onboardingData.focusSubject ||
-          (Array.isArray(onboardingData.subjects) && onboardingData.subjects.length > 0
-            ? onboardingData.subjects[0]
-            : 'Mathematics');
-        return (
-          <OnboardingFirstSessionQuizScreen
-            subject={currentSubject}
-            onContinue={(sessionData) => {
-              if (sessionData) {
-                setOnboardingData((prev) => ({
-                  ...prev,
-                  firstSessionDuration: sessionData.elapsedSeconds,
-                  firstSessionIncorrectCount: sessionData.incorrectCount,
-                  firstSessionTotalQuestions: sessionData.totalQuestions || 3,
-                }));
-              }
-              setCurrentRoute('onboarding-first-session-metrics');
-            }}
-            onBack={() => setCurrentRoute('onboarding-first-session-intro')}
-          />
-        );
-      }
-      case 'onboarding-first-session-metrics': {
-        const currentSubject =
-          onboardingData.focusSubject ||
-          (Array.isArray(onboardingData.subjects) && onboardingData.subjects.length > 0
-            ? onboardingData.subjects[0]
-            : 'Mathematics');
-        return (
-          <OnboardingFirstSessionMetricsScreen
-            userName={onboardingData.name || user.name}
-            subject={currentSubject}
-            goal={onboardingData.goal}
-            secondsStudied={onboardingData.firstSessionDuration}
-            incorrectCount={onboardingData.firstSessionIncorrectCount}
-            totalQuestions={onboardingData.firstSessionTotalQuestions}
-            onContinue={() => setCurrentRoute('onboarding-first-session-reward')}
-            onBack={() => setCurrentRoute('onboarding-first-session-quiz')}
-          />
-        );
-      }
-      case 'onboarding-first-session-reward':
-        return (
-          <OnboardingFirstSessionRewardScreen
-            goal={onboardingData.goal}
-            onContinue={() => {
-              setCurrentRoute('onboarding-session-feedback');
-            }}
-            onBack={() => setCurrentRoute('onboarding-first-session-metrics')}
-          />
-        );
-      case 'onboarding-session-feedback':
-        return (
-          <OnboardingSessionFeedbackScreen
-            initialSelection={onboardingData.sessionFeedback || 'about_right'}
-            onContinue={(feedback) => {
-              setOnboardingData((prev) => ({ ...prev, sessionFeedback: feedback }));
-              setCurrentRoute('onboarding-study-plan-details');
-            }}
-            onBack={() => setCurrentRoute('onboarding-first-session-reward')}
-          />
-        );
-      case 'onboarding-study-plan-details': {
-        const currentSubject =
-          onboardingData.focusSubject ||
-          (Array.isArray(onboardingData.subjects) && onboardingData.subjects.length > 0
-            ? onboardingData.subjects[0]
-            : 'Mathematics');
-        return (
-          <OnboardingStudyPlanDetailsScreen
-            goal={onboardingData.goal}
-            targetData={onboardingData.targetData}
-            focusSubject={currentSubject}
-            dailyStudyTime={onboardingData.dailyStudyTime}
-            studyTimeOfDay={onboardingData.studyTimeOfDay}
-            studyDays={onboardingData.studyDays}
-            onContinue={() => setCurrentRoute('onboarding-first-milestone')}
-            onBack={() => setCurrentRoute('onboarding-session-feedback')}
-          />
-        );
-      }
-      case 'onboarding-first-milestone':
-        return (
-          <OnboardingFirstMilestoneScreen
-            targetData={onboardingData.targetData}
-            studyDays={onboardingData.studyDays}
-            dailyStudyTime={onboardingData.dailyStudyTime}
-            goal={onboardingData.goal}
-            completedSessions={1}
-            milestoneSessions={1}
-            milestonePercent={10}
-            onContinue={() => setCurrentRoute('onboarding-built-summary')}
-            onBack={() => setCurrentRoute('onboarding-study-plan-details')}
-          />
-        );
-      case 'onboarding-built-summary': {
-        const currentSubject =
-          onboardingData.focusSubject ||
-          (Array.isArray(onboardingData.subjects) && onboardingData.subjects.length > 0
-            ? onboardingData.subjects[0]
-            : 'Mathematics');
-        return (
-          <OnboardingBuiltSummaryScreen
-            goal={onboardingData.goal}
-            targetData={onboardingData.targetData}
-            subjects={onboardingData.subjects}
-            focusSubject={currentSubject}
-            dailyStudyTime={onboardingData.dailyStudyTime}
-            studyDays={onboardingData.studyDays}
-            milestonePercent="20%"
-            onContinue={() => setCurrentRoute('onboarding-seriousness-level')}
-            onBack={() => setCurrentRoute('onboarding-first-milestone')}
-          />
-        );
-      }
-      case 'onboarding-seriousness-level':
-        return (
-          <OnboardingSeriousnessLevelScreen
-            initialSelection={onboardingData.seriousness || 'priority'}
-            onContinue={(seriousness) => {
-              setOnboardingData((prev) => ({ ...prev, seriousness }));
               setCurrentRoute('onboarding-make-it-real');
             }}
-            onBack={() => setCurrentRoute('onboarding-built-summary')}
+            onBack={() => setCurrentRoute('onboarding-pomodoro')}
           />
         );
+      case 'onboarding-first-milestone':
+      case 'onboarding-built-summary':
+      case 'onboarding-seriousness-level':
       case 'onboarding-make-it-real':
         return (
           <OnboardingMakeItRealScreen
             onContinue={() => {
-              setCurrentRoute('onboarding-reminder-permission');
+              setCurrentRoute('onboarding-study-protection');
             }}
-            onBack={() => setCurrentRoute('onboarding-seriousness-level')}
+            onBack={() => setCurrentRoute('onboarding-system-building')}
           />
         );
       case 'onboarding-reminder-permission':
-        return (
-          <OnboardingReminderPermissionScreen
-            onContinue={(enabled) => {
-              setOnboardingData((prev) => ({ ...prev, remindersEnabled: enabled }));
-              setCurrentRoute('onboarding-study-protection');
-            }}
-            onSkip={() => {
-              setOnboardingData((prev) => ({ ...prev, remindersEnabled: false }));
-              setCurrentRoute('onboarding-study-protection');
-            }}
-            onBack={() => setCurrentRoute('onboarding-make-it-real')}
-          />
-        );
       case 'onboarding-study-protection':
         return (
           <OnboardingStudyProtectionScreen
             onContinue={(enabled) => {
               setOnboardingData((prev) => ({ ...prev, focusProtectionEnabled: enabled }));
-              setCurrentRoute('onboarding-power-built');
+              setCurrentRoute('onboarding-trial-reminder');
             }}
             onSkip={() => {
               setOnboardingData((prev) => ({ ...prev, focusProtectionEnabled: false }));
-              setCurrentRoute('onboarding-power-built');
+              setCurrentRoute('onboarding-trial-reminder');
             }}
-            onBack={() => setCurrentRoute('onboarding-reminder-permission')}
-          />
-        );
-      case 'onboarding-power-built':
-        return (
-          <OnboardingPowerBuiltScreen
-            onContinue={() => {
-              setCurrentRoute('onboarding-7day-roadmap');
-            }}
-            onBack={() => setCurrentRoute('onboarding-study-protection')}
+            onBack={() => setCurrentRoute('onboarding-make-it-real')}
           />
         );
       case 'onboarding-7day-roadmap':
-        return (
-          <OnboardingSevenDayRoadmapScreen
-            onContinue={() => {
-              setCurrentRoute('onboarding-trial-reminder');
-            }}
-            onBack={() => setCurrentRoute('onboarding-power-built')}
-          />
-        );
       case 'onboarding-trial-reminder':
         return (
           <OnboardingTrialReminderScreen
             onContinue={() => {
               setCurrentRoute('onboarding-paywall');
             }}
-            onBack={() => setCurrentRoute('onboarding-7day-roadmap')}
+            onBack={() => setCurrentRoute('onboarding-study-protection')}
           />
         );
       case 'onboarding-paywall':
         return (
           <OnboardingPaywallScreen
             onContinue={(selectedPlan) => {
-              setCurrentRoute('onboarding-save-account');
-            }}
-            onBack={() => setCurrentRoute('onboarding-trial-reminder')}
-          />
-        );
-      case 'onboarding-save-account':
-        return (
-          <OnboardingSaveAccountScreen
-            userName={onboardingData.name || user.name || 'Alex'}
-            onContinue={() => {
-              if (onboardingData.name && onboardingData.name.trim()) {
-                setUser((prev) => ({
-                  ...prev,
-                  name: onboardingData.name.trim(),
-                }));
-              }
-              setCreateAccountMode('signup');
-              setCurrentRoute('onboarding-create-account');
-            }}
-            onLogin={() => {
-              if (onboardingData.name && onboardingData.name.trim()) {
-                setUser((prev) => ({
-                  ...prev,
-                  name: onboardingData.name.trim(),
-                }));
-              }
-              setCreateAccountMode('login');
-              setCurrentRoute('onboarding-create-account');
-            }}
-            onBack={() => setCurrentRoute('onboarding-paywall')}
-          />
-        );
-      case 'onboarding-create-account':
-        return (
-          <OnboardingCreateAccountScreen
-            initialMode={createAccountMode}
-            defaultUsername={onboardingData.name || (user.name !== 'Alex' ? user.name : '')}
-            defaultEmail={user.email || ''}
-            onContinue={(accData) => {
-              setUser((prev) => ({
-                ...prev,
-                ...(accData?.username ? { name: accData.username } : {}),
-                ...(accData?.email ? { email: accData.email } : {}),
-              }));
-              setCurrentRoute('onboarding-app-ready');
-            }}
-            onGoogleSignIn={() => {
-              setCurrentRoute('onboarding-app-ready');
-            }}
-            onBack={() => setCurrentRoute('onboarding-save-account')}
-          />
-        );
-      case 'onboarding-app-ready':
-        return (
-          <OnboardingAppReadyScreen
-            userName={user.name || onboardingData.name || 'Alex'}
-            subjects={onboardingData.subjects || user.subjects || ['Mathematics', 'Physics', 'Chemistry', 'English']}
-            onContinue={() => {
+              timetableService.getOrGenerateTimetable(user, onboardingData).catch(() => {});
               setCurrentRoute('dashboard');
               setNavHistory(['dashboard']);
             }}
+            onBack={() => setCurrentRoute('onboarding-trial-reminder')}
           />
         );
       case 'community':
@@ -1256,6 +1159,8 @@ function AppContent() {
         return 'home';
       case 'community':
         return 'community';
+      case 'aicoach':
+        return 'aicoach';
       case 'schedule':
         return 'schedule';
       case 'profile':
@@ -1276,7 +1181,10 @@ function AppContent() {
   };
 
   const appContent = (
-    <SafeAreaProvider initialMetrics={Platform.OS === 'web' ? webFrameMetrics : initialWindowMetrics}>
+    <SafeAreaProvider
+      style={{ flex: 1, width: '100%', height: '100%' }}
+      initialMetrics={Platform.OS === 'web' ? webFrameMetrics : initialWindowMetrics}
+    >
       <View style={[styles.rootContainer, isDark && { backgroundColor: '#0B0F19' }]}>
         <ExpoStatusBar style={isDark ? 'light' : 'dark'} translucent backgroundColor="transparent" />
         <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" />
@@ -1289,6 +1197,7 @@ function AppContent() {
         {/* Persistent Static Bottom Navigation Bar (Visible across main app screens, hidden in full-screen note-editor) */}
         {ROUTES_WITH_BOTTOM_BAR.includes(currentRoute) && !(currentRoute === 'study' && studyViewState === 'note-editor') && (
           <BottomNavBar
+            key="bottom-nav-bar-v2"
             activeTab={getActiveTabForRoute(currentRoute)}
             onSelectTab={handleTabSelect}
           />
@@ -1324,54 +1233,30 @@ function AppContent() {
                 bounces={true}
               >
                 {[
-                  { id: 'onboarding', label: '1. Onboarding (Hey)' },
-                  { id: 'onboarding-problem', label: '2. Onboarding (Questions)' },
-                  { id: 'onboarding-solution', label: '3. Onboarding (Value Prop)' },
-                  { id: 'onboarding-hear-about-us', label: '4. Hear About Us' },
-                  { id: 'onboarding-lock', label: '5. Onboarding (App Lock)' },
-                  { id: 'onboarding-partner', label: '6. Onboarding (Study Partner)' },
-                  { id: 'onboarding-name', label: '7. Onboarding (Name Input)' },
-                  { id: 'onboarding-goal', label: '8. Onboarding (Goal)' },
-                  { id: 'onboarding-consider', label: '9. Onboarding (Consider)' },
-                  { id: 'onboarding-phone-time', label: '10. Onboarding (Phone Time)' },
-                  { id: 'onboarding-target', label: '11. Onboarding (Target)' },
-                  { id: 'onboarding-calculation', label: '12. Onboarding (Calculation)' },
-                  { id: 'onboarding-plan-offer', label: '13. Onboarding (Plan Offer)' },
-                  { id: 'onboarding-subjects', label: '14. Onboarding (Subjects)' },
-                  { id: 'onboarding-confidence', label: '15. Onboarding (Confidence)' },
-                  { id: 'onboarding-daily-study-time', label: '16. Onboarding (Daily Time)' },
-                  { id: 'onboarding-study-days', label: '17. Onboarding (Study Days)' },
-                  { id: 'onboarding-session-length', label: '18. Onboarding (Session Length)' },
-                  { id: 'onboarding-study-time-of-day', label: '19. Onboarding (Time of Day)' },
-                  { id: 'onboarding-plan-summary', label: '20. Onboarding (Plan Summary)' },
-                  { id: 'onboarding-system-building', label: '21. Onboarding (Building System)' },
-                  { id: 'onboarding-first-session-intro', label: '22. First Session (Intro)' },
-                  { id: 'onboarding-first-session-quiz', label: '23. First Session (Quiz)' },
-                  { id: 'onboarding-first-session-metrics', label: '24. First Session (Metrics)' },
-                  { id: 'onboarding-first-session-reward', label: '25. First Session (Reward)' },
-                  { id: 'onboarding-session-feedback', label: '26. Session Feedback' },
-                  { id: 'onboarding-study-plan-details', label: '27. Study Plan Details' },
-                  { id: 'onboarding-first-milestone', label: '28. First Milestone' },
-                  { id: 'onboarding-built-summary', label: '29. What We Built' },
-                  { id: 'onboarding-seriousness-level', label: '30. Seriousness Level' },
-                  { id: 'onboarding-make-it-real', label: '31. Make It Real' },
-                  { id: 'onboarding-reminder-permission', label: '32. Reminders' },
-                  { id: 'onboarding-study-protection', label: '33. Study Protection' },
-                  { id: 'onboarding-power-built', label: '34. Power Behind It' },
-                  { id: 'onboarding-7day-roadmap', label: '35. 7-Day Transformation' },
-                  { id: 'onboarding-trial-reminder', label: '36. Free Trial Reminder' },
-                  { id: 'onboarding-paywall', label: '37. Paywall / Checkout' },
-                  { id: 'onboarding-save-account', label: '38. Save Account' },
-                  { id: 'onboarding-create-account', label: '39. Create Account' },
-                  { id: 'dashboard', label: '40. Dashboard' },
-                  { id: 'community', label: '41. Community' },
-                  { id: 'subjects', label: '42. Subjects (Workspace)' },
-                  { id: 'aicoach', label: '43. Branco' },
-                  { id: 'schedule', label: '44. Schedule' },
-                  { id: 'profile', label: '45. Profile' },
-                  { id: 'study', label: '46. Study & SRS' },
-                  { id: 'leaderboard', label: '47. Leaderboard' },
-                  { id: 'settings', label: '48. Settings' },
+                  { id: 'onboarding-problem', label: '1. Onboarding (Questions)' },
+                  { id: 'onboarding-solution', label: '2. Onboarding (Value Prop)' },
+                  { id: 'onboarding-lock', label: '3. Onboarding (App Lock)' },
+                  { id: 'onboarding-create-account', label: '4. Create Account' },
+                  { id: 'onboarding-hear-about-us', label: '5. Hear About Us' },
+                  { id: 'onboarding-goal', label: '6. Onboarding (Goal)' },
+                  { id: 'onboarding-subjects', label: '7. Onboarding (Subjects)' },
+                  { id: 'onboarding-study-routine', label: '8. Onboarding (Study Routine)' },
+                  { id: 'onboarding-target', label: '9. Onboarding (Target)' },
+                  { id: 'onboarding-pomodoro', label: '10. Onboarding (Pomodoro)' },
+                  { id: 'onboarding-system-building', label: '11. Building System' },
+                  { id: 'onboarding-make-it-real', label: '12. Make It Real' },
+                  { id: 'onboarding-study-protection', label: '13. Study Protection' },
+                  { id: 'onboarding-trial-reminder', label: '14. Free Trial Reminder' },
+                  { id: 'onboarding-paywall', label: '15. Paywall / Checkout' },
+                  { id: 'dashboard', label: '16. Dashboard' },
+                  { id: 'community', label: '17. Community' },
+                  { id: 'subjects', label: '18. Subjects (Workspace)' },
+                  { id: 'aicoach', label: '19. Nia' },
+                  { id: 'schedule', label: '20. Schedule' },
+                  { id: 'profile', label: '21. Profile' },
+                  { id: 'study', label: '22. Study & SRS' },
+                  { id: 'leaderboard', label: '23. Leaderboard' },
+                  { id: 'settings', label: '24. Settings' },
                 ].map((item) => {
                   const isActive = currentRoute === item.id;
                   return (
@@ -1480,10 +1365,14 @@ const styles = StyleSheet.create({
   },
   rootContainer: {
     flex: 1,
+    width: '100%',
+    height: '100%',
     backgroundColor: '#FFFFFF',
   },
   screenWrapper: {
     flex: 1,
+    width: '100%',
+    height: '100%',
   },
   floatingNavContainer: {
     position: 'absolute',

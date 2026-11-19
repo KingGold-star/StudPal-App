@@ -150,12 +150,20 @@ class I18nService {
       val = enVal;
     }
 
-    // 3. Fallback to provided default string or keyPath
+    // 3. Fallback to provided default string or fallback parameter
     if (!val || typeof val !== "string") {
       if (typeof paramsOrFallback === "string") {
         return paramsOrFallback;
       }
-      return parts[parts.length - 1] || keyPath;
+      if (paramsOrFallback && typeof paramsOrFallback === "object") {
+        if (typeof paramsOrFallback.defaultValue === "string") {
+          return paramsOrFallback.defaultValue.replace(/\{(\w+)\}/g, (_, k) => (k in paramsOrFallback ? paramsOrFallback[k] : ""));
+        }
+        if (typeof paramsOrFallback.fallback === "string") {
+          return paramsOrFallback.fallback.replace(/\{(\w+)\}/g, (_, k) => (k in paramsOrFallback ? paramsOrFallback[k] : ""));
+        }
+      }
+      return "";
     }
 
     // 4. Interpolate params if object provided

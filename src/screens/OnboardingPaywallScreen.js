@@ -22,6 +22,8 @@ import Svg, {
   G,
 } from 'react-native-svg';
 import { ipLocationService } from '../services/ipLocationService';
+import { useTheme } from '../theme/themeContext';
+import { getOnboardingTheme } from '../theme/onboardingTheme';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -110,6 +112,8 @@ function SproutFeatureIcon() {
 // MAIN SCREEN COMPONENT
 // ==========================================
 export default function OnboardingPaywallScreen({ onContinue, onBack }) {
+  const { isDark } = useTheme();
+  const theme = getOnboardingTheme(isDark);
   const [selectedPlan, setSelectedPlan] = useState('trial'); // 'trial' or 'week'
   const [countryCode, setCountryCode] = useState(ipLocationService.getCountryCode() || 'NG');
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -247,24 +251,7 @@ export default function OnboardingPaywallScreen({ onContinue, onBack }) {
 
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
         {/* Top Navigation Bar with Back Arrow */}
-        <View style={styles.topNavBar}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={onBack}
-            activeOpacity={0.7}
-            hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
-          >
-            <Svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <Path
-                d="M 15 19 L 8 12 L 15 5"
-                stroke="#FFFFFF"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </Svg>
-          </TouchableOpacity>
-        </View>
+        <View style={styles.topNavBar} />
 
         {/* Main Content Body */}
         <Animated.View style={[styles.mainBody, { opacity: fadeAnim }]}>
@@ -318,7 +305,8 @@ export default function OnboardingPaywallScreen({ onContinue, onBack }) {
               <TouchableOpacity
                 style={[
                   styles.planCard,
-                  selectedPlan === 'trial' && styles.planCardActive,
+                  isDark && { backgroundColor: selectedPlan === 'trial' ? 'rgba(37, 99, 235, 0.18)' : '#121929', borderColor: selectedPlan === 'trial' ? '#3B82F6' : 'rgba(255, 255, 255, 0.08)' },
+                  selectedPlan === 'trial' && !isDark && styles.planCardActive,
                 ]}
                 onPress={() => handleSelectPlanAndContinue('trial', trialCardScale)}
                 onPressIn={() => handleCardPressIn(trialCardScale)}
@@ -326,10 +314,10 @@ export default function OnboardingPaywallScreen({ onContinue, onBack }) {
                 activeOpacity={0.92}
               >
                 <View style={styles.planLeftCol}>
-                  <Text style={styles.planTitle}>Free</Text>
-                  <Text style={styles.planSubtitle}>3 days</Text>
+                  <Text style={[styles.planTitle, isDark && { color: '#FFFFFF' }]}>Free</Text>
+                  <Text style={[styles.planSubtitle, isDark && { color: '#94A3B8' }]}>3 days</Text>
                 </View>
-                <View style={styles.noPaymentPill}>
+                <View style={[styles.noPaymentPill, isDark && { backgroundColor: '#2563EB' }]}>
                   <Text style={styles.noPaymentPillText}>No Payment Now</Text>
                 </View>
               </TouchableOpacity>
@@ -340,7 +328,8 @@ export default function OnboardingPaywallScreen({ onContinue, onBack }) {
               <TouchableOpacity
                 style={[
                   styles.planCard,
-                  selectedPlan === 'week' && styles.planCardActive,
+                  isDark && { backgroundColor: selectedPlan === 'week' ? 'rgba(37, 99, 235, 0.18)' : '#121929', borderColor: selectedPlan === 'week' ? '#3B82F6' : 'rgba(255, 255, 255, 0.08)' },
+                  selectedPlan === 'week' && !isDark && styles.planCardActive,
                 ]}
                 onPress={() => handleSelectPlanAndContinue('week', weekCardScale)}
                 onPressIn={() => handleCardPressIn(weekCardScale)}
@@ -348,8 +337,8 @@ export default function OnboardingPaywallScreen({ onContinue, onBack }) {
                 activeOpacity={0.92}
               >
                 <View style={styles.planLeftCol}>
-                  <Text style={styles.planTitle}>1 week</Text>
-                  <Text style={styles.planSubtitle}>{weeklyPriceText}</Text>
+                  <Text style={[styles.planTitle, isDark && { color: '#FFFFFF' }]}>1 week</Text>
+                  <Text style={[styles.planSubtitle, isDark && { color: '#94A3B8' }]}>{weeklyPriceText}</Text>
                 </View>
               </TouchableOpacity>
             </Animated.View>
@@ -361,7 +350,7 @@ export default function OnboardingPaywallScreen({ onContinue, onBack }) {
           {/* 6. Primary Action CTA Button with Tactile Spring Press Animation */}
           <Animated.View style={{ width: '100%', transform: [{ scale: btnScale }] }}>
             <TouchableOpacity
-              style={styles.primaryButton}
+              style={[styles.primaryButton, isDark && { backgroundColor: '#2563EB', shadowColor: '#2563EB' }]}
               onPress={handlePressContinue}
               onPressIn={handlePressIn}
               onPressOut={handlePressOut}

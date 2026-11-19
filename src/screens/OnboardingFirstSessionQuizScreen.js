@@ -486,27 +486,63 @@ export default function OnboardingFirstSessionQuizScreen({
 
                 if (!isAnswerChecked) {
                   if (isSelected) {
-                    cardStyle.push(styles.quizOptionCardSelected);
+                    cardStyle.push([
+                      styles.quizOptionCardSelected,
+                      {
+                        backgroundColor: theme.cardSelected,
+                        borderColor: theme.cardSelectedBorder,
+                      },
+                    ]);
                     badgeStyle.push(styles.quizOptionLetterBadgeSelected);
                     letterStyle.push(styles.quizOptionLetterTextSelected);
-                    textStyle.push(styles.quizOptionTextSelected);
+                    textStyle.push([
+                      styles.quizOptionTextSelected,
+                      isDark && { color: theme.textPrimary },
+                    ]);
                   }
                 } else {
                   if (isSelected && isCorrectOpt) {
-                    cardStyle.push(styles.quizOptionCardCorrect);
+                    cardStyle.push([
+                      styles.quizOptionCardCorrect,
+                      isDark && {
+                        backgroundColor: 'rgba(16, 185, 129, 0.18)',
+                        borderColor: '#10B981',
+                      },
+                    ]);
                     badgeStyle.push(styles.quizOptionLetterBadgeCorrect);
                     letterStyle.push(styles.quizOptionLetterTextSelected);
-                    textStyle.push(styles.quizOptionTextCorrect);
+                    textStyle.push([
+                      styles.quizOptionTextCorrect,
+                      isDark && { color: '#34D399' },
+                    ]);
                   } else if (isSelected && !isCorrectOpt) {
-                    cardStyle.push(styles.quizOptionCardWrong);
+                    cardStyle.push([
+                      styles.quizOptionCardWrong,
+                      isDark && {
+                        backgroundColor: 'rgba(239, 68, 68, 0.18)',
+                        borderColor: '#EF4444',
+                      },
+                    ]);
                     badgeStyle.push(styles.quizOptionLetterBadgeWrong);
                     letterStyle.push(styles.quizOptionLetterTextSelected);
-                    textStyle.push(styles.quizOptionTextWrong);
+                    textStyle.push([
+                      styles.quizOptionTextWrong,
+                      isDark && { color: '#F87171' },
+                    ]);
                   } else if (!isSelected && isCorrectOpt) {
-                    cardStyle.push(styles.quizOptionCardCorrectRevealed);
+                    cardStyle.push([
+                      styles.quizOptionCardCorrectRevealed,
+                      isDark && {
+                        backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                        borderColor: '#10B981',
+                      },
+                    ]);
                     badgeStyle.push(styles.quizOptionLetterBadgeCorrect);
                     letterStyle.push(styles.quizOptionLetterTextSelected);
-                    textStyle.push(styles.quizOptionTextCorrect);
+                    textStyle.push([
+                      styles.quizOptionTextCorrect,
+                      isDark && { color: '#34D399' },
+                    ]);
                   } else {
                     cardStyle.push({ opacity: 0.45 });
                   }
@@ -532,11 +568,19 @@ export default function OnboardingFirstSessionQuizScreen({
             {/* Feedback / Explanation Box after checking answer */}
             {isAnswerChecked && (
               <View
-                style={
+                style={[
                   isUserCorrect
                     ? styles.quizFeedbackCardCorrect
-                    : styles.quizFeedbackCardWrong
-                }
+                    : styles.quizFeedbackCardWrong,
+                  isDark && {
+                    backgroundColor: isUserCorrect
+                      ? 'rgba(16, 185, 129, 0.12)'
+                      : 'rgba(239, 68, 68, 0.12)',
+                    borderColor: isUserCorrect
+                      ? 'rgba(16, 185, 129, 0.3)'
+                      : 'rgba(239, 68, 68, 0.3)',
+                  },
+                ]}
               >
                 <View style={styles.quizFeedbackHeaderRow}>
                   {isUserCorrect ? (
@@ -545,18 +589,19 @@ export default function OnboardingFirstSessionQuizScreen({
                     <AlertTriangleIcon size={22} color="#EF4444" />
                   )}
                   <Text
-                    style={
+                    style={[
                       isUserCorrect
                         ? styles.quizFeedbackTitleCorrect
-                        : styles.quizFeedbackTitleWrong
-                    }
+                        : styles.quizFeedbackTitleWrong,
+                      isDark && { color: isUserCorrect ? '#34D399' : '#F87171' },
+                    ]}
                   >
                     {isUserCorrect ? 'Correct Answer! 🎉' : 'Incorrect Answer'}
                   </Text>
                 </View>
 
                 {!isUserCorrect && (
-                  <Text style={styles.quizFeedbackCorrectAnswerText}>
+                  <Text style={[styles.quizFeedbackCorrectAnswerText, isDark && { color: '#FCA5A5' }]}>
                     Correct Answer:{' '}
                     <Text style={{ fontWeight: '800' }}>
                       {String.fromCharCode(65 + currentQ.correctIndex)}. {currentQ.options[currentQ.correctIndex]}
@@ -565,7 +610,7 @@ export default function OnboardingFirstSessionQuizScreen({
                 )}
 
                 {currentQ.explanation ? (
-                  <Text style={styles.quizFeedbackText}>{currentQ.explanation}</Text>
+                  <Text style={[styles.quizFeedbackText, isDark && { color: theme.textSecondary }]}>{currentQ.explanation}</Text>
                 ) : null}
               </View>
             )}
@@ -576,7 +621,7 @@ export default function OnboardingFirstSessionQuizScreen({
         <View style={[styles.bottomSection, { backgroundColor: theme.bg, borderTopColor: theme.border }]}>
           <TouchableOpacity
             style={[
-              styles.primaryActionBtn,
+              styles.primaryActionBtn, isDark && { backgroundColor: '#2563EB', shadowColor: '#2563EB' },
               isAnswerChecked && isUserCorrect && styles.primaryActionBtnCorrect,
               !isAnswerChecked && selectedOption === null && styles.primaryActionBtnDisabled,
             ]}
@@ -673,8 +718,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   quizOptionCardSelected: {
-    borderColor: '#1200C6',
-    backgroundColor: '#F5F3FF',
+    borderColor: '#2563EB',
+    backgroundColor: '#EFF6FF',
   },
   quizOptionCardCorrect: {
     borderColor: '#10B981',
@@ -699,8 +744,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   quizOptionLetterBadgeSelected: {
-    backgroundColor: '#1200C6',
-    borderColor: '#1200C6',
+    backgroundColor: '#2563EB',
+    borderColor: '#2563EB',
   },
   quizOptionLetterBadgeCorrect: {
     backgroundColor: '#10B981',
@@ -726,7 +771,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.1,
   },
   quizOptionTextSelected: {
-    color: '#1200C6',
+    color: '#3B82F6',
     fontWeight: '700',
   },
   quizOptionTextCorrect: {
